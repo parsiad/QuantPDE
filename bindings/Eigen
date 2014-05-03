@@ -1,0 +1,16 @@
+#ifndef QUANT_PDE_BINDINGS_EIGEN
+#define QUANT_PDE_BINDINGS_EIGEN
+
+#include <eigen3/Eigen/SparseCore>
+
+namespace QuantPDE {
+
+typedef Eigen::Matrix<double, Eigen::Dynamic, 1> Vector;
+typedef Eigen::SparseMatrix<double, Eigen::RowMajor> Matrix;
+
+typedef long Index;
+
+}
+
+#endif
+

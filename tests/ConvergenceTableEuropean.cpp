@@ -1,3 +1,4 @@
+#include <QuantPDE/bindings/Eigen>
 #include <QuantPDE/Core>
 #include <QuantPDE/modules/European.hpp>
 #include <QuantPDE/modules/Payoffs.hpp>

@@ -1,5 +1,5 @@
-#ifndef QUANTPDE
-#define QUANTPDE
+#ifndef QUANT_PDE
+#define QUANT_PDE
 
 // i/o streams
 #include <iostream>
@@ -27,25 +27,6 @@
 
 // stdlib
 #include <stdlib.h>
-
-/*****************************************************************************/
-
-#include <eigen3/Eigen/SparseCore>
-
-namespace QuantPDE {
-
-// TODO: Currently we assume the Scalar type is double; make this more general
-
-// TODO: Allow column major orderings
-typedef Eigen::Matrix<double, Eigen::Dynamic, 1> Vector;
-typedef Eigen::SparseMatrix<double, Eigen::RowMajor> Matrix;
-
-// Eigen uses signed indices
-typedef long Index;
-
-}
-
-/*****************************************************************************/
 
 #include "src/Axis.hpp"
 #include "src/Grid.hpp"
