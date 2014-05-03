@@ -1,6 +1,12 @@
 #ifndef QUANT_PDE_AXIS_HPP
 #define QUANT_PDE_AXIS_HPP
 
+#include <algorithm>        // std::swap
+#include <assert.h>         // assert
+#include <initializer_list> // std::initializer_list
+#include <iostream>         // std::ostream
+#include <cstring>          // std::memcpy
+
 namespace QuantPDE {
 
 /**
@@ -54,7 +60,7 @@ public:
 	Axis(const Vector &vector) {
 		length = vector.size();
 		n = new double[length];
-		memcpy(n, vector.data(), sizeof(double) * length);
+		std::memcpy(n, vector.data(), sizeof(double) * length);
 	}
 
 	/**

@@ -1,38 +1,11 @@
 #ifndef QUANT_PDE
 #define QUANT_PDE
 
-// i/o streams
-#include <iostream>
-
-// memcpy
-#include <cstring>
-
-// initializer_list
-#include <initializer_list>
-
-// iterator
-#include <iterator>
-
-// tuples
-#include <tuple>
-
-// enable_if
-#include <type_traits>
-
-// vectors
-#include <vector>
-
-// assert
-#include <assert.h>
-
-// stdlib
-#include <stdlib.h>
-
-#include "src/Axis.hpp"
-#include "src/Grid.hpp"
-#include "src/Event.hpp"
-#include "src/Function.hpp"
-#include "src/Stepper.hpp"
+#include "QuantPDE/src/Axis.hpp"
+#include "QuantPDE/src/Grid.hpp"
+#include "QuantPDE/src/Event.hpp"
+#include "QuantPDE/src/Function.hpp"
+#include "QuantPDE/src/Stepper.hpp"
 
 #endif
 

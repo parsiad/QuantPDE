@@ -1,6 +1,8 @@
 #ifndef QUANT_PDE_STEPPER_HPP
 #define QUANT_PDE_STEPPER_HPP
 
+#include <assert.h>
+
 namespace QuantPDE {
 
 /**

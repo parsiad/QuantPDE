@@ -1,6 +1,12 @@
 #ifndef QUANT_PDE_GRID_HPP
 #define QUANT_PDE_GRID_HPP
 
+#include <algorithm>        // std::swap
+#include <assert.h>         // assert
+#include <initializer_list> // std::initializer_list
+#include <iostream>         // std::ostream
+#include <cstring>          // std::memcpy
+
 namespace QuantPDE {
 
 class Grid;
@@ -34,7 +40,8 @@ class Grid {
 		VectorIndex(const VectorIndex &that) : grid(that.grid),
 				vector(that.vector), index(that.index) {
 			idxs = new Index[grid->size()];
-			memcpy(idxs, that.idxs, sizeof(Index) * grid->size());
+			std::memcpy(idxs, that.idxs,
+					sizeof(Index) * grid->size());
 		}
 
 		VectorIndex(VectorIndex &&that) : grid(that.grid),

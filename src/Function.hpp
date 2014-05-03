@@ -1,6 +1,8 @@
 #ifndef QUANT_PDE_FUNCTION_HPP
 #define QUANT_PDE_FUNCTION_HPP
 
+#include <cstring> // std::memcpy
+
 namespace QuantPDE {
 
 /**
@@ -135,7 +137,7 @@ class PiecewiseLinear : public Function {
 
 		Index dim = grid.size();
 		Index *other = new Index[dim];
-		memcpy(other, indices, sizeof(Index) * dim);
+		std::memcpy(other, indices, sizeof(Index) * dim);
 		other[dim - (end - start)]++;
 
 		double v = (*start)
