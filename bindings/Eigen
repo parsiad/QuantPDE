@@ -8,8 +8,6 @@ namespace QuantPDE {
 typedef Eigen::Matrix<double, Eigen::Dynamic, 1> Vector;
 typedef Eigen::SparseMatrix<double, Eigen::RowMajor> Matrix;
 
-typedef long Index;
-
 }
 
 #endif

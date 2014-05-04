@@ -11,13 +11,11 @@ using namespace QuantPDE::Modules;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+#include <cstdlib>
 #include <iostream>
 #include <iomanip>
 #include <fstream>
 #include <sstream>
-
-#include <stdlib.h>
-#include <time.h>
 #include <unistd.h>
 
 using namespace std;

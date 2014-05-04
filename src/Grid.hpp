@@ -2,10 +2,10 @@
 #define QUANT_PDE_GRID_HPP
 
 #include <algorithm>        // std::swap
-#include <assert.h>         // assert
+#include <cstring>          // std::memcpy
+#include <cassert>          // assert
 #include <initializer_list> // std::initializer_list
 #include <iostream>         // std::ostream
-#include <cstring>          // std::memcpy
 
 namespace QuantPDE {
 
@@ -21,8 +21,8 @@ class Grid {
 
 		typedef typename std::conditional<isConst, const Vector,
 				Vector>::type V;
-		typedef typename std::conditional<isConst, double,
-				double &>::type D;
+		typedef typename std::conditional<isConst, Real,
+				Real &>::type D;
 
 		const Grid *grid;
 		V *vector;
@@ -124,8 +124,8 @@ class Grid {
 
 		typedef typename std::conditional<isConst, const Vector,
 				Vector>::type V;
-		typedef typename std::conditional<isConst, double,
-				double &>::type D;
+		typedef typename std::conditional<isConst, Real,
+				Real &>::type D;
 
 		const Grid &grid;
 		V &vector;
@@ -145,11 +145,11 @@ class Grid {
 
 		///////////////////////////////////////////////////////////////
 
-		double operator()(const double *coordinates) const;
+		Real operator()(const Real *coordinates) const;
 
 		template <typename ...ArgsT>
-		double operator()(double c0, ArgsT ...coordinates) const {
-			double coords[] {c0, coordinates...};
+		Real operator()(Real c0, ArgsT ...coordinates) const {
+			Real coords[] {c0, coordinates...};
 			return (*this)(coords);
 		}
 
@@ -205,13 +205,13 @@ class Grid {
 
 		///////////////////////////////////////////////////////////////
 
-		double &operator()(const Index *indices) const {
+		Real &operator()(const Index *indices) const {
 			return matrix.insert( grid.unroll(indices),
 					grid.unroll(indices + grid.size()) );
 		}
 
 		template <typename ...ArgsT>
-		double &operator()(ArgsT ...indices) const {
+		Real &operator()(ArgsT ...indices) const {
 			Index idxs[] {indices...};
 			assert(sizeof(idxs) == grid.size() * sizeof(Index) * 2);
 			return matrix.insert( grid.unroll(idxs),
@@ -355,7 +355,7 @@ public:
 	 *                    array is set to the corresponding tick on the i-th
 	 *                    axis.
 	 */
-	virtual void coordinates(const Index *indices, double *coordinates)
+	virtual void coordinates(const Index *indices, Real *coordinates)
 			const = 0;
 
 	/**
@@ -525,7 +525,7 @@ public:
 		return *this;
 	}
 
-	virtual void coordinates(const Index *indices, double *coordinates)
+	virtual void coordinates(const Index *indices, Real *coordinates)
 			const {
 		Axis **p = axes, **end = axes + dim;
 		while(p != end) {
@@ -557,7 +557,7 @@ public:
 template <bool isConst>
 std::ostream &operator<<(std::ostream &os,
 		const Grid::GridVector<isConst> &v_G) {
-	double *coordinates = new double[v_G.grid.size()];
+	Real *coordinates = new Real[v_G.grid.size()];
 	for(auto v_indices : v_G) {
 		v_G.grid.coordinates(&v_indices, coordinates);
 		for(Index i = 0; i < v_G.grid.size(); i++) {

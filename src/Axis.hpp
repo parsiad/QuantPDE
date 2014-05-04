@@ -2,10 +2,10 @@
 #define QUANT_PDE_AXIS_HPP
 
 #include <algorithm>        // std::swap
-#include <assert.h>         // assert
+#include <cassert>          // assert
+#include <cstring>          // std::memcpy
 #include <initializer_list> // std::initializer_list
 #include <iostream>         // std::ostream
-#include <cstring>          // std::memcpy
 
 namespace QuantPDE {
 
@@ -17,11 +17,11 @@ namespace QuantPDE {
  */
 class Axis final {
 
-	double *n;
+	Real *n;
 	Index length;
 
 	Axis(Index length) : length(length) {
-		n = new double[length];
+		n = new Real[length];
 	}
 
 public:
@@ -31,15 +31,15 @@ public:
 	 * @param list The ticks. These should be strictly monotonically
 	 *             increasing.
 	 */
-	Axis(std::initializer_list<double> list) {
+	Axis(std::initializer_list<Real> list) {
 		length = list.size();
 
 		assert(length > 0);
 
-		this->n = new double[length];
+		this->n = new Real[length];
 
-		double *p = n;
-		for(double tick : list) {
+		Real *p = n;
+		for(Real tick : list) {
 			*(p++) = tick;
 		}
 
@@ -59,16 +59,16 @@ public:
 	 */
 	Axis(const Vector &vector) {
 		length = vector.size();
-		n = new double[length];
-		std::memcpy(n, vector.data(), sizeof(double) * length);
+		n = new Real[length];
+		std::memcpy(n, vector.data(), sizeof(Real) * length);
 	}
 
 	/**
 	 * Copy constructor.
 	 */
 	Axis(const Axis &that) : length(that.length) {
-		n = new double[length];
-		std::memcpy(n, that.n, length * sizeof(double));
+		n = new Real[length];
+		std::memcpy(n, that.n, length * sizeof(Real));
 	}
 
 	/**
@@ -101,7 +101,7 @@ public:
 	 * Return a non-const reference to a node by index.
 	 * @param i The index.
 	 */
-	double &operator()(Index i) {
+	Real &operator()(Index i) {
 		return n[i];
 	}
 
@@ -109,14 +109,14 @@ public:
 	 * Return a const reference to a node by index.
 	 * @param i The index.
 	 */
-	const double &operator()(Index i) const {
+	const Real &operator()(Index i) const {
 		return n[i];
 	}
 
 	/**
 	 * @return A pointer to the ticks on this axis.
 	 */
-	const double *ticks() const {
+	const Real *ticks() const {
 		return n;
 	}
 

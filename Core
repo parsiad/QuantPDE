@@ -1,6 +1,8 @@
 #ifndef QUANT_PDE
 #define QUANT_PDE
 
+#include "QuantPDE/src/Types.hpp"
+#include "QuantPDE/src/DateTime.hpp"
 #include "QuantPDE/src/Axis.hpp"
 #include "QuantPDE/src/Grid.hpp"
 #include "QuantPDE/src/Event.hpp"

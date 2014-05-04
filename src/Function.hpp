@@ -10,7 +10,7 @@ namespace QuantPDE {
  */
 class Function {
 
-	virtual double get(const double *) const = 0;
+	virtual Real get(const Real *) const = 0;
 
 public:
 
@@ -21,7 +21,7 @@ public:
 	 * @return The value of \f$f\f$ at the specified coordinates (i.e.
 	 *         \f$f\left(c_0, \ldots, c_{n-1}\right)\f$).
 	 */
-	double operator()(const double *coordinates) const {
+	Real operator()(const Real *coordinates) const {
 		return get(coordinates);
 	}
 
@@ -32,8 +32,8 @@ public:
 	 *         \f$f\left(c_0, \ldots, c_{n-1}\right)\f$).
 	 */
 	template <typename ...ArgsT>
-	double operator()(ArgsT ...coordinates) const {
-		double coords[] {coordinates...};
+	Real operator()(ArgsT ...coordinates) const {
+		Real coords[] {coordinates...};
 		return get(coords);
 	}
 
@@ -45,7 +45,7 @@ public:
 	virtual Vector image(const Grid &grid) const {
 		Vector v = grid.vector();
 
-		double *coordinates = new double[grid.size()];
+		Real *coordinates = new Real[grid.size()];
 		for(auto node : grid.accessor(v)) {
 			grid.coordinates(&node, coordinates);
 			*node = get(coordinates);
@@ -62,18 +62,18 @@ public:
  */
 class Function1d : public Function {
 
-	virtual double get(const double *coordinates) const {
+	virtual Real get(const Real *coordinates) const {
 		return get(*coordinates);
 	}
 
-	virtual double get(double) const = 0;
+	virtual Real get(Real) const = 0;
 
 public:
 
 	virtual Vector image(const Grid &grid) const {
 		Vector v = grid.vector();
 
-		double coordinates[1];
+		Real coordinates[1];
 		for(auto node : grid.accessor(v)) {
 			grid.coordinates(&node, coordinates);
 			*node = get(*coordinates);
@@ -92,9 +92,9 @@ public:
  */
 class Constant : public Function {
 
-	double c;
+	Real c;
 
-	virtual double get(const double *coordinates) const {
+	virtual Real get(const Real *coordinates) const {
 		return c;
 	}
 
@@ -104,7 +104,7 @@ public:
 	 * Constructor.
 	 * @param c The value of the function everywhere.
 	 */
-	Constant(double c) : c(c) {
+	Constant(Real c) : c(c) {
 	}
 
 	/**
@@ -129,8 +129,8 @@ class PiecewiseLinear : public Function {
 	const Grid &grid;
 	const Vector &vector;
 
-	double interpolate(const Index *indices, const double *start,
-			const double *end) const {
+	Real interpolate(const Index *indices, const Real *start,
+			const Real *end) const {
 		if(start == end) {
 			return grid.accessor(vector)(indices);
 		}
@@ -140,7 +140,7 @@ class PiecewiseLinear : public Function {
 		std::memcpy(other, indices, sizeof(Index) * dim);
 		other[dim - (end - start)]++;
 
-		double v = (*start)
+		Real v = (*start)
 				* interpolate(indices, start + 1, end)
 				+ (1 - *start) * interpolate(other, start + 1,
 				end);
@@ -150,11 +150,11 @@ class PiecewiseLinear : public Function {
 		return v;
 	}
 
-	virtual double get(const double *coordinates) const {
+	virtual Real get(const Real *coordinates) const {
 		Index dim = grid.size();
 
 		Index *indices = new Index[dim];
-		double *weights = new double[dim];
+		Real *weights = new Real[dim];
 
 		{
 			for(Index i = 0; i < grid.size(); i++, coordinates++) {
@@ -175,7 +175,7 @@ class PiecewiseLinear : public Function {
 
 				// Binary search to find node
 				Index lo = 0, hi = length - 2, mid = 0;
-				double weight = 0.;
+				Real weight = 0.;
 				while(lo <= hi) {
 					mid = (lo + hi) / 2;
 					if(*coordinates < x(mid)) {
@@ -196,7 +196,7 @@ class PiecewiseLinear : public Function {
 			}
 		}
 
-		double v = interpolate(indices, weights, weights + dim);
+		Real v = interpolate(indices, weights, weights + dim);
 
 		delete [] indices;
 		delete [] weights;
@@ -226,7 +226,7 @@ public:
 };
 
 template <bool isConst>
-double Grid::GridVector<isConst>::operator()(const double *coordinates) const {
+Real Grid::GridVector<isConst>::operator()(const Real *coordinates) const {
 	return (PiecewiseLinear(grid, vector))(coordinates);
 }
 
