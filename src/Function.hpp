@@ -129,74 +129,82 @@ class PiecewiseLinear : public Function {
 	const Grid &grid;
 	const Vector &vector;
 
-	Real interpolate(const Index *indices, const Real *start,
-			const Real *end) const {
-		if(start == end) {
+	Real interpolate(Index *indices, Real *weights, Index n = 0) const {
+		const Index dim = grid.size();
+
+		// Base case
+		if(n == dim) {
 			return grid.accessor(vector)(indices);
 		}
 
-		Index dim = grid.size();
-		Index *other = new Index[dim];
-		std::memcpy(other, indices, sizeof(Index) * dim);
-		other[dim - (end - start)]++;
+		Index *stride = indices + ( (dim - n) * dim );
+		std::memcpy(stride, indices, sizeof(Index) * dim);
+		stride[dim - n]++;
 
-		Real v = (*start)
-				* interpolate(indices, start + 1, end)
-				+ (1 - *start) * interpolate(other, start + 1,
-				end);
-
-		delete [] other;
-
-		return v;
+		return weights[n] * interpolate(indices, weights, n + 1)
+				+ (1 - weights[n]) * interpolate(stride,
+				weights, n + 1);
 	}
 
 	virtual Real get(const Real *coordinates) const {
-		Index dim = grid.size();
+		const Index dim = grid.size();
 
-		Index *indices = new Index[dim];
 		Real *weights = new Real[dim];
 
+		// We need 2^dim arrays of size dim to store indices for the
+		// interpolation routine. Initialize all of this at once.
+		Index *indices;
 		{
-			for(Index i = 0; i < grid.size(); i++, coordinates++) {
-				const Axis &x = grid(i);
-				Index length = x.size();
-
-				if(*coordinates <= x(0)) {
-					indices[i] = 0;
-					weights[i] = 1.;
-					continue;
-				}
-
-				if(*coordinates >= x(length - 1)) {
-					indices[i] = length - 2;
-					weights[i] = 0.;
-					continue;
-				}
-
-				// Binary search to find node
-				Index lo = 0, hi = length - 2, mid = 0;
-				Real weight = 0.;
-				while(lo <= hi) {
-					mid = (lo + hi) / 2;
-					if(*coordinates < x(mid)) {
-						hi = mid - 1;
-					} else if(*coordinates >= x(mid + 1)) {
-						lo = mid + 1;
-					} else {
-						weight = (x(mid + 1)
-								- *coordinates)
-								/ ( x(mid + 1)
-								- x(mid) );
-						break;
-					}
-				}
-
-				indices[i] = mid;
-				weights[i] = weight;
+			Index power = 1;
+			for(Index i = 0; i < dim; i++) {
+				power *= 2;
 			}
+
+			indices = new Index[power * dim];
 		}
 
-		Real v = interpolate(indices, weights, weights + dim);
+		// For the i-th coordinate, find the ticks on the i-th axis that
+		// it lies between along with the distance from the leftmost
+		// tick
+		for(Index i = 0; i < dim; i++, coordinates++) {
+			const Axis &x = grid(i);
+			Index length = x.size();
+
+			if(*coordinates <= x(0)) {
+				indices[i] = 0;
+				weights[i] = 1.;
+				continue;
+			}
+
+			if(*coordinates >= x(length - 1)) {
+				indices[i] = length - 2;
+				weights[i] = 0.;
+				continue;
+			}
+
+			// Binary search to find tick
+			Index lo = 0, hi = length - 2, mid = 0;
+			Real weight = 0.;
+			while(lo <= hi) {
+				mid = (lo + hi) / 2;
+				if(*coordinates < x(mid)) {
+					hi = mid - 1;
+				} else if(*coordinates >= x(mid + 1)) {
+					lo = mid + 1;
+				} else {
+					weight = (x(mid + 1)
+							- *coordinates)
+							/ ( x(mid + 1)
+							- x(mid) );
+					break;
+				}
+			}
+
+			indices[i] = mid;
+			weights[i] = weight;
+		}
+
+		const Real v = interpolate(indices, weights);
 
 		delete [] indices;
 		delete [] weights;
