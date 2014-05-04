@@ -105,9 +105,10 @@ public:
 	/**
 	 * Assignment operator.
 	 */
-	DateTime &DateTime(const DateTime &that) {
+	DateTime &operator=(const DateTime &that) {
 		time = that.time;
 		details = that.details;
+		return *this;
 	}
 
 	/**

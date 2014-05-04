@@ -119,6 +119,14 @@ public:
 	Constant(const Constant &that) : c(that.c) {
 	}
 
+	/**
+	 * Assignment operator.
+	 */
+	Constant &operator=(const Constant &that) {
+		c = that.c;
+		return *this;
+	}
+
 };
 
 /**
@@ -132,15 +140,15 @@ public:
  */
 class PiecewiseLinear : public Function {
 
-	const Grid &grid;
-	const Vector &vector;
+	const Grid *grid;
+	const Vector *vector;
 
 	Real interpolate(Index *indices, Real *weights, Index n = 0) const {
-		const Index dim = grid.size();
+		const Index dim = grid->size();
 
 		// Base case
 		if(n == dim) {
-			return grid.accessor(vector)(indices);
+			return grid->accessor(*vector)(indices);
 		}
 
 		Index *stride = indices + ( (dim - n) * dim );
@@ -153,7 +161,7 @@ class PiecewiseLinear : public Function {
 	}
 
 	virtual Real get(const Real *coordinates) const {
-		const Index dim = grid.size();
+		const Index dim = grid->size();
 
 		Real *weights = new Real[dim];
 
@@ -173,7 +181,7 @@ class PiecewiseLinear : public Function {
 		// it lies between along with the distance from the leftmost
 		// tick
 		for(Index i = 0; i < dim; i++, coordinates++) {
-			const Axis &x = grid(i);
+			const Axis &x = (*grid)(i);
 			Index length = x.size();
 
 			if(*coordinates <= x(0)) {
@@ -226,8 +234,8 @@ public:
 	 * @param vector A vector containing the values of the function at the
 	 *               grid nodes.
 	 */
-	PiecewiseLinear(const Grid &grid, const Vector &vector) : grid(grid),
-			vector(vector) {
+	PiecewiseLinear(const Grid &grid, const Vector &vector) : grid(&grid),
+			vector(&vector) {
 	}
 
 	/**
@@ -237,11 +245,20 @@ public:
 			vector(that.vector) {
 	}
 
+	/**
+	 * Assignment operator.
+	 */
+	PiecewiseLinear &operator=(const PiecewiseLinear &that) {
+		grid = that.grid;
+		vector = that.vector;
+		return *this;
+	}
+
 };
 
 template <bool isConst>
 Real Grid::GridVector<isConst>::operator()(const Real *coordinates) const {
-	return (PiecewiseLinear(grid, vector))(coordinates);
+	return (PiecewiseLinear(*grid, *vector))(coordinates);
 }
 
 }

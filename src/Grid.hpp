@@ -93,6 +93,16 @@ class Grid {
 				vector(that.vector), index(that.index) {
 		}
 
+		~VectorIterator() {
+		}
+
+		VectorIterator &operator=(const VectorIterator &that) {
+			grid = that.grid;
+			vector = that.vector;
+			index = that.index;
+			return *this;
+		}
+
 		bool operator==(const VectorIterator &that) const {
 			return grid == that.grid && vector == that.vector
 					&& index == that.index;
@@ -127,20 +137,29 @@ class Grid {
 		typedef typename std::conditional<isConst, Real,
 				Real &>::type D;
 
-		const Grid &grid;
-		V &vector;
+		const Grid *grid;
+		V *vector;
 
 		struct U {};
 
 	public:
 
-		GridVector(const Grid &grid, V &vector) : grid(grid),
-				vector(vector) {
-			assert(vector.size() == grid.size());
+		GridVector(const Grid &grid, V &vector) : grid(&grid),
+				vector(&vector) {
+			assert(vector.size() == grid.nodes());
 		}
 
 		GridVector(const GridVector &that) : grid(that.grid),
 				vector(that.vector) {
+		}
+
+		~GridVector() {
+		}
+
+		GridVector &operator=(const GridVector &that) {
+			grid = that.grid;
+			vector = that.vector;
+			return *this;
 		}
 
 		////////////////////////////////////////////////////////////////
@@ -154,25 +173,25 @@ class Grid {
 		}
 
 		D operator()(const Index *indices) const {
-			return vector(grid.unroll(indices));
+			return (*vector)(grid->unroll(indices));
 		}
 
 		template <typename ...ArgsT>
 		D operator()(Index i0, ArgsT ...indices) const {
 			Index idxs[] {i0, indices...};
-			assert(sizeof(idxs) == grid.size() * sizeof(Index));
+			assert(sizeof(idxs) == grid->size() * sizeof(Index));
 			return (*this)(idxs);
 		}
 
 		////////////////////////////////////////////////////////////////
 
 		VectorIterator<isConst> begin() const {
-			return VectorIterator<isConst>(grid, vector);
+			return VectorIterator<isConst>(*grid, *vector);
 		}
 
 		VectorIterator<isConst> end() const {
-			return VectorIterator<isConst>(grid, vector,
-					grid.nodes());
+			return VectorIterator<isConst>(*grid, *vector,
+					grid->nodes());
 		}
 
 		////////////////////////////////////////////////////////////////
@@ -563,10 +582,10 @@ public:
 template <bool isConst>
 std::ostream &operator<<(std::ostream &os,
 		const Grid::GridVector<isConst> &v_G) {
-	Real *coordinates = new Real[v_G.grid.size()];
+	Real *coordinates = new Real[v_G.grid->size()];
 	for(auto v_indices : v_G) {
-		v_G.grid.coordinates(&v_indices, coordinates);
-		for(Index i = 0; i < v_G.grid.size(); i++) {
+		v_G.grid->coordinates(&v_indices, coordinates);
+		for(Index i = 0; i < v_G.grid->size(); i++) {
 			os << coordinates[i] << '\t';
 		}
 		os << *v_indices << std::endl;
