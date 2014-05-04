@@ -1,9 +1,9 @@
 #ifndef QUANT_PDE_DATE
 #define QUANT_PDE_DATE
 
-#include <cstring>
-#include <ctime>
-#include <string>
+#include <cstring> // strlen
+#include <ctime>   // time_t, tm, gmtime_r, timegm, asctime_r
+#include <string>  // std::string
 
 namespace QuantPDE {
 
@@ -12,8 +12,8 @@ namespace QuantPDE {
  */
 class DateTime {
 
-	time_t time;
-	tm details;
+	std::time_t time;
+	std::tm details;
 
 public:
 
@@ -58,7 +58,7 @@ public:
 	 * Initialize using a UNIX timestamp.
 	 * @param time A UNIX timestamp.
 	 */
-	DateTime(time_t time = 0) : time(time) {
+	DateTime(std::time_t time = 0) : time(time) {
 		gmtime_r(&time, &details);
 	}
 
@@ -97,9 +97,23 @@ public:
 	}
 
 	/**
+	 * Destructor.
+	 */
+	~DateTime() {
+	}
+
+	/**
+	 * Assignment operator.
+	 */
+	DateTime &DateTime(const DateTime &that) {
+		time = that.time;
+		details = that.details;
+	}
+
+	/**
 	 * @return The UNIX timestamp.
 	 */
-	time_t timestamp() const {
+	std::time_t timestamp() const {
 		return time;
 	}
 
@@ -173,7 +187,7 @@ public:
 /**
  * @return The difference of the timestamps of the objects.
  */
-time_t operator-(const DateTime &a, const DateTime &b) {
+std::time_t operator-(const DateTime &a, const DateTime &b) {
 	return a.timestamp() - b.timestamp();
 }
 

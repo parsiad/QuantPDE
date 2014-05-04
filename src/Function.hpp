@@ -15,6 +15,12 @@ class Function {
 public:
 
 	/**
+	 * Destructor.
+	 */
+	virtual ~Function() {
+	}
+
+	/**
 	 * @param coordinates Coordinates \f$\left\{c_i\right\}\f$ (passed in
 	 *                    as an array) specifying a point in \f$f\f$'s
 	 *                    domain.
