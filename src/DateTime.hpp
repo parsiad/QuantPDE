@@ -7,31 +7,6 @@
 
 namespace QuantPDE {
 
-enum Weekday {
-	Sunday    = 1,
-	Monday    = 2,
-	Tuesday   = 3,
-	Wednesday = 4,
-	Thursday  = 5,
-	Friday    = 6,
-	Saturday  = 7
-};
-
-enum Month {
-	January   = 1,
-	February  = 2,
-	March     = 3,
-	April     = 4,
-	May       = 5,
-	June      = 6,
-	July      = 7,
-	August    = 8,
-	September = 9,
-	October   = 10,
-	November  = 11,
-	December  = 12
-};
-
 /**
  * A convenience class for manipulating dates.
  */
@@ -41,6 +16,43 @@ class DateTime {
 	tm details;
 
 public:
+
+	enum Weekday {
+		Sunday    = 1,
+		Monday    = 2,
+		Tuesday   = 3,
+		Wednesday = 4,
+		Thursday  = 5,
+		Friday    = 6,
+		Saturday  = 7
+	};
+
+	enum Month {
+		January   = 1,
+		February  = 2,
+		March     = 3,
+		April     = 4,
+		May       = 5,
+		June      = 6,
+		July      = 7,
+		August    = 8,
+		September = 9,
+		October   = 10,
+		November  = 11,
+		December  = 12
+	};
+
+	typedef Integer Seconds;
+
+	typedef Integer Minutes;
+
+	typedef Integer Hours;
+
+	typedef Integer Day;
+
+	typedef Integer Year;
+
+	typedef Integer YearDay;
 
 	/**
 	 * Initialize using a UNIX timestamp.
@@ -94,28 +106,28 @@ public:
 	/**
 	 * @return Seconds (0-60).
 	 */
-	int seconds() const {
+	Seconds seconds() const {
 		return details.tm_sec;
 	}
 
 	/**
 	 * @return Minutes (0-59).
 	 */
-	int minutes() const {
+	Minutes minutes() const {
 		return details.tm_min;
 	}
 
 	/**
 	 * @return Hours (0-23).
 	 */
-	int hours() const {
+	Hours hours() const {
 		return details.tm_hour;
 	}
 
 	/**
 	 * @return Day of the month (1-31).
 	 */
-	int day() const {
+	Day day() const {
 		return details.tm_mday;
 	}
 
@@ -129,7 +141,7 @@ public:
 	/**
 	 * @return Year.
 	 */
-	int year() const {
+	Year year() const {
 		return 1900 + details.tm_year;
 	}
 
@@ -143,7 +155,7 @@ public:
 	/**
 	 * @return Day in the year (0-365, 1 Jan = 0).
 	 */
-	int yearDay() const {
+	YearDay yearDay() const {
 		return details.tm_yday;
 	}
 
