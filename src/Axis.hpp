@@ -1,7 +1,6 @@
 #ifndef QUANT_PDE_AXIS_HPP
 #define QUANT_PDE_AXIS_HPP
 
-#include <algorithm>        // std::swap
 #include <cassert>          // assert
 #include <cstring>          // std::memcpy
 #include <initializer_list> // std::initializer_list
@@ -17,11 +16,13 @@ namespace QuantPDE {
  */
 class Axis final {
 
-	Real *n;
 	Index length;
+	Real *n;
 
-	Axis(Index length) : length(length) {
-		n = new Real[length];
+	Axis() noexcept : length(0), n(NULL) {
+	}
+
+	Axis(Index length) noexcept : length(length), n(new Real[length]) {
 	}
 
 public:
@@ -31,12 +32,9 @@ public:
 	 * @param list The ticks. These should be strictly monotonically
 	 *             increasing.
 	 */
-	Axis(std::initializer_list<Real> list) {
-		length = list.size();
-
+	Axis(std::initializer_list<Real> list) noexcept : length(list.size()),
+			n(new Real[length]) {
 		assert(length > 0);
-
-		this->n = new Real[length];
 
 		Real *p = n;
 		for(Real tick : list) {
@@ -57,27 +55,24 @@ public:
 	 * Initialize the axis from a vector.
 	 * @param vector The vector.
 	 */
-	Axis(const Vector &vector) {
-		length = vector.size();
-		n = new Real[length];
+	Axis(const Vector &vector) noexcept : length(vector.size()),
+			n(new Real[length]) {
+		assert(length > 0);
 		std::memcpy(n, vector.data(), sizeof(Real) * length);
 	}
 
 	/**
 	 * Copy constructor.
 	 */
-	Axis(const Axis &that) : length(that.length) {
-		n = new Real[length];
+	Axis(const Axis &that) noexcept : length(that.length),
+			n(new Real[length]) {
 		std::memcpy(n, that.n, length * sizeof(Real));
 	}
 
 	/**
 	 * Move constructor.
 	 */
-	Axis(Axis &&that) {
-		n = that.n;
-		length = that.length;
-
+	Axis(Axis &&that) noexcept : length(that.length), n(that.n) {
 		that.n = NULL;
 	}
 
@@ -89,11 +84,28 @@ public:
 	}
 
 	/**
-	 * Assignment operator.
+	 * Copy assignment operator.
 	 */
-	Axis &operator=(Axis that) {
+	Axis &operator=(const Axis &that) & noexcept {
 		length = that.length;
-		std::swap(n, that.n);
+
+		Real *p = n;
+		n = new Real[length];
+		memcpy(n, that.n, length * sizeof(Real));
+
+		delete [] p;
+
+		return *this;
+	}
+
+	/**
+	 * Move assignment operator.
+	 */
+	Axis &operator=(Axis &&that) & noexcept {
+		length = that.length;
+		n = that.n;
+		that.n = NULL;
+
 		return *this;
 	}
 
@@ -101,7 +113,7 @@ public:
 	 * Return a non-const reference to a node by index.
 	 * @param i The index.
 	 */
-	Real &operator()(Index i) {
+	Real &operator[](Index i) {
 		return n[i];
 	}
 
@@ -109,7 +121,7 @@ public:
 	 * Return a const reference to a node by index.
 	 * @param i The index.
 	 */
-	const Real &operator()(Index i) const {
+	const Real &operator[](Index i) const {
 		return n[i];
 	}
 
@@ -135,15 +147,17 @@ public:
 	Axis refine() const {
 		Axis refined( length * 2 - 1 );
 
-		refined(0lu) = n[0];
+		refined[0] = n[0];
 		Index i = 1, j = 1;
 		while(i < length) {
-			refined(j++) = (n[i-1] + n[i])/2.;
-			refined(j++) = n[i++];
+			refined[j++] = (n[i-1] + n[i])/2.;
+			refined[j++] = n[i++];
 		}
 
 		return refined;
 	}
+
+	template <Index dim> friend class Grid;
 
 };
 
@@ -153,9 +167,9 @@ public:
  * @param axis The axis.
  */
 std::ostream &operator<<(std::ostream &os, const Axis &axis) {
-	os << '(' << axis(0);
+	os << '(' << axis[0];
 	for(Index i = 1; i < axis.size(); i++) {
-		os << ' ' << axis(i);
+		os << ' ' << axis[i];
 	}
 	os << ')';
 	return os;

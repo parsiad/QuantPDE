@@ -4,7 +4,7 @@
 #include <QuantPDE/modules/Payoffs.hpp>
 
 // BiCGSTAB
-#include <eigen3/Eigen/IterativeLinearSolvers>
+// #include <eigen3/Eigen/IterativeLinearSolvers>
 
 using namespace QuantPDE;
 using namespace QuantPDE::Modules;
@@ -33,7 +33,7 @@ int main(int argc, char **argv) {
 	double strike       = 100.;
 	unsigned refinement = 5;
 	unsigned steps      = 25;
-	bool call           = true;
+	bool isCall         = true;
 
 	// Setting options with getopt
 	{ char c;
@@ -89,7 +89,7 @@ endl <<
 				strike = atof(optarg);
 				break;
 			case 'p':
-				call = false;
+				isCall = false;
 				break;
 			case 'r':
 				interest = atof(optarg);
@@ -151,6 +151,17 @@ endl <<
 		10000.
 	};
 
+	// Payoff function
+	std::function<Real (Real)> payoff = std::bind(
+		isCall ? Payoffs::call : Payoffs::put,
+		std::placeholders::_1,
+		strike
+	);
+
+	// Alternatively, we could have used...
+	//auto payoff = QUANT_PDE_MODULES_PAYOFFS_CALL_FIXED_STRIKE(strike);
+	//auto payoff = QUANT_PDE_MODULES_PAYOFFS_PUT_FIXED_STRIKE(strike);
+
 	for(unsigned l = 0; l < refinement; l++, steps *= 2) {
 
 		///////////////////////////////////////////////////////////////
@@ -158,21 +169,34 @@ endl <<
 		///////////////////////////////////////////////////////////////
 
 		S = S.refine();
-		Grid1d G(S);
+		Grid1 G(S);
+
+		Vector v = G.image(payoff);
+		for(auto v_i : G.accessor(v)) {
+			cout << (&v_i)[0] << '\t' << S[ (&v_i)[0] ] << '\t' << *v_i << endl;
+		}
+		cout << G.accessor(v)(120.) << endl;
+		return 1;
 
 		///////////////////////////////////////////////////////////////
-		// Build initial solution
+		// Build problem
 		///////////////////////////////////////////////////////////////
 
-		Vector initial(call ?
-			  Payoffs::Call(strike).image(G)
-			: Payoffs::Put (strike).image(G)
+		/*
+		European<Real> european(
+			payoff,
+			[interest]   (Real, Real) { return interest;   },
+			[volatility] (Real, Real) { return volatility; },
+			[dividends]  (Real, Real) { return dividends;  },
+			0., expiry
 		);
+		*/
 
 		///////////////////////////////////////////////////////////////
 		// Step until done
 		///////////////////////////////////////////////////////////////
 
+		/*
 		European::Implicit<Eigen::BiCGSTAB<Matrix,
 				Eigen::IncompleteLUT<double>>> stepper (
 					G,
@@ -185,11 +209,13 @@ endl <<
 					Constant(dividends)
 				);
 		stepper.processAll();
+		*/
 
 		///////////////////////////////////////////////////////////////
 		// Table
 		///////////////////////////////////////////////////////////////
 
+		/*
 		// Solution at S = 100.
 		double value = G.accessor(stepper.solution())(stock);
 
@@ -212,6 +238,7 @@ endl <<
 
 		previousChange = change;
 		previousValue = value;
+		*/
 
 	}
 

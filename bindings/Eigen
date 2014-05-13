@@ -5,8 +5,27 @@
 
 namespace QuantPDE {
 
-typedef Eigen::Matrix<double, Eigen::Dynamic, 1> Vector;
-typedef Eigen::SparseMatrix<double, Eigen::RowMajor> Matrix;
+typedef double Real;
+
+typedef Eigen::SparseMatrix<Real>::Index Index;
+
+typedef Eigen::Matrix<Real, Eigen::Dynamic, 1> Vector;
+typedef Eigen::SparseMatrix<Real, Eigen::RowMajor> Matrix;
+
+typedef Eigen::VectorXi IntegerVector;
+
+class Entry : public Eigen::Triplet<Real> {
+
+public:
+
+	Entry(Index i, Index j, Real v) : Triplet(i, j, v) {
+	}
+
+	Real &value() {
+		return this->m_value;
+	}
+
+};
 
 }
 

@@ -5,10 +5,6 @@ namespace QuantPDE {
 
 typedef int Integer;
 
-typedef double Real;
-
-typedef long Index;
-
 }
 
 #endif

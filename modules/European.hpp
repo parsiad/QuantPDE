@@ -5,6 +5,54 @@ namespace QuantPDE {
 
 namespace Modules {
 
+class BlackScholesEquation : public Constraint {
+
+	const Function2 r, v, q;
+
+public:
+
+	template <typename F1, typename F2, typename F3>
+	BlackScholesEquation(F1 &&interest, F2 &&volatility, F3 &&dividends)
+			noexcept {
+		// TODO
+	}
+
+	virtual std::string identifier() const {
+		return "BlackScholesEquation";
+	}
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename T = Real>
+class European : public Problem1<T> {
+
+public:
+
+	template <typename F1, typename F2, typename F3, typename F4>
+	European(F1 &&payoff, F2 &&interest, F3 &&volatility, F4 &&dividends,
+			const T &start, const T &end) noexcept
+			: Problem1<T>(std::forward<F1>(payoff)) {
+
+		// dV/dt + d^2V/dS^2 sigma^2 S^2 / 2 + dV/dS rS - rV = 0
+		BlackScholesEquation bse(std::forward<F2>(interest),
+				std::forward<F3>(volatility),
+				std::forward<F4>(dividends));
+		//this->add( , start, end );
+
+	}
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename T = Real>
+class Implicit : public Problem1<T>::Solver {
+
+};
+
+/*
 namespace European {
 
 template <typename T>
@@ -129,6 +177,7 @@ public:
 };
 
 } // European
+*/
 
 } // Modules
 

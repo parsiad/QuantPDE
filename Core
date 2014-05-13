@@ -2,12 +2,14 @@
 #define QUANT_PDE
 
 #include "QuantPDE/src/Types.hpp"
+#include "QuantPDE/src/Metafunctions.hpp"
 #include "QuantPDE/src/DateTime.hpp"
 #include "QuantPDE/src/Axis.hpp"
 #include "QuantPDE/src/Grid.hpp"
-#include "QuantPDE/src/Event.hpp"
 #include "QuantPDE/src/Function.hpp"
-#include "QuantPDE/src/Stepper.hpp"
+//#include "QuantPDE/src/Event.hpp"
+//#include "QuantPDE/src/Stepper.hpp"
+#include "QuantPDE/src/Problem.hpp"
 
 #endif
 

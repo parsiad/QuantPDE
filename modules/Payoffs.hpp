@@ -1,6 +1,8 @@
 #ifndef QUANT_PDE_MODULES_PAYOFFS
 #define QUANT_PDE_MODULES_PAYOFFS
 
+#include <functional> // std::bind, std::function
+
 namespace QuantPDE {
 
 namespace Modules {
@@ -8,66 +10,28 @@ namespace Modules {
 namespace Payoffs {
 
 /**
- * The payoff for a vanilla call option, \f$\max\left(x - K, 0\right)\f$.
+ * The payoff for a vanilla call option, \f$\max\left(S - K, 0\right)\f$.
  */
-class Call : public Function1d {
-
-	double strike;
-
-	virtual double get(double x) const {
-		double p = x - strike;
-		return p > 0. ? p : 0.;
-	}
-
-public:
-
-	/**
-	 * Constructor.
-	 * @param strike The strike price \f$K\f$.
-	 */
-	Call(double strike) : strike(strike) {
-	}
-
-	/**
-	 * Copy constructor.
-	 */
-	Call(const Call &that) : strike(that.strike) {
-	}
-
+const std::function<Real (Real, Real)> call = [] (Real S, Real K) {
+	return S > K ? S - K : 0.;
 };
 
 /**
- * The payoff for a vanilla put option, \f$\max\left(K - x, 0\right)\f$.
+ * The payoff for a vanilla put option, \f$\max\left(S - K, 0\right)\f$.
  */
-class Put : public Function1d {
-
-	double strike;
-
-	virtual double get(double x) const {
-		double p = strike - x;
-		return p > 0. ? p : 0.;
-	}
-
-public:
-
-	/**
-	 * Constructor.
-	 * @param strike The strike price \f$K\f$.
-	 */
-	Put(double strike) : strike(strike) {
-	}
-
-	/**
-	 * Copy constructor.
-	 */
-	Put(const Put &that) : strike(that.strike) {
-	}
-
+const std::function<Real (Real, Real)> put = [] (Real S, Real K) {
+	return K < S ? K - S : 0.;
 };
 
-}
+#define QUANT_PDE_MODULES_PAYOFFS_CALL_FIXED_STRIKE(strike) std::bind( \
+		QuantPDE::Modules::Payoffs::call, std::placeholders::_1, strike)
 
-}
+#define QUANT_PDE_MODULES_PAYOFFS_PUT_FIXED_STRIKE(strike) std::bind( \
+		QuantPDE::Modules::Payoffs::put, std::placeholders::_1, strike)
+
+} // Payoffs
+
+} // Modules
 
 }
 

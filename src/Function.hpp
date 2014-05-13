@@ -5,129 +5,13 @@
 
 namespace QuantPDE {
 
-/**
- * Represents a function \f$f\f$ defined on some domain.
- */
-class Function {
+typedef std::function< NRealToReal<1> > Function1;
+typedef std::function< NRealToReal<2> > Function2;
+typedef std::function< NRealToReal<3> > Function3;
+typedef std::function< NRealToReal<4> > Function4;
 
-	virtual Real get(const Real *) const = 0;
-
-public:
-
-	/**
-	 * Destructor.
-	 */
-	virtual ~Function() {
-	}
-
-	/**
-	 * @param coordinates Coordinates \f$\left\{c_i\right\}\f$ (passed in
-	 *                    as an array) specifying a point in \f$f\f$'s
-	 *                    domain.
-	 * @return The value of \f$f\f$ at the specified coordinates (i.e.
-	 *         \f$f\left(c_0, \ldots, c_{n-1}\right)\f$).
-	 */
-	Real operator()(const Real *coordinates) const {
-		return get(coordinates);
-	}
-
-	/**
-	 * @param coordinates Coordinates \f$\left\{c_i\right\}\f$ specifying
-	 *                    a point in \f$f\f$'s domain.
-	 * @return The value of \f$f\f$ at the specified coordinates (i.e.
-	 *         \f$f\left(c_0, \ldots, c_{n-1}\right)\f$).
-	 */
-	template <typename ...ArgsT>
-	Real operator()(ArgsT ...coordinates) const {
-		Real coords[] {coordinates...};
-		return get(coords);
-	}
-
-	/**
-	 * @param grid A grid.
-	 * @return The image of this function on the set of grid nodes as a
-	 *         vector.
-	 */
-	virtual Vector image(const Grid &grid) const {
-		Vector v = grid.vector();
-
-		Real *coordinates = new Real[grid.size()];
-		for(auto node : grid.accessor(v)) {
-			grid.coordinates(&node, coordinates);
-			*node = get(coordinates);
-		}
-		delete [] coordinates;
-
-		return v;
-	}
-
-};
-
-/**
- * Represents a function defined on a one-dimensional domain.
- */
-class Function1d : public Function {
-
-	virtual Real get(const Real *coordinates) const {
-		return get(*coordinates);
-	}
-
-	virtual Real get(Real) const = 0;
-
-public:
-
-	virtual Vector image(const Grid &grid) const {
-		Vector v = grid.vector();
-
-		Real coordinates[1];
-		for(auto node : grid.accessor(v)) {
-			grid.coordinates(&node, coordinates);
-			*node = get(*coordinates);
-		}
-
-		return v;
-	}
-
-};
-
-// TODO: Function2d, Function3d, Function4d
-
-/**
- * A function \f$f\f$ whose value is constant (i.e. \f$f\left(x\right)=c\f$ for
- * all \f$x\f$ in the domain of \f$f\f$).
- */
-class Constant : public Function {
-
-	Real c;
-
-	virtual Real get(const Real *coordinates) const {
-		return c;
-	}
-
-public:
-
-	/**
-	 * Constructor.
-	 * @param c The value of the function everywhere.
-	 */
-	Constant(Real c) : c(c) {
-	}
-
-	/**
-	 * Copy constructor.
-	 */
-	Constant(const Constant &that) : c(that.c) {
-	}
-
-	/**
-	 * Assignment operator.
-	 */
-	Constant &operator=(const Constant &that) {
-		c = that.c;
-		return *this;
-	}
-
-};
+template <Index N> // TODO: Check if positive
+using Function = std::function< NRealToReal<N> >;
 
 /**
  * A function \f$f\f$ defined piecewise whose pieces are affine functions.
@@ -138,59 +22,57 @@ public:
  * \f$\sim \sum_i \lg m_i \leq n \lg m\f$, where
  * \f$m \equiv \max\left\{m_i\right\}\f$.
  */
-class PiecewiseLinear : public Function {
+template <Index dim>
+class PiecewiseLinear {
 
-	const Grid *grid;
+	const Grid<dim> *grid;
 	const Vector *vector;
 
-	Real interpolate(Index *indices, Real *weights, Index n = 0) const {
-		const Index dim = grid->size();
-
+	Real interpolate(Index *indices, const Real *weights, Index shift,
+			Index n = 0) const {
 		// Base case
 		if(n == dim) {
 			return grid->accessor(*vector)(indices);
 		}
 
-		Index *stride = indices + ( (dim - n) * dim );
+		Index *stride = indices + shift;
 		std::memcpy(stride, indices, sizeof(Index) * dim);
-		stride[dim - n]++;
+		stride[n]++;
 
-		return weights[n] * interpolate(indices, weights, n + 1)
-				+ (1 - weights[n]) * interpolate(stride,
-				weights, n + 1);
+		return weights[n] * interpolate(indices, weights, shift / 2,
+				n + 1) + (1 - weights[n]) * interpolate(stride,
+				weights, shift / 2, n + 1);
 	}
 
-	virtual Real get(const Real *coordinates) const {
-		const Index dim = grid->size();
+	template <typename ...Args>
+	Real get(Args... args) const {
+		static_assert(dim == sizeof...(Args),
+				"The number of arguments must be consistent "
+				"with the dimensions");
 
-		Real *weights = new Real[dim];
+		typedef IntegerPower<2, dim> dimpow;
+		static_assert(!dimpow::overflow, "Overflow detected");
 
-		// We need 2^dim arrays of size dim to store indices for the
-		// interpolation routine. Initialize all of this at once.
-		Index *indices;
-		{
-			Index power = 1;
-			for(Index i = 0; i < dim; i++) {
-				power *= 2;
-			}
+		Real arguments[] {args...};
+		Real *coordinates = arguments;
 
-			indices = new Index[power * dim];
-		}
+		Real weights[dim];
+		Index indices[dimpow::value];
 
 		// For the i-th coordinate, find the ticks on the i-th axis that
 		// it lies between along with the distance from the leftmost
 		// tick
-		for(Index i = 0; i < dim; i++, coordinates++) {
-			const Axis &x = (*grid)(i);
+		for(Index i = 0; i < dim; i++, coordinates++) { // Unroll loop
+			const Axis &x = (*grid)[i];
 			Index length = x.size();
 
-			if(*coordinates <= x(0)) {
+			if(*coordinates <= x[0]) {
 				indices[i] = 0;
 				weights[i] = 1.;
 				continue;
 			}
 
-			if(*coordinates >= x(length - 1)) {
+			if(*coordinates >= x[length - 1]) {
 				indices[i] = length - 2;
 				weights[i] = 0.;
 				continue;
@@ -201,15 +83,13 @@ class PiecewiseLinear : public Function {
 			Real weight = 0.;
 			while(lo <= hi) {
 				mid = (lo + hi) / 2;
-				if(*coordinates < x(mid)) {
+				if(*coordinates < x[mid]) {
 					hi = mid - 1;
-				} else if(*coordinates >= x(mid + 1)) {
+				} else if(*coordinates >= x[mid + 1]) {
 					lo = mid + 1;
 				} else {
-					weight = (x(mid + 1)
-							- *coordinates)
-							/ ( x(mid + 1)
-							- x(mid) );
+					weight = (x[mid + 1] - *coordinates)
+							/ (x[mid + 1] - x[mid]);
 					break;
 				}
 			}
@@ -218,47 +98,104 @@ class PiecewiseLinear : public Function {
 			weights[i] = weight;
 		}
 
-		const Real v = interpolate(indices, weights);
+		////////////////////////////////////////////////////////////////
+		// Recursive version
+		////////////////////////////////////////////////////////////////
 
-		delete [] indices;
-		delete [] weights;
+		// return interpolate(indices, weights, dimpow::value / 2);
 
-		return v;
+		////////////////////////////////////////////////////////////////
+		// Nonrecursive version
+		////////////////////////////////////////////////////////////////
+
+		// At first glance, the bit-shifting method below seems slow,
+		// but since 2^dim is a small number (e.g. 8 for a 3 dimensional
+		// PDE), the loop is unrolled and this is much faster than using
+		// the call to interpolate(...) above.
+
+		// Past a certain dimension-threshold, the call to
+		// interpolate(...) will be more efficient as it uses Horner's
+		// form.
+
+		auto accessor = grid->accessor(*vector);
+		Index idxs[dim];
+		Real interpolated = 0.;
+
+		// Unroll loop
+		for(Index i = 0; i < dimpow::value; i++) {
+
+			Real factor = 1.;
+
+			// Unroll loop
+			for(Index j = 0; j < dim; j++) {
+				if(i && (1 << j)) {
+					// j-th bit of i is 1
+					factor *= weights[j];
+					idxs[j] = indices[j];
+				} else {
+					// j-th bit of i is 0
+					factor *= 1 - weights[j];
+					idxs[j] = indices[j] + 1;
+				}
+			}
+
+			interpolated += factor * accessor(idxs);
+
+		}
+
+		return interpolated;
 	}
 
 public:
 
-	/**
-	 * Constructor.
-	 * @param grid A grid.
-	 * @param vector A vector containing the values of the function at the
-	 *               grid nodes.
-	 */
-	PiecewiseLinear(const Grid &grid, const Vector &vector) : grid(&grid),
-			vector(&vector) {
+	PiecewiseLinear(const Grid<dim> &grid, const Vector &vector)
+			: grid(&grid), vector(&vector) {
 	}
 
-	/**
-	 * Copy constructor.
-	 */
+	// TODO: Figure out what to do with rvalue arguments
+
 	PiecewiseLinear(const PiecewiseLinear &that) : grid(that.grid),
 			vector(that.vector) {
 	}
 
-	/**
-	 * Assignment operator.
-	 */
 	PiecewiseLinear &operator=(const PiecewiseLinear &that) {
 		grid = that.grid;
 		vector = that.vector;
 		return *this;
 	}
 
+	// TODO: The implementation below breaks for dim > N, where N is some
+	//       positive integer. Is there a way to generalize this to a return
+	//       type of Function<dim>?
+
+	static_assert(dim > 4, "Dimensions >= 5 not implemented");
+
+	operator Function1() {
+		return [this] (double x) { return get(x); };
+	}
+
+	operator Function2() {
+		return [this] (double x, double y) { return get(x, y); };
+	}
+
+	operator Function3() {
+		return [this] (double x, double y, double z) {
+				return get(x, y, z); };
+	}
+
+	operator Function4() {
+		return [this] (double x1, double x2, double x3, double x4) {
+				return get(x1, x2, x3, x4); };
+	}
+
 };
 
-template <bool isConst>
-Real Grid::GridVector<isConst>::operator()(const Real *coordinates) const {
-	return (PiecewiseLinear(*grid, *vector))(coordinates);
+template <Index dim> template <bool isConst>
+Real Grid<dim>::GridVector<isConst>::operator()(const Real *coordinates) const {
+	Function<dim> lin = static_cast< Function<dim> > (
+			PiecewiseLinear<dim>(*grid, *vector) );
+
+	return unpackAndCall(lin, coordinates, GenerateSequence<dim>());
 }
 
 }

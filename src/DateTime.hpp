@@ -10,7 +10,7 @@ namespace QuantPDE {
 /**
  * A convenience class for manipulating dates.
  */
-class DateTime {
+class DateTime final {
 
 	std::time_t time;
 	std::tm details;
@@ -58,7 +58,7 @@ public:
 	 * Initialize using a UNIX timestamp.
 	 * @param time A UNIX timestamp.
 	 */
-	DateTime(std::time_t time = 0) : time(time) {
+	DateTime(std::time_t time = 0) noexcept : time(time) {
 		gmtime_r(&time, &details);
 	}
 
@@ -68,7 +68,7 @@ public:
 	 * @param format The format used to perform the parsing. See <ctime>.
 	 */
 	DateTime(const std::string &str,
-			const std::string format = "%Y-%m-%d %T") {
+			const std::string &format = "%Y-%m-%d %T") noexcept {
 		strptime(str.c_str(), format.c_str(), &details);
 		time = timegm(&details); //mktime(&details);
 	}
@@ -77,7 +77,7 @@ public:
 	 * Constructor.
 	 */
 	DateTime(int year, int month, int day, int hours = 0, int minutes = 0,
-			int seconds = 0) {
+			int seconds = 0) noexcept {
 		details.tm_sec = seconds;
 		details.tm_min = minutes;
 		details.tm_hour = hours;
@@ -92,20 +92,14 @@ public:
 	/**
 	 * Copy constructor.
 	 */
-	DateTime(const DateTime &that) : time(that.time),
+	DateTime(const DateTime &that) noexcept : time(that.time),
 			details(that.details) {
 	}
 
 	/**
-	 * Destructor.
+	 * Copy assignment operator.
 	 */
-	~DateTime() {
-	}
-
-	/**
-	 * Assignment operator.
-	 */
-	DateTime &operator=(const DateTime &that) {
+	DateTime &operator=(const DateTime &that) & noexcept {
 		time = that.time;
 		details = that.details;
 		return *this;
@@ -181,15 +175,33 @@ public:
 		return details.tm_isdst;
 	}
 
-	friend std::ostream &operator<<(std::ostream &, const DateTime &);
+	/**
+	 * Prettifies and prints the date to an output stream.
+	 * @param os The output stream.
+	 * @param axis The axis.
+	 */
+	friend std::ostream &operator<<(std::ostream &os,
+			const DateTime &dateTime) {
+		// Create string
+		char buffer[26];
+		asctime_r(&dateTime.details, buffer);
+
+		// Remove new line
+		buffer[strlen(buffer) - 1] = '\0';
+
+		// Print and return
+		os << buffer;
+		return os;
+	}
 
 };
 
 /**
- * @return The difference of the timestamps of the objects.
+ * @return The difference between the two times, in years.
  */
-std::time_t operator-(const DateTime &a, const DateTime &b) {
-	return a.timestamp() - b.timestamp();
+Real operator-(const DateTime &a, const DateTime &b) {
+	return (double) (a.timestamp() - b.timestamp()) / 60. / 60. / 24.
+			/ 365. ;
 }
 
 /**
@@ -237,25 +249,6 @@ bool operator<=(const DateTime &a, const DateTime &b) {
 bool operator>=(const DateTime &a, const DateTime &b) {
 	return a.timestamp() >= b.timestamp();
 }
-
-/**
- * Prettifies and prints the date to an output stream.
- * @param os The output stream.
- * @param axis The axis.
- */
-std::ostream &operator<<(std::ostream &os, const DateTime &dateTime) {
-	// Create string
-	char buffer[26];
-	asctime_r(&dateTime.details, buffer);
-
-	// Remove new line
-	buffer[strlen(buffer) - 1] = '\0';
-
-	// Print and return
-	os << buffer;
-	return os;
-}
-
 
 }
 

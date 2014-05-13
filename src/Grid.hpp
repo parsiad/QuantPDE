@@ -6,61 +6,45 @@
 #include <cassert>          // assert
 #include <initializer_list> // std::initializer_list
 #include <iostream>         // std::ostream
+#include <utility>          // std::forward
+
+// TODO: Add noexcept to all special functions
 
 namespace QuantPDE {
 
-class Grid;
-
 /**
- * A rectilinear grid.
+ * A rectilinear grid of arbitrary dimension.
  */
-class Grid {
+template <Index dim> // TODO: Check if positive
+class Grid final {
 
 	template <bool isConst>
-	class VectorIndex {
+	class VectorIndex final {
 
 		typedef typename std::conditional<isConst, const Vector,
 				Vector>::type V;
 		typedef typename std::conditional<isConst, Real,
 				Real &>::type D;
 
-		const Grid *grid;
 		V *vector;
 		Index index;
-		Index *idxs;
+		Index idxs[dim];
 
 	public:
 
-		VectorIndex(const Grid &grid, V &vector, Index index)
-				: grid(&grid), vector(&vector), index(index) {
-			idxs = new Index[grid.size()];
+		VectorIndex(const Grid &grid, V &vector, Index index) noexcept
+				: vector(&vector), index(index) {
 			grid.roll(index, idxs);
 		}
 
-		VectorIndex(const VectorIndex &that) : grid(that.grid),
-				vector(that.vector), index(that.index) {
-			idxs = new Index[grid->size()];
-			std::memcpy(idxs, that.idxs,
-					sizeof(Index) * grid->size());
+		VectorIndex(const VectorIndex &that) noexcept
+				: vector(that.vector), index(that.index) {
+			std::memcpy(idxs, that.idxs, sizeof(Index) * dim);
 		}
 
-		VectorIndex(VectorIndex &&that) : grid(that.grid),
-				vector(that.vector), index(that.index) {
-			idxs = that.idxs;
-			that.idxs = NULL;
-		}
+		VectorIndex &operator=(const VectorIndex &that) & = delete;
 
-		~VectorIndex() {
-			delete [] idxs;
-		}
-
-		VectorIndex &operator=(VectorIndex that) {
-			grid = that.grid;
-			vector = that.vector;
-			index = that.index;
-			std::swap(idxs, that.idxs);
-			return *this;
-		}
+		////////////////////////////////////////////////////////////////
 
 		D operator*() const {
 			return (*vector)(index);
@@ -73,8 +57,8 @@ class Grid {
 	};
 
 	template <bool isConst>
-	class VectorIterator : public std::iterator<std::forward_iterator_tag,
-			VectorIndex<isConst>> {
+	class VectorIterator final : public std::iterator<
+			std::forward_iterator_tag, VectorIndex<isConst>> {
 
 		typedef typename std::conditional<isConst, const Vector,
 				Vector>::type V;
@@ -86,22 +70,19 @@ class Grid {
 	public:
 
 		VectorIterator(const Grid &grid, V &vector, Index index = 0)
-				: grid(&grid), vector(&vector), index(index) {
+				noexcept : grid(&grid), vector(&vector),
+				index(index) {
 		}
 
-		VectorIterator(const VectorIterator &that) : grid(that.grid),
-				vector(that.vector), index(that.index) {
+		VectorIterator(const VectorIterator &that) noexcept
+				: grid(that.grid), vector(that.vector),
+				index(that.index) {
 		}
 
-		~VectorIterator() {
-		}
+		VectorIterator &operator=(const VectorIterator &that) &
+				= delete;
 
-		VectorIterator &operator=(const VectorIterator &that) {
-			grid = that.grid;
-			vector = that.vector;
-			index = that.index;
-			return *this;
-		}
+		////////////////////////////////////////////////////////////////
 
 		bool operator==(const VectorIterator &that) const {
 			return grid == that.grid && vector == that.vector
@@ -130,7 +111,7 @@ class Grid {
 	};
 
 	template <bool isConst>
-	class GridVector {
+	class GridVector final {
 
 		typedef typename std::conditional<isConst, const Vector,
 				Vector>::type V;
@@ -140,34 +121,29 @@ class Grid {
 		const Grid *grid;
 		V *vector;
 
-		struct U {};
-
 	public:
 
-		GridVector(const Grid &grid, V &vector) : grid(&grid),
+		GridVector(const Grid &grid, V &vector) noexcept : grid(&grid),
 				vector(&vector) {
-			assert(vector.size() == grid.nodes());
+			assert(vector.size() == grid.size());
 		}
 
-		GridVector(const GridVector &that) : grid(that.grid),
+		GridVector(const GridVector &that) noexcept : grid(that.grid),
 				vector(that.vector) {
 		}
 
-		~GridVector() {
-		}
-
-		GridVector &operator=(const GridVector &that) {
-			grid = that.grid;
-			vector = that.vector;
-			return *this;
-		}
+		GridVector &operator=(const GridVector &that) & = delete;
 
 		////////////////////////////////////////////////////////////////
 
 		Real operator()(const Real *coordinates) const;
 
-		template <typename ...ArgsT>
-		Real operator()(Real c0, ArgsT ...coordinates) const {
+		template <typename ...Args>
+		Real operator()(Real c0, Args ...coordinates) const {
+			static_assert(dim - 1 == sizeof...(Args),
+					"The number of arguments must be "
+					"consistent with the dimension");
+
 			Real coords[] {c0, coordinates...};
 			return (*this)(coords);
 		}
@@ -176,10 +152,13 @@ class Grid {
 			return (*vector)(grid->unroll(indices));
 		}
 
-		template <typename ...ArgsT>
-		D operator()(Index i0, ArgsT ...indices) const {
+		template <typename ...Args>
+		D operator()(Index i0, Args ...indices) const {
+			static_assert(dim - 1 == sizeof...(Args),
+					"The number of arguments must be "
+					"consistent with the dimension");
+
 			Index idxs[] {i0, indices...};
-			assert(sizeof(idxs) == grid->size() * sizeof(Index));
 			return (*this)(idxs);
 		}
 
@@ -191,64 +170,299 @@ class Grid {
 
 		VectorIterator<isConst> end() const {
 			return VectorIterator<isConst>(*grid, *vector,
-					grid->nodes());
+					grid->size());
 		}
 
 		////////////////////////////////////////////////////////////////
 
-		template <bool B>
-		friend std::ostream &operator<<(std::ostream &,
-				const GridVector<B> &);
+		// TODO: Fix this
+
+		/**
+		 * Prettifies and prints the contents of a vector along with the
+		 * corresponding grid indices.
+		 * @param os The output stream.
+		 * @param v_G A A GridVector object.
+		 * @see QuantPDE::Grid::accessor
+		 */
+		/*template <bool B>
+		friend std::ostream &operator<<(std::ostream &os,
+				const GridVector<B> &v_G) {
+			Real coordinates[dim];
+			for(auto v_indices : v_G) {
+				v_G.grid->coordinates(&v_indices, coordinates);
+				for(Index i = 0; i < dim; i++) {
+					os << coordinates[i] << '\t';
+				}
+				os << *v_indices << std::endl;
+			}
+			return os;
+		}*/
 
 	};
 
 	typedef GridVector<true> GridVectorConst;
 	typedef GridVector<false> GridVectorNonConst;
 
-	class GridMatrix {
+	////////////////////////////////////////////////////////////////////////
 
-		const Grid &grid;
-		Matrix &matrix;
+	class GridMatrix final {
+
+		const Grid *grid;
+		Matrix *matrix;
 
 	public:
 
-		GridMatrix(const Grid &grid, Matrix &matrix) : grid(grid),
-				matrix(matrix) {
-			assert(matrix.rows() == grid.nodes());
-			assert(matrix.cols() == grid.nodes());
+		GridMatrix(const Grid &grid, Matrix &matrix) : grid(&grid),
+				matrix(&matrix) {
+			assert(matrix.rows() == grid.size());
+			assert(matrix.cols() == grid.size());
 		}
 
-		GridMatrix(const GridMatrix &that) : grid(that.grid),
-				matrix(that.matrix) {
-		}
+		GridMatrix(const GridMatrix &that) = delete;
+		GridMatrix &operator=(const GridMatrix &that) & = delete;
 
 		////////////////////////////////////////////////////////////////
 
 		Real &operator()(const Index *indices) const {
-			return matrix.insert( grid.unroll(indices),
-					grid.unroll(indices + grid.size()) );
+			return matrix->insert( grid->unroll(indices),
+					grid->unroll(indices + dim) );
 		}
 
-		template <typename ...ArgsT>
-		Real &operator()(ArgsT ...indices) const {
+		template <typename ...Args>
+		Real &operator()(Args ...indices) const {
+			static_assert((dim * 2) == sizeof...(Args),
+					"The number of arguments must be "
+					"consistent with the dimensions");
+
 			Index idxs[] {indices...};
-			assert(sizeof(idxs) == grid.size() * sizeof(Index) * 2);
-			return matrix.insert( grid.unroll(idxs),
-					grid.unroll(idxs + grid.size()) );
+			return matrix->insert( grid->unroll(idxs),
+					grid->unroll(idxs + dim) );
 		}
 
 	};
 
-	virtual void roll(Index, Index *) const = 0;
+	////////////////////////////////////////////////////////////////////////
 
-	virtual Index unroll(const Index *) const = 0;
+	public:
+
+	class MatrixBuilder {
+
+		virtual Real &get(const Index *indices) = 0;
+
+	protected:
+
+		const Grid *G;
+		Matrix M;
+
+	public:
+
+		MatrixBuilder(const Grid &grid) noexcept : G(&grid) {
+		}
+
+		MatrixBuilder(const MatrixBuilder &that) = delete;
+
+		// Do not need virtual constructor
+		// virtual ~MatrixBuilder() {
+		//}
+
+		MatrixBuilder &operator=(const MatrixBuilder &that) & = delete;
+
+		////////////////////////////////////////////////////////////////
+
+		const Grid &grid() const {
+			return *G;
+		}
+
+		Real &operator()(const Index *indices) {
+			return get(indices);
+		}
+
+		template <typename ...Args>
+		Real &operator()(Args ...indices) {
+			static_assert((dim * 2) == sizeof...(Args),
+					"The number of arguments must be "
+					"consistent with the dimensions");
+
+			Index idxs[] {indices...};
+			return get(idxs);
+		}
+
+		virtual const Matrix &matrix() = 0;
+
+	};
+
+	private:
+
+	class LazyMatrixBuilder final : public MatrixBuilder {
+
+		std::vector<Entry> entries;
+
+		virtual Real &get(const Index *indices) {
+			entries.push_back(Entry(this->G->unroll(indices),
+					this->G->unroll(indices + dim), 0.));
+			return entries.back().value();
+		}
+
+	public:
+
+		LazyMatrixBuilder(const Grid &grid) noexcept
+				: MatrixBuilder(grid) {
+		}
+
+		LazyMatrixBuilder(const Grid &grid, size_t nonzeros) noexcept
+				: MatrixBuilder(grid) {
+			entries.reserve(nonzeros);
+		}
+
+		////////////////////////////////////////////////////////////////
+
+		virtual const Matrix &matrix() {
+			this->M = Matrix(this->G->size(),
+					this->G->size());
+			this->M.setFromTriplets(entries.begin(), entries.end());
+			return this->M;
+		}
+
+	};
+
+	class FastMatrixBuilder final : public MatrixBuilder {
+
+		virtual Real &get(const Index *indices) {
+			return this->M.insert(this->G->unroll(indices),
+					this->G->unroll(indices + dim));
+		}
+
+	public:
+
+		template <typename IV>
+		FastMatrixBuilder(const Grid &grid, IV &&profile) noexcept
+				: MatrixBuilder(grid) {
+			this->M = Matrix(grid.size(), grid.size());
+			this->M.reserve(std::forward(profile));
+		}
+
+		////////////////////////////////////////////////////////////////
+
+		virtual const Matrix &matrix() {
+			this->M.makeCompressed();
+			return this->M;
+		}
+
+	};
+
+	////////////////////////////////////////////////////////////////////////
+
+	Index vsize;
+	Axis axes[dim]; // Grid has access to private empty constructor Axis()
+
+	////////////////////////////////////////////////////////////////////////
+	// (un)roll
+	////////////////////////////////////////////////////////////////////////
+
+	void roll(Index index, Index *indices) const {
+		Index m = 1;
+
+		// Unroll loop
+		for(Index i = 0; i < dim - 1; i++) {
+			m *= axes[i].size();
+		}
+
+		// Unroll loop
+		for(Index i = dim - 1; i > 0; i++) {
+			indices[i] = index / m;
+			index -= indices[i] * m;
+			m /= axes[i--].size();
+		}
+		indices[0] = index;
+	}
+
+	Index unroll(const Index *indices) const {
+		Index
+			index = 0,
+			horner = 1
+		;
+
+		index = indices[0];
+
+		// Unroll loop
+		for(Index i = 1; i < dim; i++) {
+			horner *= axes[i - 1].size();
+			index += horner * indices[i];
+		}
+
+		return index;
+	}
+
+	////////////////////////////////////////////////////////////////////////
 
 public:
 
 	/**
-	 * Destructor.
+	 * Constructor.
 	 */
-	virtual ~Grid() {
+	template <typename ...Args>
+	Grid(Args... args) noexcept {
+		static_assert(dim == sizeof...(Args),
+				"The number of arguments must be consistent "
+				"with the dimensions");
+
+		vsize = 1;
+		Axis axes[] = {args...};
+
+		// Unroll loop
+		for(Index i = 0; i < dim; i++) {
+			assert(axes[i].size() > 0);
+
+			vsize *= axes[i].size();
+			this->axes[i] = axes[i];
+		}
+	}
+
+	/**
+	 * Copy constructor.
+	 */
+	Grid(const Grid &that) noexcept : vsize(that.vsize) {
+		// Unroll loop
+		for(Index i = 0; i < dim; i++) {
+			axes[i] = that.axis[i];
+		}
+	}
+	/**
+	 * Move constructor.
+	 */
+	Grid(Grid &&that) noexcept : vsize(that.vsize) {
+		// Unroll loop
+		for(Index i = 0; i < dim; i++) {
+			axes[i] = std::move(that.axis[i]);
+		}
+	}
+
+	/**
+	 * Copy assignment operator.
+	 */
+	Grid &operator=(const Grid &that) & noexcept {
+		vsize = that.vsize;
+
+		// Unroll loop
+		for(Index i = 0; i < dim; i++) {
+			axes[i] = that.axes[i];
+		}
+
+		return *this;
+	}
+
+	/**
+	 * Move assignment operator.
+	 */
+	Grid &operator=(Grid &&that) & noexcept {
+		vsize = that.vsize;
+
+		// Unroll loop
+		for(Index i = 0; i < dim; i++) {
+			axes[i] = std::move(that.axes[i]);
+		}
+
+		return *this;
 	}
 
 	/**
@@ -258,7 +472,7 @@ public:
 	 * // Create a 2-dimensional grid
 	 * Axis X {0., .25, .5, .75, 1.};
 	 * Axis Y {0., .5, 1.};
-	 * Grid2d G(X, Y);
+	 * Grid2 G(X, Y);
 	 *
 	 * // Create a vector on the grid and an accessor to go with it
 	 * Vector v = G.vector();
@@ -290,47 +504,56 @@ public:
 	 * \endcode
 	 * The latter method is more useful when the dimension (i.e. number of
 	 * axes) of the grid is not known ahead of time.
-	 * @return An accessor to a vector.
+	 * @return An accessor to a constant vector.
 	 */
 	GridVectorConst accessor(const Vector &vector) const {
 		return GridVectorConst(*this, vector);
 	}
 
 	/**
-	 * @return An accessor to a constant vector.
+	 * @return An accessor to a vector.
 	 * @see QuantPDE::Grid::accessor
 	 */
 	GridVectorNonConst accessor(Vector &vector) const {
 		return GridVectorNonConst(*this, vector);
 	}
 
+	// TODO: handle rvalue refeferences with std::move
+	GridVectorNonConst accessor(Vector &&vector) = delete;
+
 	/**
 	 * Creates and returns an accessor to a matrix.
 	 * A matrix accessor can only be used to insert nonzero entries into
 	 * a matrix. Furthermore, attempting to insert into a location twice
-	 * will cause undefined behaviour.
+	 * will cause undefined behaviour. The example below builds the discrete
+	 * Laplace operator.
 	 * \code{.cpp}
 	 * // Create a 2-dimensional grid
-	 * Grid2d G(X, Y);
+	 * Grid2 G(X, Y);
+	 * Index m = X.size();
+	 * Index n = Y.size();
 	 *
-	 * // Create a matrix with 1 nonzero element reserved per row
+	 * // Create a matrix with 4 nonzero element reserved per row
 	 * Matrix M = G.matrix();
-	 * M.reserve(Eigen::VectorXi::Constant(n, 1));
+	 * M.reserve(IntegerVector::Constant(G.size(), 4));
 	 *
-	 * // A very roundabout way to make the identity
 	 * auto M_G = G.accessor(M);
+	 *
+	 * // Branching inside the loop is expensive and should be eliminated
+	 * // in production code
 	 * for(Index i = 0; i < X.size(); i++) {
 	 * 	for(Index j = 0; j < Y.size(); j++) {
-	 * 		M_G(i, j, i, j) = 1.;
-	 * 		// The first pair of indices is used to resolve the row
-	 * 		// index of the matrix, while the second pair is used to
-	 * 		// resolve the column index of the matrix
+	 * 		if(i > 0)     M_G(i, j, i - 1, j    ) = -1.;
+	 * 		if(j > 0)     M_G(i, j, i,     j - 1) = -1.;
+	 * 		              M_G(i, j, i,     j    ) =  4.;
+	 * 		if(j < n - 1) M_G(i, j, i,     j + 1) = -1.;
+	 * 		if(i < m - 1) M_G(i, j, i + 1, j    ) = -1.;
 	 * 	}
 	 * }
 	 *
 	 * // The following results in undefined behaviour since we have already
 	 * // assigned a value to this position:
-	 * // M_G(0, 0, 0, 0) = 1.;
+	 * // M_G(0, 0, 0, 0) = 4.;
 	 *
 	 * M.makeCompressed();
 	 * \endcode
@@ -340,12 +563,72 @@ public:
 		return GridMatrix(*this, matrix);
 	}
 
+	// No good reason to pass an rvalue to a matrix accessor
+	GridMatrix accessor(Matrix &&matrix) = delete;
+
+	/**
+	 * Creates and returns a matrix builder. This should be used when the
+	 * approximate number of nonzero entries per row (if the underlying
+	 * implementation is row-major) is not known ahead of time. The example
+	 * below builds the discrete Laplace operator.
+	 * \code{.cpp}
+	 * // Create a 1-dimensional grid
+	 * Grid2 G(X, Y);
+	 * Index m = X.size();
+	 * Index n = Y.size();
+	 *
+	 * auto builder = G.matrixBuilder();
+	 *
+	 * // Branching inside the loop is expensive and should be eliminated
+	 * // in production code
+	 * for(Index i = 0; i < m; i++) {
+	 * 	for(Index j = 0; j < n; j++) {
+	 * 		if(i > 0)     builder(i, j, i - 1, j    ) = -1.;
+	 * 		if(j > 0)     builder(i, j, i,     j - 1) = -1.;
+	 * 		              builder(i, j, i,     j    ) =  4.;
+	 * 		if(j < n - 1) builder(i, j, i,     j + 1) = -1.;
+	 * 		if(i < m - 1) builder(i, j, i + 1, j    ) = -1.;
+	 * 	}
+	 * }
+	 *
+	 * Matrix M = builder.matrix();
+	 * \endcode
+	 * A call to matrix() should only occur once. The results are undefined
+	 * otherwise. Similarly, nonzero entries should only be specified once.
+	 * @return A matrix builder.
+	 */
+	LazyMatrixBuilder matrixBuilder() const {
+		return LazyMatrixBuilder(*this);
+	}
+
+	/**
+	 * Creates and returns a matrix builder.
+	 * @param nonzeros The approximate total number of nonzero entries in
+	 *                 the resulting matrix.
+	 */
+	LazyMatrixBuilder matrixBuilder(size_t nonzeros) const {
+		return LazyMatrixBuilder(*this, nonzeros);
+	}
+
+	/**
+	 * Creates and returns a matrix builder. When the number of nonzeros per
+	 * row (if the underlying implementation is row-major) is known a
+	 * priori, this method should be used.
+	 * @param nonzeros An integer vector whose i-th element represents the
+	 *                 number of elements in the i-th row (if the underlying
+	 *                 implementation is row-major) of the matrix.
+	 */
+	template <typename IV>
+	FastMatrixBuilder matrixBuilder(IV &&nonzeros) const {
+		return FastMatrixBuilder(*this, std::forward(nonzeros));
+	}
+
 	/**
 	 * @return A square matrix of order equal to the number of nodes on this
 	 *         grid.
 	 */
 	Matrix matrix() const {
-		return Matrix(nodes(), nodes());
+		return Matrix(vsize, vsize);
 	}
 
 	/**
@@ -353,7 +636,7 @@ public:
 	 *         grid.
 	 */
 	Vector zero() const {
-		return Vector::Zero(nodes());
+		return Vector::Zero(vsize);
 	}
 
 	/**
@@ -361,7 +644,7 @@ public:
 	 *         this grid.
 	 */
 	Vector ones() const {
-		return Vector::Ones(nodes());
+		return Vector::Ones(vsize);
 	}
 
 	/**
@@ -370,234 +653,75 @@ public:
 	 *         particular values.
 	 */
 	Vector vector() const {
-		return Vector(nodes());
+		return Vector(vsize);
 	}
 
 	/**
 	 * Converts indices to coordinates on this grid.
-	 * @param indices An array of indices of length size().
-	 * @param coordinates An array of size size(). The i-th element of this
-	 *                    array is set to the corresponding tick on the i-th
-	 *                    axis.
+	 * @param indices An array of indices of length equal to the dimension.
+	 * @param coordinates An array of length equal to the dimension. The
+	 *                    i-th element of this array is set to the
+	 *                    corresponding tick on the i-th axis.
 	 */
-	virtual void coordinates(const Index *indices, Real *coordinates)
-			const = 0;
+	void coordinates(const Index *indices, Real *coordinates) const {
+		// Unroll loop
+		for(Index i = 0; i < dim; i++) {
+			coordinates[i] = axes[i][indices[i]];
+		}
+	}
 
 	/**
 	 * @param index An index.
 	 * @return The index-th axis.
 	 */
-	virtual const Axis &operator()(Index index) const = 0;
+	const Axis &operator[](Index index) const {
+		return axes[index];
+	}
 
 	/**
-	 * @return The number of axes (i.e. the dimension of the domain on which
-	 *         this rectilinear grid lives).
+	 * @param function A function.
+	 * @return The image of a function on this grid as a vector.
 	 */
-	virtual Index size() const = 0;
+	template <typename F>
+	Vector image(F &&function) {
+		Vector v = vector();
+
+		Real coords[dim];
+		for(auto node : accessor(v)) {
+			coordinates(&node, coords);
+			*node = unpackAndCall(std::forward<F>(function), coords,
+					GenerateSequence<dim>());
+		}
+
+		return v;
+	}
 
 	/**
 	 * @return The total number of nodes on this grid.
 	 */
-	virtual Index nodes() const = 0;
-
-};
-
-/**
- * Prettifies and prints a grid to an output stream.
- * @param os The output stream.
- * @param axis The axis.
- */
-std::ostream &operator<<(std::ostream &os, const Grid &grid) {
-	os << grid(0);
-	for(Index i = 1; i < grid.size(); i++) {
-		os << " \u00D7 " << grid(i);
-	}
-	return os;
-}
-
-
-/**
- * A rectilinear grid of arbitrary dimension. Use of this should be avoided
- * when the dimension of the grid is small (and known a priori).
- */
-class GridXd final : public Grid {
-
-	Axis **axes;
-	Index dim, vsize;
-
-	void initialize(std::initializer_list<Axis> list) {
-		dim = list.size();
-		assert(dim > 0);
-
-		vsize = 1;
-		Axis **p = axes = new Axis*[list.size()];
-		for(Axis axis : list) {
-			assert(axis.size() > 0);
-
-			vsize *= axis.size();
-			*(p++) = new Axis(axis);
-		}
-	}
-
-	////////////////////////////////////////////////////////////////////////
-	// (un)roll
-	////////////////////////////////////////////////////////////////////////
-
-	virtual void roll(Index index, Index *indices) const {
-		Index m = 1;
-		for(Index i = 0; i < size() - 1; i++) {
-			m *= axes[i]->size();
-		}
-
-		for(Index i = size() - 1; i > 0; i++) {
-			indices[i] = index / m;
-			index -= indices[i] * m;
-			m /= axes[i--]->size();
-		}
-		indices[0] = index;
-	}
-
-	virtual Index unroll(const Index *indices) const {
-		Index
-			index = 0,
-			horner = 1
-		;
-
-		const Index *end = indices + dim;
-		Axis **p = axes;
-		index = *(indices++);
-		while(indices != end) {
-			horner *= (*(p++))->size();
-			index += horner * (*(indices++));
-		}
-
-		return index;
-	}
-
-	////////////////////////////////////////////////////////////////////////
-
-public:
-
-	/**
-	 * Constructor.
-	 * @param axes The axes that make up the rectilinear grid.
-	 */
-	template <typename ...ArgsT>
-	GridXd(ArgsT ...axes) {
-		initialize({axes...});
-	}
-
-	/**
-	 * Constructor.
-	 * @param list A list of axes that make up the rectilinear grid.
-	 */
-	GridXd(std::initializer_list<Axis> list) {
-		initialize(list);
-	}
-
-	/**
-	 * Copy constructor.
-	 */
-	GridXd(const GridXd &that) {
-		dim = that.dim;
-		vsize = that.vsize;
-
-		Axis
-			**p = axes,
-			**q = that.axes,
-			**end = axes + dim
-		;
-
-		while(p != end) {
-			*(p++) = *(q++);
-		}
-	}
-
-	/**
-	 * Move constructor.
-	 */
-	GridXd(GridXd &&that) {
-		dim = that.dim;
-		vsize = that.vsize;
-		axes = that.axes;
-
-		that.axes = NULL;
-	}
-
-	/**
-	 * Destructor.
-	 */
-	virtual ~GridXd() {
-		Axis
-			**p = axes,
-			**end = axes + dim
-		;
-
-		while(p != end) {
-			delete *(p++);
-		}
-
-		delete [] axes;
-	}
-
-	/**
-	 * Assignment operator.
-	 */
-	GridXd &operator=(GridXd that) {
-		dim = that.dim;
-		vsize = that.vsize;
-		std::swap(axes, that.axes);
-		return *this;
-	}
-
-	virtual void coordinates(const Index *indices, Real *coordinates)
-			const {
-		Axis **p = axes, **end = axes + dim;
-		while(p != end) {
-			*(coordinates++) = (**(p++))(*(indices++));
-		}
-	}
-
-	virtual const Axis &operator()(Index index) const {
-		return *axes[index];
-	}
-
-	virtual Index size() const {
-		return dim;
-	}
-
-	virtual Index nodes() const {
+	Index size() const {
 		return vsize;
 	}
 
+	/**
+	 * Prettifies and prints the grid.
+	 * @param os The output stream.
+	 * @param grid A grid.
+	 */
+	friend std::ostream &operator<<(std::ostream &os,
+			const Grid<dim> &grid) {
+		os << grid[0];
+		for(Index i = 1; i < dim; i++) {
+			os << " x " << grid[i];
+		}
+		return os;
+	}
+
 };
 
-/**
- * Prettifies and prints the contents of a vector along with the corresponding
- * grid indices.
- * @param os The output stream.
- * @param v_G A reference to a GridVector object.
- * @see QuantPDE::Grid::accessor
- */
-template <bool isConst>
-std::ostream &operator<<(std::ostream &os,
-		const Grid::GridVector<isConst> &v_G) {
-	Real *coordinates = new Real[v_G.grid->size()];
-	for(auto v_indices : v_G) {
-		v_G.grid->coordinates(&v_indices, coordinates);
-		for(Index i = 0; i < v_G.grid->size(); i++) {
-			os << coordinates[i] << '\t';
-		}
-		os << *v_indices << std::endl;
-	}
-	delete [] coordinates;
-	return os;
-}
-
-// TODO: Grid1d, Grid2d, Grid3d
-typedef GridXd Grid1d;
-typedef GridXd Grid2d;
-typedef GridXd Grid3d;
+typedef Grid<1> Grid1;
+typedef Grid<2> Grid2;
+typedef Grid<3> Grid3;
 
 }
 
