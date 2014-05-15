@@ -1,6 +1,10 @@
 #ifndef QUANT_PDE
 #define QUANT_PDE
 
+#ifndef QUANT_PDE_BINDINGS
+#include "QuantPDE/bindings/Eigen"
+#endif
+
 #include "QuantPDE/src/Types.hpp"
 #include "QuantPDE/src/Metafunctions.hpp"
 #include "QuantPDE/src/DateTime.hpp"

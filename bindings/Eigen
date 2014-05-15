@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_BINDINGS_EIGEN
-#define QUANT_PDE_BINDINGS_EIGEN
+#ifndef QUANT_PDE_BINDINGS
+#define QUANT_PDE_BINDINGS
 
 #include <eigen3/Eigen/SparseCore>
 

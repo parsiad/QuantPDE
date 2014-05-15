@@ -1,10 +1,6 @@
-#include <QuantPDE/bindings/Eigen>
 #include <QuantPDE/Core>
-#include <QuantPDE/modules/European.hpp>
-#include <QuantPDE/modules/Payoffs.hpp>
-
-// BiCGSTAB
-// #include <eigen3/Eigen/IterativeLinearSolvers>
+#include <QuantPDE/modules/European>
+#include <QuantPDE/modules/Payoffs>
 
 using namespace QuantPDE;
 using namespace QuantPDE::Modules;
@@ -135,6 +131,7 @@ endl <<
 	double previousValue = nan(""), previousChange = nan("");
 
 	// Initial discretization
+	// TODO: Create grid based on initial stock price and strike price
 	Axis S {
 		0., 10., 20., 30., 40., 50., 60., 70.,
 		75., 80.,
