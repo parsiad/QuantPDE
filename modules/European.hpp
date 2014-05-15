@@ -74,12 +74,13 @@ class Implicit final : public Solver1<T> {
 
 protected:
 
-	virtual void onStart() {
-		// Turn the initial condition into a vector
-		V = this->grid.image( this->problem.initialCondition() );
+	virtual void beforeConstraints() {
+		// Turn solution into vector
+		V = this->grid.image( this->solution );
 	}
 
 	virtual void afterConstraints() {
+		// Turn vector into solution
 		this->solution = interpolation;
 	}
 

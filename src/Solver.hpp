@@ -130,7 +130,7 @@ public:
 			: startQueue(startQueue), endQueue(endQueue),
 			eventQueue(eventQueue), earliest(topmost()),
 			now(earliest), grid(&grid),
-			solution(problem.initialCondition) {
+			solution(problem.initialCondition()) {
 
 		for(const std::tuple<Constraint, T, T> &tuple
 				: problem.constraints) {
