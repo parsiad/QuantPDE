@@ -32,8 +32,8 @@ public:
 	 * @param list The ticks. These should be strictly monotonically
 	 *             increasing.
 	 */
-	Axis(std::initializer_list<Real> list) noexcept : length(list.size()),
-			n(new Real[length]) {
+	Axis(const std::initializer_list<Real> &list) noexcept
+			: length(list.size()), n(new Real[length]) {
 		assert(length > 0);
 
 		Real *p = n;

@@ -8,15 +8,16 @@
 #include <iostream>         // std::ostream
 #include <utility>          // std::forward
 
-// TODO: Add noexcept to all special functions
-
 namespace QuantPDE {
 
 /**
  * A rectilinear grid of arbitrary dimension.
  */
-template <Index dim> // TODO: Check if positive
+template <Index dim>
 class Grid final {
+
+	// Check if dimension is positive
+	static_assert(dim > 0, "Dimension must be positive");
 
 	template <bool isConst>
 	class VectorIndex final {
@@ -36,6 +37,8 @@ class Grid final {
 				: vector(&vector), index(index) {
 			grid.roll(index, idxs);
 		}
+
+		VectorIndex(const Grid &grid, V &&vector, Index index) = delete;
 
 		VectorIndex(const VectorIndex &that) noexcept
 				: vector(that.vector), index(that.index) {
@@ -73,6 +76,11 @@ class Grid final {
 				noexcept : grid(&grid), vector(&vector),
 				index(index) {
 		}
+
+		VectorIterator(const Grid &grid, V &&vector, Index index)
+				= delete;
+		VectorIterator(Grid &&grid, V &vector, Index index) = delete;
+		VectorIterator(Grid &&grid, V &&vector, Index index) = delete;
 
 		VectorIterator(const VectorIterator &that) noexcept
 				: grid(that.grid), vector(that.vector),
@@ -127,6 +135,10 @@ class Grid final {
 				vector(&vector) {
 			assert(vector.size() == grid.size());
 		}
+
+		GridVector(const Grid &grid, V &&vector) = delete;
+		GridVector(Grid &&grid, V &&vector) = delete;
+		GridVector(Grid &&grid, V &vector) = delete;
 
 		GridVector(const GridVector &that) noexcept : grid(that.grid),
 				vector(that.vector) {
@@ -401,7 +413,7 @@ public:
 	 * Constructor.
 	 */
 	template <typename ...Args>
-	Grid(Args... args) noexcept {
+	Grid(Args ...args) noexcept {
 		static_assert(dim == sizeof...(Args),
 				"The number of arguments must be consistent "
 				"with the dimensions");
@@ -689,8 +701,8 @@ public:
 		Real coords[dim];
 		for(auto node : accessor(v)) {
 			coordinates(&node, coords);
-			*node = unpackAndCall(std::forward<F>(function), coords,
-					GenerateSequence<dim>());
+			*node = QUANT_PDE_UNPACK_AND_CALL(
+					std::forward<F>(function), coords, dim);
 		}
 
 		return v;

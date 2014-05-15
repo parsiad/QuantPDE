@@ -32,12 +32,15 @@ struct IntegerPower<Base, 0>
 	static constexpr bool overflow = false;
 };
 
-/**
- * A sequence of integers.
- */
+////////////////////////////////////////////////////////////////////////////////
+
+namespace GenerateSequenceHelpers {
+
 template <int... Is>
 struct Sequence {
 };
+
+} // GenerateSequenceHelpers
 
 /**
  * Used to generate a sequence of integers.
@@ -47,52 +50,56 @@ struct GenerateSequence : GenerateSequence<N - 1, N - 1, Is...> {
 };
 
 template <int... Is>
-struct GenerateSequence<0, Is...> : Sequence<Is...> {
+struct GenerateSequence<0, Is...> : GenerateSequenceHelpers::Sequence<Is...> {
 };
 
-/**
- * Calls a function by unpacking an array.
- */
+////////////////////////////////////////////////////////////////////////////////
+
+// Did not know where else to put this; not really a metafunction
+
+namespace UnpackAndCall {
+
 template <typename F, typename T, Index... indices>
-Real unpackAndCall(F &&function, const T *array, Sequence<indices...>) {
+Real call(F &&function, const T *array,
+		GenerateSequenceHelpers::Sequence<indices...>) {
 	return (std::forward<F>(function))( array[indices]... );
 }
 
-/*
-template <std::size_t N, typename ReturnType, typename Type, typename ...Types>
-struct NaryFunction
-{
-	using type = typename NaryFunction<N - 1, ReturnType, Type, Type,
-			Types...>::type;
-};
+}
 
-template <typename ReturnType, typename Type, typename ...Types>
-struct NaryFunction<0, ReturnType, Type, Types...>
-{
-	using type = std::function <ReturnType (Types...)>;
-};
-*/
+#define QUANT_PDE_UNPACK_AND_CALL(function, array, N)          \
+		QuantPDE::UnpackAndCall::call(function, array, \
+		GenerateSequence<N>())
 
-template<template<class...>class target, unsigned N, class R, class T,
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NaryFunctionSignatureHelpers {
+
+template <template <class...> class Target, unsigned N, class R, class T,
 		class... Ts>
-struct RepeatTypeN: RepeatTypeN<target, N-1, R, T, T, Ts...> {};
-
-template<template<class...>class target, class R, class T, class... Ts>
-struct RepeatTypeN<target, 0, R, T, Ts...> {
-	typedef target<R, Ts...> type;
+struct Recurse : Recurse <Target, N - 1, R, T, T, Ts...> {
 };
 
-template<template<class...>class target, unsigned N, class R, class T>
-using RepeatTypeNTimes = typename RepeatTypeN<target, N, R, T>::type;
+template <template <class...> class Target, class R, class T, class... Ts>
+struct Recurse<Target, 0, R, T, Ts...> {
+	typedef Target<R, Ts...> type;
+};
+
+template <template <class...> class Target, unsigned N, class R, class T>
+using Type = typename Recurse<Target, N, R, T>::type;
 
 template <typename R, typename... Ts>
-using Operation = R (Ts...);
+using Target = R (Ts...);
 
+} // NaryFunctionSignatureHelpers
+
+/**
+ * NaryFunctionSignature is synonymous to the type R (T...), where T... is
+ * repeated N times.
+ */
 template<unsigned N, class R, class T>
-using NaryOperation = RepeatTypeNTimes<Operation, N, R, T>;
-
-template<Index N>
-using NRealToReal = NaryOperation<N, Real, Real>;
+using NaryFunctionSignature = NaryFunctionSignatureHelpers::Type<
+		NaryFunctionSignatureHelpers::Target, N, R, T>;
 
 }
 

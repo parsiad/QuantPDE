@@ -1,25 +1,26 @@
 #ifndef QUANT_PDE_MODULES_EUROPEAN
 #define QUANT_PDE_MODULES_EUROPEAN
 
+#include <memory> // std::unique_ptr
+
 namespace QuantPDE {
 
 namespace Modules {
 
 class BlackScholesEquation : public Constraint {
 
-	const Function2 r, v, q;
-
 public:
+
+	const Function2 interest, volatility, dividends;
 
 	template <typename F1, typename F2, typename F3>
 	BlackScholesEquation(F1 &&interest, F2 &&volatility, F3 &&dividends)
-			noexcept {
-		// TODO
+			noexcept : interest( std::forward<F1>(interest) ),
+			volatility( std::forward<F2>(volatility) ),
+			dividends( std::forward<F3>(dividends) ) {
 	}
 
-	virtual std::string identifier() const {
-		return "BlackScholesEquation";
-	}
+	QUANT_PDE_IDENTIFIER_METHOD(BlackScholesEquation)
 
 };
 
@@ -36,10 +37,17 @@ public:
 			: Problem1<T>(std::forward<F1>(payoff)) {
 
 		// dV/dt + d^2V/dS^2 sigma^2 S^2 / 2 + dV/dS rS - rV = 0
-		BlackScholesEquation bse(std::forward<F2>(interest),
-				std::forward<F3>(volatility),
-				std::forward<F4>(dividends));
-		//this->add( , start, end );
+		this->add(
+			std::unique_ptr<Constraint>(
+				new BlackScholesEquation(
+					std::forward<F2>(interest),
+					std::forward<F3>(volatility),
+					std::forward<F4>(dividends)
+				)
+			),
+			start,
+			end
+		);
 
 	}
 
@@ -47,14 +55,33 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace Solvers {
+
+namespace European {
+
 template <typename T = Real>
-class Implicit : public Problem1<T>::Solver {
+class Implicit : public Solver1<T> {
+
+	void blackScholesEquation(const Constraint &constraint, T now, T next) {
+		const BlackScholesEquation *bse =
+				dynamic_cast<const BlackScholesEquation *>(
+				constraint);
+	}
+
+public:
+
+	Implicit(const Problem1<T> &problem) noexcept : Solver1<T>(problem) {
+		registerRoutine( QUANT_PDE_IDENTIFIER(BlackScholesEquation),
+				blackScholesEquation );
+	}
 
 };
 
-/*
-namespace European {
+} // European
 
+} // Solvers
+
+/*
 template <typename T>
 class ImplicitStep : public Event {
 
@@ -146,37 +173,6 @@ public:
 	}
 
 };
-
-template <typename T>
-class Implicit : public ConstantStepper<ImplicitStep<T>> {
-
-	const Function &interest, &volatility, &dividends;
-
-	virtual ImplicitStep<T> next(double previousTime, double nextTime) {
-		return ImplicitStep<T>(
-			previousTime,
-			nextTime,
-			interest,
-			volatility,
-			dividends
-		);
-	}
-
-public:
-
-	Implicit(const Grid &grid, Vector &initial, double start,
-			double end, unsigned steps, const Function &interest,
-			const Function &volatility, const Function &dividends)
-			: ConstantStepper<ImplicitStep<T>>(grid, initial, start,
-			end, steps), interest(interest), volatility(volatility),
-			dividends(dividends) {
-	}
-
-	// TODO: Copy constructor
-
-};
-
-} // European
 */
 
 } // Modules

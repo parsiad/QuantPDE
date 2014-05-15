@@ -5,12 +5,18 @@
 
 namespace QuantPDE {
 
+/**
+ * @see QuantPDE::NaryFunctionSignature
+ */
+template<Index N>
+using NRealToReal = NaryFunctionSignature<N, Real, Real>;
+
 typedef std::function< NRealToReal<1> > Function1;
 typedef std::function< NRealToReal<2> > Function2;
 typedef std::function< NRealToReal<3> > Function3;
 typedef std::function< NRealToReal<4> > Function4;
 
-template <Index N> // TODO: Check if positive
+template <Index N> // TODO: Check if nonnegative
 using Function = std::function< NRealToReal<N> >;
 
 /**
@@ -25,9 +31,12 @@ using Function = std::function< NRealToReal<N> >;
 template <Index dim>
 class PiecewiseLinear {
 
+	static_assert(dim > 0, "Dimension must be positive");
+
 	const Grid<dim> *grid;
 	const Vector *vector;
 
+	/*
 	Real interpolate(Index *indices, const Real *weights, Index shift,
 			Index n = 0) const {
 		// Base case
@@ -43,18 +52,45 @@ class PiecewiseLinear {
 				n + 1) + (1 - weights[n]) * interpolate(stride,
 				weights, shift / 2, n + 1);
 	}
+	*/
+
+public:
+
+	PiecewiseLinear(const Grid<dim> &grid, const Vector &vector)
+			: grid(&grid), vector(&vector) {
+	}
+
+	// Disable rvalue constructors
+	PiecewiseLinear(const Grid<dim> &grid, Vector &&vector) = delete;
+	PiecewiseLinear(Grid<dim> &&grid, const Vector &vector) = delete;
+	PiecewiseLinear(Grid<dim> &&grid, Vector &&vector) = delete;
+
+	PiecewiseLinear(const PiecewiseLinear &that) : grid(that.grid),
+			vector(that.vector) {
+	}
+
+	PiecewiseLinear &operator=(const PiecewiseLinear &that) & {
+		grid = that.grid;
+		vector = that.vector;
+		return *this;
+	}
+
+	////////////////////////////////////////////////////////////////////////
 
 	template <typename ...Args>
-	Real get(Args... args) const {
+	Real operator()(Args ...coordinates) const {
 		static_assert(dim == sizeof...(Args),
 				"The number of arguments must be consistent "
 				"with the dimensions");
 
+		Real coords[] {coordinates...};
+
+		return (*this)(coords);
+	}
+
+	Real operator()(const Real *coordinates) const {
 		typedef IntegerPower<2, dim> dimpow;
 		static_assert(!dimpow::overflow, "Overflow detected");
-
-		Real arguments[] {args...};
-		Real *coordinates = arguments;
 
 		Real weights[dim];
 		Index indices[dimpow::value];
@@ -146,56 +182,39 @@ class PiecewiseLinear {
 		return interpolated;
 	}
 
-public:
+	////////////////////////////////////////////////////////////////////////
 
-	PiecewiseLinear(const Grid<dim> &grid, const Vector &vector)
-			: grid(&grid), vector(&vector) {
-	}
-
-	// TODO: Figure out what to do with rvalue arguments
-
-	PiecewiseLinear(const PiecewiseLinear &that) : grid(that.grid),
-			vector(that.vector) {
-	}
-
-	PiecewiseLinear &operator=(const PiecewiseLinear &that) {
-		grid = that.grid;
-		vector = that.vector;
-		return *this;
-	}
-
-	// TODO: The implementation below breaks for dim > N, where N is some
-	//       positive integer. Is there a way to generalize this to a return
-	//       type of Function<dim>?
-
-	static_assert(dim > 4, "Dimensions >= 5 not implemented");
+	// TODO: Is there a way to do this for Function<dim> ?
 
 	operator Function1() {
-		return [this] (double x) { return get(x); };
+		return [this] (Real x1) {
+			return (*this)(x1);
+		};
 	}
 
 	operator Function2() {
-		return [this] (double x, double y) { return get(x, y); };
+		return [this] (Real x1, Real x2) {
+			return (*this)(x1, x2);
+		};
 	}
 
 	operator Function3() {
-		return [this] (double x, double y, double z) {
-				return get(x, y, z); };
+		return [this] (Real x1, Real x2, Real x3) {
+			return (*this)(x1, x2, x3);
+		};
 	}
 
 	operator Function4() {
-		return [this] (double x1, double x2, double x3, double x4) {
-				return get(x1, x2, x3, x4); };
+		return [this] (Real x1, Real x2, Real x3, Real x4) {
+			return (*this)(x1, x2, x3, x4);
+		};
 	}
 
 };
 
 template <Index dim> template <bool isConst>
 Real Grid<dim>::GridVector<isConst>::operator()(const Real *coordinates) const {
-	Function<dim> lin = static_cast< Function<dim> > (
-			PiecewiseLinear<dim>(*grid, *vector) );
-
-	return unpackAndCall(lin, coordinates, GenerateSequence<dim>());
+	return ( PiecewiseLinear<dim>(*grid, *vector) )(coordinates);
 }
 
 }

@@ -171,18 +171,10 @@ endl <<
 		S = S.refine();
 		Grid1 G(S);
 
-		Vector v = G.image(payoff);
-		for(auto v_i : G.accessor(v)) {
-			cout << (&v_i)[0] << '\t' << S[ (&v_i)[0] ] << '\t' << *v_i << endl;
-		}
-		cout << G.accessor(v)(120.) << endl;
-		return 1;
-
 		///////////////////////////////////////////////////////////////
 		// Build problem
 		///////////////////////////////////////////////////////////////
 
-		/*
 		European<Real> european(
 			payoff,
 			[interest]   (Real, Real) { return interest;   },
@@ -190,26 +182,6 @@ endl <<
 			[dividends]  (Real, Real) { return dividends;  },
 			0., expiry
 		);
-		*/
-
-		///////////////////////////////////////////////////////////////
-		// Step until done
-		///////////////////////////////////////////////////////////////
-
-		/*
-		European::Implicit<Eigen::BiCGSTAB<Matrix,
-				Eigen::IncompleteLUT<double>>> stepper (
-					G,
-					initial,
-					0.,
-					expiry,
-					steps,
-					Constant(interest),
-					Constant(volatility),
-					Constant(dividends)
-				);
-		stepper.processAll();
-		*/
 
 		///////////////////////////////////////////////////////////////
 		// Table
