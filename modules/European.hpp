@@ -7,7 +7,7 @@ namespace QuantPDE {
 
 namespace Modules {
 
-class BlackScholesEquation : public Constraint {
+class BlackScholesEquation final : public Constraint {
 
 public:
 
@@ -27,7 +27,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T = Real>
-class European : public Problem1<T> {
+class European final : public Problem1<T> {
 
 public:
 
@@ -60,19 +60,40 @@ namespace Solvers {
 namespace European {
 
 template <typename T = Real>
-class Implicit : public Solver1<T> {
+class Implicit final : public Solver1<T> {
+
+	Vector V;
+	PiecewiseLinear1 interpolation;
 
 	void blackScholesEquation(const Constraint &constraint, T now, T next) {
 		const BlackScholesEquation *bse =
 				dynamic_cast<const BlackScholesEquation *>(
 				constraint);
+		// TODO: Timestepping
+	}
+
+protected:
+
+	virtual void onStart() {
+		// Turn the initial condition into a vector
+		V = this->grid.image( this->problem.initialCondition() );
+	}
+
+	virtual void afterConstraints() {
+		this->solution = interpolation;
 	}
 
 public:
 
-	Implicit(const Problem1<T> &problem) noexcept : Solver1<T>(problem) {
-		registerRoutine( QUANT_PDE_IDENTIFIER(BlackScholesEquation),
-				blackScholesEquation );
+	Implicit(const Problem1<T> &problem, const Grid1 &grid) noexcept
+			: Solver1<T>(problem, grid),
+			interpolation(this->grid, V) {
+
+		registerRoutine(
+			QUANT_PDE_IDENTIFIER(BlackScholesEquation),
+			blackScholesEquation
+		);
+
 	}
 
 };

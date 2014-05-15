@@ -19,6 +19,8 @@ typedef std::function< NRealToReal<4> > Function4;
 template <Index N> // TODO: Check if nonnegative
 using Function = std::function< NRealToReal<N> >;
 
+// TODO: Change PiecewiseLinear to use std::bind instead
+
 /**
  * A function \f$f\f$ defined piecewise whose pieces are affine functions.
  * Suppose \f$f\f$ is defined on a grid composed of \f$n\f$ axes, and that the
@@ -211,6 +213,10 @@ public:
 	}
 
 };
+
+typedef PiecewiseLinear<1> PiecewiseLinear1;
+typedef PiecewiseLinear<2> PiecewiseLinear2;
+typedef PiecewiseLinear<3> PiecewiseLinear3;
 
 template <Index dim> template <bool isConst>
 Real Grid<dim>::GridVector<isConst>::operator()(const Real *coordinates) const {
