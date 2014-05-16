@@ -2,20 +2,19 @@
 #define QUANT_PDE
 
 #ifndef QUANT_PDE_BINDINGS
-#include "QuantPDE/bindings/Eigen"
+#include "QuantPDE/Bindings/Eigen"
 #endif
 
-#include "QuantPDE/src/Types.hpp"
-#include "QuantPDE/src/Metafunctions.hpp"
-#include "QuantPDE/src/DateTime.hpp"
-#include "QuantPDE/src/Axis.hpp"
-#include "QuantPDE/src/Grid.hpp"
-#include "QuantPDE/src/Function.hpp"
-//#include "QuantPDE/src/Event.hpp"
-//#include "QuantPDE/src/Stepper.hpp"
-#include "QuantPDE/src/Problem.hpp"
-#include "QuantPDE/src/Solver.hpp"
-#include "QuantPDE/src/Operator.hpp"
+#include "QuantPDE/Source/Types.hpp"
+#include "QuantPDE/Source/Metafunctions.hpp"
+#include "QuantPDE/Source/DateTime.hpp"
+#include "QuantPDE/Source/Axis.hpp"
+#include "QuantPDE/Source/Grid.hpp"
+#include "QuantPDE/Source/Function.hpp"
+//#include "QuantPDE/Source/Stepper.hpp"
+#include "QuantPDE/Source/Problem.hpp"
+#include "QuantPDE/Source/Solver.hpp"
+#include "QuantPDE/Source/Operator.hpp"
 
 #endif
 

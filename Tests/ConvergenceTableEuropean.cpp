@@ -1,6 +1,8 @@
 #include <QuantPDE/Core>
-#include <QuantPDE/modules/European>
-#include <QuantPDE/modules/Payoffs>
+
+#include <QuantPDE/Modules/Payoffs/Vanilla>      // Modules::call, Modules::put
+#include <QuantPDE/Modules/Derivatives/Vanilla>  // Modules::EuropeanOption
+#include <QuantPDE/Modules/Solvers/European>     // Modules::ImplicitEuropeanSolver
 
 using namespace QuantPDE;
 using namespace QuantPDE::Modules;
@@ -172,13 +174,19 @@ endl <<
 		// Build problem
 		///////////////////////////////////////////////////////////////
 
-		European<Real> european(
+		EuropeanOption<> europeanOption(
 			payoff,
 			[interest]   (Real, Real) { return interest;   },
 			[volatility] (Real, Real) { return volatility; },
 			[dividends]  (Real, Real) { return dividends;  },
 			0., expiry
 		);
+
+		///////////////////////////////////////////////////////////////
+		// Solve problem
+		///////////////////////////////////////////////////////////////
+
+		// ImplicitEuropeanSolver<> solver;
 
 		///////////////////////////////////////////////////////////////
 		// Table

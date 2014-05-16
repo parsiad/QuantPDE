@@ -1,12 +1,12 @@
 all:
-	$(MAKE) -C tests
+	$(MAKE) -C Tests
 
-doc:
+Documentation:
 	doxygen
 
 clean:
-	$(RM) -r doc
-	$(MAKE) clean -C tests
+	$(RM) -r Documentation
+	$(MAKE) clean -C Tests
 
-.PHONY: all doc clean
+.PHONY: all clean
 
