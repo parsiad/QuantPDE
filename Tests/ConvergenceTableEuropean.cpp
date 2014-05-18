@@ -23,12 +23,12 @@ using namespace std;
 int main(int argc, char **argv) {
 
 	// Default options
-	double expiry       = 1.;
-	double interest     = 0.04;
-	double volatility   = 0.2;
-	double dividends    = 0.;
-	double stock        = 100.;
-	double strike       = 100.;
+	Real expiry       = 1.;
+	Real interest     = 0.04;
+	Real volatility   = 0.2;
+	Real dividends    = 0.;
+	Real stock        = 100.;
+	Real strike       = 100.;
 	unsigned refinement = 5;
 	unsigned steps      = 25;
 	bool isCall         = true;
@@ -47,10 +47,10 @@ int main(int argc, char **argv) {
 "put using an upwind, fully implicit discretization of the Black-Scholes partial" << endl <<
 "differential equation." << endl <<
 endl <<
-"-d DOUBLE" << endl <<
+"-d REAL" << endl <<
 endl <<
 "    sets the dividend rate (default is 0.)" << endl <<
-"-K DOUBLE" << endl <<
+"-K REAL" << endl <<
 endl <<
 "    sets the strike price (default is 100.)" << endl <<
 endl <<
@@ -58,7 +58,7 @@ endl <<
 endl <<
 "    computes the price of a European put (default is call)" << endl <<
 endl <<
-"-r DOUBLE" << endl <<
+"-r REAL" << endl <<
 endl <<
 "    sets interest rate (default is 0.04)" << endl <<
 endl <<
@@ -71,15 +71,15 @@ endl <<
 endl <<
 "    sets the initial number of steps to take in time (default is 25)" << endl <<
 endl <<
-"-S DOUBLE" << endl <<
+"-S REAL" << endl <<
 endl <<
 "    sets the initial stock price (default is 100.)" << endl <<
 endl <<
-"-T POSITIVE_DOUBLE" << endl <<
+"-T POSITIVE_REAL" << endl <<
 endl <<
 "    sets the expiry time (default is 1.)" << endl <<
 endl <<
-"-v DOUBLE" << endl <<
+"-v REAL" << endl <<
 endl <<
 "    sets the volatility" << endl << endl;
 				return 0;
@@ -130,7 +130,7 @@ endl <<
 		<< endl
 	;
 	cout.precision(4);
-	double previousValue = nan(""), previousChange = nan("");
+	Real previousValue = nan(""), previousChange = nan("");
 
 	// Initial discretization
 	// TODO: Create grid based on initial stock price and strike price
@@ -174,7 +174,7 @@ endl <<
 		// Build problem
 		///////////////////////////////////////////////////////////////
 
-		EuropeanOption<> europeanOption(
+		EuropeanOption europeanOption(
 			payoff,
 			[interest]   (Real, Real) { return interest;   },
 			[volatility] (Real, Real) { return volatility; },
@@ -194,10 +194,10 @@ endl <<
 
 		/*
 		// Solution at S = 100.
-		double value = G.accessor(stepper.solution())(stock);
+		Real value = G.accessor(stepper.solution())(stock);
 
 		// Change and ratio between successive solutions
-		double
+		Real
 			change = value - previousValue,
 			ratio = previousChange / change
 		;

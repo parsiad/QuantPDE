@@ -8,18 +8,18 @@ namespace QuantPDE {
 /**
  * @see QuantPDE::NaryFunctionSignature
  */
-template<Index N>
-using NRealToReal = NaryFunctionSignature<N, Real, Real>;
+template<Index dim>
+using NRealToReal = NaryFunctionSignature<dim, Real, Real>;
 
 typedef std::function< NRealToReal<1> > Function1;
 typedef std::function< NRealToReal<2> > Function2;
 typedef std::function< NRealToReal<3> > Function3;
 typedef std::function< NRealToReal<4> > Function4;
 
-template <Index N> // TODO: Check if nonnegative
-using Function = std::function< NRealToReal<N> >;
+template <Index dim> // TODO: Check if nonnegative
+using Function = std::function< NRealToReal<dim> >;
 
-// TODO: Change PiecewiseLinear to use std::bind instead
+// TODO: Change PiecewiseLinear to use std::bind instead ?
 
 /**
  * A function \f$f\f$ defined piecewise whose pieces are affine functions.
@@ -56,41 +56,7 @@ class PiecewiseLinear {
 	}
 	*/
 
-public:
-
-	PiecewiseLinear(const Grid<dim> &grid, const Vector &vector)
-			: grid(&grid), vector(&vector) {
-	}
-
-	// Disable rvalue constructors
-	PiecewiseLinear(const Grid<dim> &grid, Vector &&vector) = delete;
-	PiecewiseLinear(Grid<dim> &&grid, const Vector &vector) = delete;
-	PiecewiseLinear(Grid<dim> &&grid, Vector &&vector) = delete;
-
-	PiecewiseLinear(const PiecewiseLinear &that) : grid(that.grid),
-			vector(that.vector) {
-	}
-
-	PiecewiseLinear &operator=(const PiecewiseLinear &that) & {
-		grid = that.grid;
-		vector = that.vector;
-		return *this;
-	}
-
-	////////////////////////////////////////////////////////////////////////
-
-	template <typename ...Args>
-	Real operator()(Args ...coordinates) const {
-		static_assert(dim == sizeof...(Args),
-				"The number of arguments must be consistent "
-				"with the dimensions");
-
-		Real coords[] {coordinates...};
-
-		return (*this)(coords);
-	}
-
-	Real operator()(const Real *coordinates) const {
+	Real get(const Real *coordinates) const {
 		typedef IntegerPower<2, dim> dimpow;
 		static_assert(!dimpow::overflow, "Overflow detected");
 
@@ -184,10 +150,65 @@ public:
 		return interpolated;
 	}
 
+public:
+
+	/**
+	 * Constructor.
+	 */
+	PiecewiseLinear(const Grid<dim> &grid, const Vector &vector)
+			: grid(&grid), vector(&vector) {
+	}
+
+	// Disable rvalue constructors
+	PiecewiseLinear(const Grid<dim> &, Vector &&) = delete;
+	PiecewiseLinear(Grid<dim> &&, const Vector &) = delete;
+	PiecewiseLinear(Grid<dim> &&, Vector &&) = delete;
+
+	/**
+	 * Copy constructor.
+	 */
+	PiecewiseLinear(const PiecewiseLinear &that) : grid(that.grid),
+			vector(that.vector) {
+	}
+
+	/**
+	 * Assignment operator.
+	 */
+	PiecewiseLinear &operator=(const PiecewiseLinear &that) & {
+		grid = that.grid;
+		vector = that.vector;
+		return *this;
+	}
+
 	////////////////////////////////////////////////////////////////////////
 
-	// TODO: Is there a way to do this for Function<dim> ?
+	/**
+	 * Performs linear interpolation to query the value at the specified
+	 * coordinates.
+	 * @param coordinates The coordinates.
+	 */
+	template <typename ...Args>
+	Real operator()(Args ...coordinates) const {
+		static_assert(dim == sizeof...(Args),
+				"The number of arguments must be consistent "
+				"with the dimensions");
 
+		Real coords[] {coordinates...};
+		return get(coords);
+	}
+
+	/**
+	 * Performs linear interpolation to query the value at the specified
+	 * coordinates.
+	 * @param coordinates The coordinates (as an array).
+	 */
+	Real operator()(const Real *coordinates) const {
+		return get(coordinates);
+	}
+
+	////////////////////////////////////////////////////////////////////////
+
+	/*
 	operator Function1() {
 		return [this] (Real x1) {
 			return (*this)(x1);
@@ -211,6 +232,7 @@ public:
 			return (*this)(x1, x2, x3, x4);
 		};
 	}
+	*/
 
 };
 

@@ -46,8 +46,6 @@ public:
 };
 
 #define QUANT_PDE_IDENTIFIER(class) typeid(class).name()
-#define QUANT_PDE_IDENTIFIER_METHOD(class) virtual std::string identifier() \
-		const { return QUANT_PDE_IDENTIFIER(class);  }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,19 +53,16 @@ public:
  * Used to describe an initial value problem abstractly. Such a problem
  * description is not inherently coupled with a method to solve it.
  */
-template <Index dim, typename T = Real>
+template <Index dim>
 class Problem {
 
 	static_assert(dim > 0, "Dimension must be positive");
 
-	template <typename U>
-	using Dated = std::tuple<U, T>;
-
 	////////////////////////////////////////////////////////////////////////
 
-	std::vector< std::tuple< std::unique_ptr<Constraint>, T, T > >
+	std::vector< std::tuple< std::unique_ptr<Constraint>, Real, Real > >
 			constraints;
-	std::vector< std::tuple< std::unique_ptr<Event<dim>>, T > > events;
+	std::vector< std::tuple< std::unique_ptr<Event<dim>>, Real > > events;
 
 	const Function<dim> initial;
 
@@ -77,7 +72,8 @@ public:
 	 * Constructor.
 	 * @param initial The initial condition (as a function).
 	 */
-	Problem(const Function<dim> &initial) noexcept : initial(initial) {
+	template <typename F>
+	Problem(F &&initial) noexcept : initial( std::forward<F>(initial) ) {
 	}
 
 	/**
@@ -95,8 +91,7 @@ public:
 	 * @param event The event.
 	 * @param start The time at which the event occurs.
 	 */
-	template <template <Index> class E>
-	void add(std::unique_ptr<Event<dim>> event, const T &start) {
+	void add(std::unique_ptr<Event<dim>> event, const Real &start) {
 		events.push_back(std::make_tuple(std::move(event), start));
 	}
 
@@ -106,29 +101,19 @@ public:
 	 * @param start The time at which this constraint goes into effect.
 	 * @param end The time at which this constraint goes out of effect.
 	 */
-	void add(std::unique_ptr<Constraint> constraint, const T &start,
-			const T &end) {
+	void add(std::unique_ptr<Constraint> constraint, const Real &start,
+			const Real &end) {
 		constraints.push_back(std::make_tuple(std::move(constraint),
 				start, end));
 	}
 
-	/**
-	 * @return The initial condition.
-	 */
-	const Function<dim> &initialCondition() {
-		return initial;
-	}
+	template <Index N> friend class Solver;
 
 };
 
-template <typename T = Real>
-using Problem1 = Problem<1, T>;
-
-template <typename T = Real>
-using Problem2 = Problem<2, T>;
-
-template <typename T = Real>
-using Problem3 = Problem<3, T>;
+typedef Problem<1> Problem1;
+typedef Problem<2> Problem2;
+typedef Problem<3> Problem3;
 
 }
 

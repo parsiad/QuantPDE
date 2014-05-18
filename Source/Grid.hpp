@@ -695,7 +695,7 @@ public:
 	 * @return The image of a function on this grid as a vector.
 	 */
 	template <typename F>
-	Vector image(F &&function) {
+	Vector image(F &&function) const {
 		Vector v = vector();
 
 		Real coords[dim];

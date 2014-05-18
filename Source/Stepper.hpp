@@ -1,109 +1,18 @@
 #ifndef QUANT_PDE_STEPPER_HPP
 #define QUANT_PDE_STEPPER_HPP
 
-#include <assert.h>
-
 namespace QuantPDE {
 
-/**
- * An abstract interface to generate events that advance the solution until
- * some condition has been met.
- * @see QuantPDE::Event
- */
-template <typename E>
+template <Index dim>
 class Stepper {
-
-	Vector s;
-	double t;
-	unsigned m;
-
-	virtual E next() = 0;
-
-	virtual void postProcess(const E &e, const Vector &previousSolution,
-			const Vector &nextSolution) {
-	}
-
-protected:
-
-	/**
-	 * The underlying grid.
-	 */
-	const Grid &grid;
-
-public:
-
-	/**
-	 * Constructor.
-	 * @param grid The underlying grid.
-	 * @param initial The initial solution.
-	 * @param start The time at which the initial solution is defined at.
-	 */
-	Stepper(const Grid &grid, Vector initial, double start = 0)
-			: s(initial), t(start), m(0), grid(grid) {
-	}
-
-	/**
-	 * Copy constructor.
-	 */
-	Stepper(const Stepper &that) : s(that.s), t(that.t), m(that.m),
-			grid(that.grid) {
-	}
-
-	/**
-	 * @return True if and only if all events have been popped.
-	 */
-	virtual bool done() const = 0;
-
-	/**
-	 * Processes the next event.
-	 */
-	void process() {
-		assert(!done());
-
-		E e = next();
-
-		Vector newSolution = e.advance(grid, s);
-		postProcess(e, s, newSolution);
-		s = newSolution;
-
-		t = e.nextTime();
-
-		m++;
-	}
-
-	/**
-	 * Processes all remaining events.
-	 */
-	void processAll() {
-		while(!done()) {
-			process();
-		}
-	}
-
-	/**
-	 * @return The current solution.
-	 */
-	const Vector &solution() {
-		return s;
-	}
-
-	/**
-	 * @return The current solution time.
-	 */
-	double currentTime() const {
-		return t;
-	}
-
-	/**
-	 * @return The number of events processed so far.
-	 */
-	unsigned steps() const {
-		return m;
-	}
 
 };
 
-// TODO: Document
+typedef Stepper<1> Stepper1;
+typedef Stepper<2> Stepper2;
+typedef Stepper<3> Stepper3;
+
+/*
 template <typename E>
 class ConstantStepper : public Stepper<E> {
 
@@ -116,10 +25,6 @@ class ConstantStepper : public Stepper<E> {
 		return e;
 	}
 
-	/**
-	 * @param nextTime The time after the event.
-	 * @return An event.
-	 */
 	virtual E next(double previousTime, double nextTime) = 0;
 
 public:
@@ -169,10 +74,7 @@ class VariableStepper : public Stepper<E> {
 		// TODO: Not sure if this currently works. Fix it.
 	}
 
-	/**
-	 * @param nextTime The time after the event.
-	 * @return An event.
-	 */
+
 	virtual E next(double previousTime, double nextTime) = 0;
 
 public:
@@ -191,6 +93,7 @@ public:
 	}
 
 };
+*/
 
 }
 

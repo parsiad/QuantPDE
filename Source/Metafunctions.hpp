@@ -2,6 +2,7 @@
 #define QUANT_PDE_METAFUNCTIONS
 
 #include <cstdint> // std::intmax_t
+#include <utility> // std::forward
 
 namespace QuantPDE {
 
@@ -102,6 +103,28 @@ using NaryFunctionSignature = NaryFunctionSignatureHelpers::Type<
 		NaryFunctionSignatureHelpers::Target, N, R, T>;
 
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace IsLValueHelpers {
+
+template <typename T>
+struct Nondeducible {
+	typedef T type;
+};
+
+char (& Helper(...))[1];
+
+template <typename T>
+char (& Helper(T&, typename Nondeducible<const volatile T&>::type))[2];
+
+}
+
+#define QUANT_PDE_IS_LVALUE(x) \
+		(sizeof(QuantPDE::IsLValueHelpers::Helper((x),(x))) == 2)
+
+#define QUANT_PDE_ASSERT_ON_RVALUE(x) static_assert(QUANT_PDE_IS_LVALUE(x), \
+		"Passing by rvalue is not supported")
 
 #endif
 

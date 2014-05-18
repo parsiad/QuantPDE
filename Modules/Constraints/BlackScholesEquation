@@ -18,7 +18,9 @@ public:
 			dividends( std::forward<F3>(dividends) ) {
 	}
 
-	QUANT_PDE_IDENTIFIER_METHOD(BlackScholesEquation)
+	virtual std::string identifier() const {
+		return QUANT_PDE_IDENTIFIER(BlackScholesEquation);
+	}
 
 };
 

@@ -10,13 +10,13 @@
 
 namespace QuantPDE {
 
-template <Index dim, typename T = Real>
+template <Index dim>
 class Solver {
 
 	static_assert(dim > 0, "Dimension must be positive");
 
 	template <typename U>
-	using Dated = std::tuple<U, T>;
+	using Dated = std::tuple<U, Real>;
 
 	template <typename U>
 	struct Later {
@@ -29,32 +29,34 @@ class Solver {
 	using MinPriorityQueue = std::priority_queue<U, std::vector<U>,
 			Later<U>>;
 
-	////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////
 
 	MinPriorityQueue< Dated<const Constraint *> > startQueue, endQueue;
 	MinPriorityQueue< Dated<const Event<dim> *> > eventQueue;
 
 	std::unordered_set<const Constraint *> active;
 
-	typedef std::function<void (const Constraint &, T, T)> Routine;
+	typedef std::function<void (const Constraint &, Real, Real)> Routine;
 	std::unordered_map<std::string, Routine> routines;
 
-	T earliest, now;
+	Real earliest, now;
 
-	T topmost() {
-		T r;
+	const Stepper<dim> *stepper;
+
+	Real topmost() {
+		Real r;
 
 		if(!startQueue.empty()) {
 			r = std::get<1>( startQueue.top() );
 		}
 
 		if(!endQueue.empty()) {
-			T t = std::get<1>( endQueue.top() );
+			Real t = std::get<1>( endQueue.top() );
 			r = std::min(t, r);
 		}
 
 		if(!eventQueue.empty()) {
-			T t = std::get<1>( eventQueue.top() );
+			Real t = std::get<1>( eventQueue.top() );
 			r = std::min(t, r);
 		}
 
@@ -81,14 +83,16 @@ class Solver {
 			active.insert( std::get<0>(startQueue.pop()) );
 		}
 
-		T next = topmost();
+		Real next = topmost();
 
 		beforeConstraints();
-		for(const Constraint *constraint : active) {
-			// next - now
-			routines[constraint->identifier()](*constraint, now,
-					next);
-		}
+		//do {
+			//Real dt = nextStep();
+			for(const Constraint *constraint : active) {
+				routines[constraint->identifier()](*constraint,
+						now, next);
+			}
+		//} while(stepping());
 		afterConstraints();
 	}
 
@@ -96,6 +100,17 @@ protected:
 
 	const Grid<dim> &grid;
 	Function<dim> solution;
+
+	/**
+	 * Associates a routine with a family of constraints.
+	 * @param identifier The identifier associated with the family of
+	 *                   constraints.
+	 * @param routine The routine.
+	 */
+	template <typename F>
+	void registerRoutine(const std::string &identifier, F &&routine) {
+		routines[identifier] = routine;
+	}
 
 	/**
 	 * Run before anything has been done.
@@ -126,29 +141,51 @@ public:
 	/**
 	 * Constructor.
 	 */
-	Solver(const Problem<dim, T> &problem, const Grid<dim> &grid) noexcept
-			: startQueue(startQueue), endQueue(endQueue),
-			eventQueue(eventQueue), earliest(topmost()),
-			now(earliest), grid(&grid),
-			solution(problem.initialCondition()) {
+	Solver(const Problem<dim> &problem, const Grid<dim> &grid,
+			const Stepper<dim> &stepper) noexcept
+			: earliest(topmost()), now(earliest), stepper(&stepper),
+			grid(grid), solution(problem.initial) {
 
-		for(const std::tuple<Constraint, T, T> &tuple
-				: problem.constraints) {
-			const Constraint *constraint = std::get<0>(tuple).get();
-			startQueue.push( std::make_tuple( constraint,
-					std::get<1>(tuple) ) );
-			endQueue.push( std::make_tuple( constraint,
-					std::get<2>(tuple) ) );
+		for(const std::tuple< std::unique_ptr<Constraint>, Real,
+				Real > &t : problem.constraints) {
+
+			const Constraint *constraint = std::get<0>(t).get();
+
+			startQueue.push(std::make_tuple(
+				constraint,
+				std::get<1>(t)
+			));
+
+			endQueue.push(std::make_tuple(
+				constraint,
+				std::get<2>(t)
+			));
+
 		}
 
-		for(const std::tuple<Event<dim>, T> &tuple : problem.events) {
+		for(const std::tuple< std::unique_ptr<Event<dim>>, Real> &tuple
+				: problem.events) {
+
 			eventQueue.push(std::make_tuple(
-				std::get<0>(tuple).get(), std::get<1>(tuple) ));
+				std::get<0>(tuple).get(),
+				std::get<1>(tuple)
+			));
+
 		}
 
 	}
 
-	Solver(Problem<dim, T> &&problem) = delete;
+	// Disable rvalue constructors
+	Solver(const Problem<dim> &, const Grid<dim> &, Stepper<dim> &&)
+			= delete;
+	Solver(const Problem<dim> &, Grid<dim> &&, const Stepper<dim> &)
+			= delete;
+	Solver(const Problem<dim> &, Grid<dim> &&, Stepper<dim> &&) = delete;
+	Solver(Problem<dim> &&, const Grid<dim> &, const Stepper<dim> &)
+			= delete;
+	Solver(Problem<dim> &&, const Grid<dim> &, Stepper<dim> &&) = delete;
+	Solver(Problem<dim> &&, Grid<dim> &&, const Stepper<dim> &) = delete;
+	Solver(Problem<dim> &&, Grid<dim> &&, Stepper<dim> &&) = delete;
 
 	/**
 	 * Destructor.
@@ -159,17 +196,6 @@ public:
 	// Disable copy constructor and assignment operator
 	Solver(const Solver &that) = delete;
 	Solver &operator=(const Solver &that) & = delete;
-
-	/**
-	 * Associates a routine with a family of constraints.
-	 * @param identifier The identifier associated with the family of
-	 *                   constraints.
-	 * @param routine The routine.
-	 */
-	template <typename F>
-	void registerRoutine(const std::string &identifier, F &&routine) {
-		routines[identifier] = routine;
-	}
 
 	/**
 	 * @return True if and only if the solution cannot be advanced
@@ -200,14 +226,17 @@ public:
 
 };
 
-template <typename T = Real>
-using Solver1 = Solver<1, T>;
+#define QUANT_PDE_REGISTER_ROUTINE(class)                      \
+	registerRoutine(                                       \
+		QUANT_PDE_IDENTIFIER(class),                   \
+		[this] (const Constraint &a, Real b, Real c) { \
+			_##class(a, b, c);                     \
+		}                                              \
+	)
 
-template <typename T = Real>
-using Solver2 = Solver<2, T>;
-
-template <typename T = Real>
-using Solver3 = Solver<3, T>;
+typedef Solver<1> Solver1;
+typedef Solver<2> Solver2;
+typedef Solver<3> Solver3;
 
 }
 

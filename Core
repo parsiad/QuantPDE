@@ -11,7 +11,7 @@
 #include "QuantPDE/Source/Axis.hpp"
 #include "QuantPDE/Source/Grid.hpp"
 #include "QuantPDE/Source/Function.hpp"
-//#include "QuantPDE/Source/Stepper.hpp"
+#include "QuantPDE/Source/Stepper.hpp"
 #include "QuantPDE/Source/Problem.hpp"
 #include "QuantPDE/Source/Solver.hpp"
 #include "QuantPDE/Source/Operator.hpp"

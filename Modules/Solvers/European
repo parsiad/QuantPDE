@@ -5,41 +5,46 @@ namespace QuantPDE {
 
 namespace Modules {
 
-template <typename T = Real>
-class ImplicitEuropeanSolver final : public Solver1<T> {
+class ImplicitEuropeanSolver final : public Solver1 {
 
-	Vector V;
+	Vector v;
 	PiecewiseLinear1 interpolation;
 
-	void blackScholesEquation(const Constraint &constraint, T now, T next) {
+	void _BlackScholesEquation(const Constraint &constraint, Real now,
+			Real next) {
+
 		const BlackScholesEquation *bse =
 				dynamic_cast<const BlackScholesEquation *>(
-				constraint);
-		// TODO: Timestepping
+				&constraint);
+
+		// TODO: Stuff
+
 	}
 
 protected:
 
+	virtual void onStart() {
+		// TODO: Smooth solution
+	}
+
 	virtual void beforeConstraints() {
 		// Turn solution into vector
-		V = this->grid.image( this->solution );
+		v = grid.image(solution);
 	}
 
 	virtual void afterConstraints() {
 		// Turn vector into solution
-		this->solution = interpolation;
+		solution = interpolation;
 	}
 
 public:
 
-	ImplicitEuropeanSolver(const Problem1<T> &problem, const Grid1 &grid)
-			noexcept : Solver1<T>(problem, grid),
-			interpolation(this->grid, V) {
+	ImplicitEuropeanSolver(const Problem1 &problem, const Grid1 &grid,
+			const Stepper1 &stepper) noexcept
+			: Solver1(problem, grid, stepper),
+			interpolation(grid, v) {
 
-		registerRoutine(
-			QUANT_PDE_IDENTIFIER(BlackScholesEquation),
-			blackScholesEquation
-		);
+		QUANT_PDE_REGISTER_ROUTINE(BlackScholesEquation);
 
 	}
 
