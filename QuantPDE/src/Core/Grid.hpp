@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_GRID_HPP
-#define QUANT_PDE_GRID_HPP
+#ifndef QUANT_PDE_CORE_GRID
+#define QUANT_PDE_CORE_GRID
 
 #include <algorithm>        // std::swap
 #include <cstring>          // std::memcpy

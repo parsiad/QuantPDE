@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_AXIS_HPP
-#define QUANT_PDE_AXIS_HPP
+#ifndef QUANT_PDE_CORE_AXIS
+#define QUANT_PDE_CORE_AXIS
 
 #include <cassert>          // assert
 #include <cstring>          // std::memcpy

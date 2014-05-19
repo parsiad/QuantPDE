@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_OPERATOR_HPP
-#define QUANT_PDE_OPERATOR_HPP
+#ifndef QUANT_PDE_CORE_OPERATOR
+#define QUANT_PDE_CORE_OPERATOR
 
 class Operator {
 

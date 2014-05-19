@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_STEPPER_HPP
-#define QUANT_PDE_STEPPER_HPP
+#ifndef QUANT_PDE_CORE_STEPPER
+#define QUANT_PDE_CORE_STEPPER
 
 namespace QuantPDE {
 

@@ -1,5 +1,6 @@
-#ifndef QUANT_PDE_BINDINGS
-#define QUANT_PDE_BINDINGS
+#include "AssertUnbound.hpp"
+
+#define QUANT_PDE_BOUND
 
 #include <eigen3/Eigen/SparseCore>
 
@@ -28,6 +29,4 @@ public:
 };
 
 }
-
-#endif
 

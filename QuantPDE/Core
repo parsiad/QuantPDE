@@ -1,0 +1,21 @@
+#ifndef QUANT_PDE_CORE
+#define QUANT_PDE_CORE
+
+// Use Eigen by default
+#ifndef QUANT_PDE_BOUND
+#include "src/Bindings/Eigen"
+#endif
+
+#include "src/Core/Types.hpp"
+#include "src/Core/Metafunctions.hpp"
+#include "src/Core/DateTime.hpp"
+#include "src/Core/Axis.hpp"
+#include "src/Core/Grid.hpp"
+#include "src/Core/Function.hpp"
+#include "src/Core/Stepper.hpp"
+#include "src/Core/Problem.hpp"
+#include "src/Core/Solver.hpp"
+#include "src/Core/Operator.hpp"
+
+#endif
+

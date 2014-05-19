@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_FUNCTION_HPP
-#define QUANT_PDE_FUNCTION_HPP
+#ifndef QUANT_PDE_CORE_FUNCTION
+#define QUANT_PDE_CORE_FUNCTION
 
 #include <cstring> // std::memcpy
 

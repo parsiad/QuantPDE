@@ -7,8 +7,6 @@ namespace QuantPDE {
 
 namespace Modules {
 
-namespace Payoffs {
-
 /**
  * The payoff for a vanilla call option, \f$\max\left(S - K, 0\right)\f$.
  */
@@ -28,8 +26,6 @@ const std::function<Real (Real, Real)> put = [] (Real S, Real K) {
 
 #define QUANT_PDE_MODULES_PAYOFFS_PUT_FIXED_STRIKE(strike) std::bind( \
 		QuantPDE::Modules::Payoffs::put, std::placeholders::_1, strike)
-
-} // Payoffs
 
 } // Modules
 

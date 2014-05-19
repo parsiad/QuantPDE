@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_SOLVER_HPP
-#define QUANT_PDE_SOLVER_HPP
+#ifndef QUANT_PDE_CORE_SOLVER
+#define QUANT_PDE_CORE_SOLVER
 
 #include <cassert>       // assert
 #include <queue>         // std::priority_queue
@@ -85,15 +85,7 @@ class Solver {
 
 		Real next = topmost();
 
-		beforeConstraints();
-		//do {
-			//Real dt = nextStep();
-			for(const Constraint *constraint : active) {
-				routines[constraint->identifier()](*constraint,
-						now, next);
-			}
-		//} while(stepping());
-		afterConstraints();
+		// TODO: Run ConstraintHandler
 	}
 
 protected:
@@ -116,18 +108,6 @@ protected:
 	 * Run before anything has been done.
 	 */
 	virtual void onStart() {
-	}
-
-	/**
-	 * Run before constraints have been processed.
-	 */
-	virtual void beforeConstraints() {
-	}
-
-	/**
-	 * Run after constraints have been processed.
-	 */
-	virtual void afterConstraints() {
 	}
 
 	/**

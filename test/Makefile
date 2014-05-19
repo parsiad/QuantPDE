@@ -1,4 +1,4 @@
-BINARIES_DIRECTORY:=bin
+BINARIES_DIRECTORY:=build
 
 SOURCES:=$(wildcard *.cpp)
 BINARIES:=$(addprefix $(BINARIES_DIRECTORY)/, $(SOURCES:.cpp=))
@@ -13,8 +13,8 @@ $(BINARIES_DIRECTORY)/% : %.cpp $(HEADERS)
 	$(CXX) \
 			-Wall -pedantic                  \
 			-msse2                           \
-			-std=c++11 -fopenmp              \
-			-I ../../                        \
+			-std=c++11                       \
+			-I ../                           \
 			$(DIRECTIVES) -o $@ $<
 
 clean:

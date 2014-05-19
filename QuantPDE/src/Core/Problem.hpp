@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_PROBLEM_HPP
-#define QUANT_PDE_PROBLEM_HPP
+#ifndef QUANT_PDE_CORE_PROBLEM
+#define QUANT_PDE_CORE_PROBLEM
 
 #include <memory>        // std::unique_ptr
 #include <string>        // std::string

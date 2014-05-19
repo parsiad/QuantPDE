@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_METAFUNCTIONS
-#define QUANT_PDE_METAFUNCTIONS
+#ifndef QUANT_PDE_CORE_METAFUNCTIONS
+#define QUANT_PDE_CORE_METAFUNCTIONS
 
 #include <cstdint> // std::intmax_t
 #include <utility> // std::forward

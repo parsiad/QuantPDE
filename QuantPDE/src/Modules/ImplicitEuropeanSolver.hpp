@@ -1,13 +1,15 @@
-#ifndef QUANT_PDE_MODULES_SOLVERS_EUROPEAN
-#define QUANT_PDE_MODULES_SOLVERS_EUROPEAN
+#ifndef QUANT_PDE_MODULES_IMPLICIT_EUROPEAN_SOLVER
+#define QUANT_PDE_MODULES_IMPLICIT_EUROPEAN_SOLVER
 
 namespace QuantPDE {
 
 namespace Modules {
 
+/*
 class ImplicitEuropeanSolver final : public Solver1 {
 
 	Vector v;
+	const Grid *grid;
 	PiecewiseLinear1 interpolation;
 
 	void _BlackScholesEquation(const Constraint &constraint, Real now,
@@ -39,9 +41,8 @@ protected:
 
 public:
 
-	ImplicitEuropeanSolver(const Problem1 &problem, const Grid1 &grid,
-			const Stepper1 &stepper) noexcept
-			: Solver1(problem, grid, stepper),
+	ImplicitEuropeanSolver(const Problem1 &problem, const Grid1 &grid)
+			noexcept : Solver1(problem), grid(&grid),
 			interpolation(grid, v) {
 
 		QUANT_PDE_REGISTER_ROUTINE(BlackScholesEquation);
@@ -49,6 +50,7 @@ public:
 	}
 
 };
+*/
 
 } // Modules
 

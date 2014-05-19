@@ -1,11 +1,11 @@
 #include <QuantPDE/Core>
 
-#include <QuantPDE/Modules/Payoffs/Vanilla>      // Modules::call, Modules::put
-#include <QuantPDE/Modules/Derivatives/Vanilla>  // Modules::EuropeanOption
-#include <QuantPDE/Modules/Solvers/European>     // Modules::ImplicitEuropeanSolver
+//#include <QuantPDE/Modules/Payoffs/Vanilla>      // Modules::call, Modules::put
+//#include <QuantPDE/Modules/Derivatives/Vanilla>  // Modules::EuropeanOption
+//#include <QuantPDE/Modules/Solvers/European>     // Modules::ImplicitEuropeanSolver
 
 using namespace QuantPDE;
-using namespace QuantPDE::Modules;
+//using namespace QuantPDE::Modules;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -151,11 +151,11 @@ endl <<
 	};
 
 	// Payoff function
-	std::function<Real (Real)> payoff = std::bind(
+	/*std::function<Real (Real)> payoff = std::bind(
 		isCall ? Payoffs::call : Payoffs::put,
 		std::placeholders::_1,
 		strike
-	);
+	);*/
 
 	// Alternatively, we could have used...
 	//auto payoff = QUANT_PDE_MODULES_PAYOFFS_CALL_FIXED_STRIKE(strike);
@@ -174,6 +174,7 @@ endl <<
 		// Build problem
 		///////////////////////////////////////////////////////////////
 
+		/*
 		EuropeanOption europeanOption(
 			payoff,
 			[interest]   (Real, Real) { return interest;   },
@@ -181,6 +182,7 @@ endl <<
 			[dividends]  (Real, Real) { return dividends;  },
 			0., expiry
 		);
+		*/
 
 		///////////////////////////////////////////////////////////////
 		// Solve problem
