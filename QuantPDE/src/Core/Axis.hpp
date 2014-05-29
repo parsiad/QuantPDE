@@ -19,7 +19,7 @@ class Axis final {
 	Index length;
 	Real *n;
 
-	Axis() noexcept : length(0), n(NULL) {
+	Axis() noexcept : length(0), n(nullptr) {
 	}
 
 	Axis(Index length) noexcept : length(length), n(new Real[length]) {
@@ -73,7 +73,7 @@ public:
 	 * Move constructor.
 	 */
 	Axis(Axis &&that) noexcept : length(that.length), n(that.n) {
-		that.n = NULL;
+		that.n = nullptr;
 	}
 
 	/**
@@ -104,7 +104,7 @@ public:
 	Axis &operator=(Axis &&that) & noexcept {
 		length = that.length;
 		n = that.n;
-		that.n = NULL;
+		that.n = nullptr;
 
 		return *this;
 	}
@@ -139,25 +139,9 @@ public:
 		return length;
 	}
 
-	/**
-	 * A new axis is created from this one by placing a tick in between
-	 * each pair of ticks on this axis.
-	 * @return The refined axis.
-	 */
-	Axis refine() const {
-		Axis refined( length * 2 - 1 );
-
-		refined[0] = n[0];
-		Index i = 1, j = 1;
-		while(i < length) {
-			refined[j++] = (n[i-1] + n[i])/2.;
-			refined[j++] = n[i++];
-		}
-
-		return refined;
-	}
-
-	template <Index dim> friend class Grid;
+	// TODO: Remove one of these
+	template <Index Dimension> friend class Grid;
+	template <Index Dimension> friend class RectilinearGrid;
 
 };
 

@@ -1,11 +1,12 @@
 #include <QuantPDE/Core>
 
-//#include <QuantPDE/Modules/Payoffs/Vanilla>      // Modules::call, Modules::put
-//#include <QuantPDE/Modules/Derivatives/Vanilla>  // Modules::EuropeanOption
-//#include <QuantPDE/Modules/Solvers/European>     // Modules::ImplicitEuropeanSolver
+// TODO: Change these includes; shouldn't include src directory explicitly
+#include <QuantPDE/src/Modules/Payoffs.hpp>
+#include <QuantPDE/src/Modules/BlackScholesEquation.hpp>
+#include <QuantPDE/src/Modules/EuropeanOption.hpp>
 
 using namespace QuantPDE;
-//using namespace QuantPDE::Modules;
+using namespace QuantPDE::Modules;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -23,12 +24,12 @@ using namespace std;
 int main(int argc, char **argv) {
 
 	// Default options
-	Real expiry       = 1.;
-	Real interest     = 0.04;
-	Real volatility   = 0.2;
-	Real dividends    = 0.;
-	Real stock        = 100.;
-	Real strike       = 100.;
+	Real expiry         = 1.;
+	Real interest       = 0.04;
+	Real volatility     = 0.2;
+	Real dividends      = 0.;
+	Real stock          = 100.;
+	Real strike         = 100.;
 	unsigned refinement = 5;
 	unsigned steps      = 25;
 	bool isCall         = true;
@@ -149,13 +150,14 @@ endl <<
 		2000.,
 		10000.
 	};
+	RectilinearGrid1 R(S);
 
 	// Payoff function
-	/*std::function<Real (Real)> payoff = std::bind(
-		isCall ? Payoffs::call : Payoffs::put,
+	Function1 payoff = std::bind(
+		isCall ? call : put,
 		std::placeholders::_1,
 		strike
-	);*/
+	);
 
 	// Alternatively, we could have used...
 	//auto payoff = QUANT_PDE_MODULES_PAYOFFS_CALL_FIXED_STRIKE(strike);
@@ -167,14 +169,17 @@ endl <<
 		// Build spatial grid
 		///////////////////////////////////////////////////////////////
 
-		S = S.refine();
-		Grid1 G(S);
+		R.refine( RectilinearGrid1::NewTickBetweenEachPair{} );
+		Vector V( R.image(payoff) );
+		auto accessor = R.accessor(V);
+		cerr << accessor(100.0124) << endl;
+		//cerr << R.accessor(v) << endl;
+		return 1;
 
 		///////////////////////////////////////////////////////////////
 		// Build problem
 		///////////////////////////////////////////////////////////////
 
-		/*
 		EuropeanOption europeanOption(
 			payoff,
 			[interest]   (Real, Real) { return interest;   },
@@ -182,7 +187,6 @@ endl <<
 			[dividends]  (Real, Real) { return dividends;  },
 			0., expiry
 		);
-		*/
 
 		///////////////////////////////////////////////////////////////
 		// Solve problem

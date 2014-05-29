@@ -5,52 +5,7 @@ namespace QuantPDE {
 
 namespace Modules {
 
-/*
-class ImplicitEuropeanSolver final : public Solver1 {
-
-	Vector v;
-	const Grid *grid;
-	PiecewiseLinear1 interpolation;
-
-	void _BlackScholesEquation(const Constraint &constraint, Real now,
-			Real next) {
-
-		const BlackScholesEquation *bse =
-				dynamic_cast<const BlackScholesEquation *>(
-				&constraint);
-
-		// TODO: Stuff
-
-	}
-
-protected:
-
-	virtual void onStart() {
-		// TODO: Smooth solution
-	}
-
-	virtual void beforeConstraints() {
-		// Turn solution into vector
-		v = grid.image(solution);
-	}
-
-	virtual void afterConstraints() {
-		// Turn vector into solution
-		solution = interpolation;
-	}
-
-public:
-
-	ImplicitEuropeanSolver(const Problem1 &problem, const Grid1 &grid)
-			noexcept : Solver1(problem), grid(&grid),
-			interpolation(grid, v) {
-
-		QUANT_PDE_REGISTER_ROUTINE(BlackScholesEquation);
-
-	}
-
-};
-*/
+// TODO
 
 } // Modules
 
@@ -132,7 +87,7 @@ public:
 
 		// Boundaries
 		// Left:  (1 + r dt) V_i^{n+1} = V_i^n
-		// Right:            V_i^{n+1} = V_i^n
+		// Right:            V_i^{n+1} = V_i^n (from linearity)
 
 		M_G(0, 0)         = 1. + r(nextTime(), S(0)) * dt;
 		M_G(n - 1, n - 1) = 1.;

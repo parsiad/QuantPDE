@@ -1,8 +1,6 @@
 #ifndef QUANT_PDE_MODULES_EUROPEAN_OPTION
 #define QUANT_PDE_MODULES_EUROPEAN_OPTION
 
-#include <QuantPDE/Modules/Constraints/BlackScholesEquation>
-
 #include <memory> // std::unique_ptr
 
 namespace QuantPDE {

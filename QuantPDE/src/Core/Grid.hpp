@@ -6,30 +6,32 @@
 #include <cassert>          // assert
 #include <initializer_list> // std::initializer_list
 #include <iostream>         // std::ostream
+#include <type_traits>      // std::conditional
 #include <utility>          // std::forward
 
 namespace QuantPDE {
 
+// TODO: Make Domain and have Grid extend Domain
+
 /**
  * A rectilinear grid of arbitrary dimension.
  */
-template <Index dim>
+template <Index Dimension>
 class Grid final {
 
-	// Check if dimension is positive
-	static_assert(dim > 0, "Dimension must be positive");
+	static_assert(Dimension > 0, "Dimension must be positive");
 
-	template <bool isConst>
+	template <bool IsConst>
 	class VectorIndex final {
 
-		typedef typename std::conditional<isConst, const Vector,
+		typedef typename std::conditional<IsConst, const Vector,
 				Vector>::type V;
-		typedef typename std::conditional<isConst, Real,
+		typedef typename std::conditional<IsConst, Real,
 				Real &>::type D;
 
 		V *vector;
 		Index index;
-		Index idxs[dim];
+		Index idxs[Dimension];
 
 	public:
 
@@ -42,7 +44,7 @@ class Grid final {
 
 		VectorIndex(const VectorIndex &that) noexcept
 				: vector(that.vector), index(that.index) {
-			std::memcpy(idxs, that.idxs, sizeof(Index) * dim);
+			std::memcpy(idxs, that.idxs, sizeof(Index) * Dimension);
 		}
 
 		VectorIndex &operator=(const VectorIndex &that) & = delete;
@@ -59,11 +61,11 @@ class Grid final {
 
 	};
 
-	template <bool isConst>
+	template <bool IsConst>
 	class VectorIterator final : public std::iterator<
-			std::forward_iterator_tag, VectorIndex<isConst>> {
+			std::forward_iterator_tag, VectorIndex<IsConst>> {
 
-		typedef typename std::conditional<isConst, const Vector,
+		typedef typename std::conditional<IsConst, const Vector,
 				Vector>::type V;
 
 		const Grid *grid;
@@ -101,8 +103,8 @@ class Grid final {
 			return !(*this == that);
 		}
 
-		VectorIndex<isConst> operator*() const {
-			return VectorIndex<isConst>(*grid, *vector, index);
+		VectorIndex<IsConst> operator*() const {
+			return VectorIndex<IsConst>(*grid, *vector, index);
 		}
 
 		VectorIterator &operator++() {
@@ -118,12 +120,12 @@ class Grid final {
 
 	};
 
-	template <bool isConst>
+	template <bool IsConst>
 	class GridVector final {
 
-		typedef typename std::conditional<isConst, const Vector,
+		typedef typename std::conditional<IsConst, const Vector,
 				Vector>::type V;
-		typedef typename std::conditional<isConst, Real,
+		typedef typename std::conditional<IsConst, Real,
 				Real &>::type D;
 
 		const Grid *grid;
@@ -152,7 +154,7 @@ class Grid final {
 
 		template <typename ...Args>
 		Real operator()(Real c0, Args ...coordinates) const {
-			static_assert(dim - 1 == sizeof...(Args),
+			static_assert(Dimension - 1 == sizeof...(Args),
 					"The number of arguments must be "
 					"consistent with the dimension");
 
@@ -166,7 +168,7 @@ class Grid final {
 
 		template <typename ...Args>
 		D operator()(Index i0, Args ...indices) const {
-			static_assert(dim - 1 == sizeof...(Args),
+			static_assert(Dimension - 1 == sizeof...(Args),
 					"The number of arguments must be "
 					"consistent with the dimension");
 
@@ -176,12 +178,12 @@ class Grid final {
 
 		////////////////////////////////////////////////////////////////
 
-		VectorIterator<isConst> begin() const {
-			return VectorIterator<isConst>(*grid, *vector);
+		VectorIterator<IsConst> begin() const {
+			return VectorIterator<IsConst>(*grid, *vector);
 		}
 
-		VectorIterator<isConst> end() const {
-			return VectorIterator<isConst>(*grid, *vector,
+		VectorIterator<IsConst> end() const {
+			return VectorIterator<IsConst>(*grid, *vector,
 					grid->size());
 		}
 
@@ -199,10 +201,10 @@ class Grid final {
 		/*template <bool B>
 		friend std::ostream &operator<<(std::ostream &os,
 				const GridVector<B> &v_G) {
-			Real coordinates[dim];
+			Real coordinates[Dimension];
 			for(auto v_indices : v_G) {
 				v_G.grid->coordinates(&v_indices, coordinates);
-				for(Index i = 0; i < dim; i++) {
+				for(Index i = 0; i < Dimension; i++) {
 					os << coordinates[i] << '\t';
 				}
 				os << *v_indices << std::endl;
@@ -237,18 +239,18 @@ class Grid final {
 
 		Real &operator()(const Index *indices) const {
 			return matrix->insert( grid->unroll(indices),
-					grid->unroll(indices + dim) );
+					grid->unroll(indices + Dimension) );
 		}
 
 		template <typename ...Args>
 		Real &operator()(Args ...indices) const {
-			static_assert((dim * 2) == sizeof...(Args),
+			static_assert((Dimension * 2) == sizeof...(Args),
 					"The number of arguments must be "
 					"consistent with the dimensions");
 
 			Index idxs[] {indices...};
 			return matrix->insert( grid->unroll(idxs),
-					grid->unroll(idxs + dim) );
+					grid->unroll(idxs + Dimension) );
 		}
 
 	};
@@ -291,7 +293,7 @@ class Grid final {
 
 		template <typename ...Args>
 		Real &operator()(Args ...indices) {
-			static_assert((dim * 2) == sizeof...(Args),
+			static_assert((Dimension * 2) == sizeof...(Args),
 					"The number of arguments must be "
 					"consistent with the dimensions");
 
@@ -311,7 +313,8 @@ class Grid final {
 
 		virtual Real &get(const Index *indices) {
 			entries.push_back(Entry(this->G->unroll(indices),
-					this->G->unroll(indices + dim), 0.));
+					this->G->unroll(indices + Dimension),
+					0.));
 			return entries.back().value();
 		}
 
@@ -341,7 +344,7 @@ class Grid final {
 
 		virtual Real &get(const Index *indices) {
 			return this->M.insert(this->G->unroll(indices),
-					this->G->unroll(indices + dim));
+					this->G->unroll(indices + Dimension));
 		}
 
 	public:
@@ -365,7 +368,7 @@ class Grid final {
 	////////////////////////////////////////////////////////////////////////
 
 	Index vsize;
-	Axis axes[dim]; // Grid has access to private empty constructor Axis()
+	Axis axes[Dimension]; // Grid has access to private constructor Axis()
 
 	////////////////////////////////////////////////////////////////////////
 	// (un)roll
@@ -375,12 +378,12 @@ class Grid final {
 		Index m = 1;
 
 		// Unroll loop
-		for(Index i = 0; i < dim - 1; i++) {
+		for(Index i = 0; i < Dimension - 1; i++) {
 			m *= axes[i].size();
 		}
 
 		// Unroll loop
-		for(Index i = dim - 1; i > 0; i++) {
+		for(Index i = Dimension - 1; i > 0; i++) {
 			indices[i] = index / m;
 			index -= indices[i] * m;
 			m /= axes[i--].size();
@@ -397,7 +400,7 @@ class Grid final {
 		index = indices[0];
 
 		// Unroll loop
-		for(Index i = 1; i < dim; i++) {
+		for(Index i = 1; i < Dimension; i++) {
 			horner *= axes[i - 1].size();
 			index += horner * indices[i];
 		}
@@ -414,7 +417,7 @@ public:
 	 */
 	template <typename ...Args>
 	Grid(Args ...args) noexcept {
-		static_assert(dim == sizeof...(Args),
+		static_assert(Dimension == sizeof...(Args),
 				"The number of arguments must be consistent "
 				"with the dimensions");
 
@@ -422,7 +425,7 @@ public:
 		Axis axes[] = {args...};
 
 		// Unroll loop
-		for(Index i = 0; i < dim; i++) {
+		for(Index i = 0; i < Dimension; i++) {
 			assert(axes[i].size() > 0);
 
 			vsize *= axes[i].size();
@@ -435,7 +438,7 @@ public:
 	 */
 	Grid(const Grid &that) noexcept : vsize(that.vsize) {
 		// Unroll loop
-		for(Index i = 0; i < dim; i++) {
+		for(Index i = 0; i < Dimension; i++) {
 			axes[i] = that.axis[i];
 		}
 	}
@@ -444,7 +447,7 @@ public:
 	 */
 	Grid(Grid &&that) noexcept : vsize(that.vsize) {
 		// Unroll loop
-		for(Index i = 0; i < dim; i++) {
+		for(Index i = 0; i < Dimension; i++) {
 			axes[i] = std::move(that.axis[i]);
 		}
 	}
@@ -456,7 +459,7 @@ public:
 		vsize = that.vsize;
 
 		// Unroll loop
-		for(Index i = 0; i < dim; i++) {
+		for(Index i = 0; i < Dimension; i++) {
 			axes[i] = that.axes[i];
 		}
 
@@ -470,7 +473,7 @@ public:
 		vsize = that.vsize;
 
 		// Unroll loop
-		for(Index i = 0; i < dim; i++) {
+		for(Index i = 0; i < Dimension; i++) {
 			axes[i] = std::move(that.axes[i]);
 		}
 
@@ -522,6 +525,9 @@ public:
 		return GridVectorConst(*this, vector);
 	}
 
+	// TODO: handle rvalue references with std::move
+	GridVectorNonConst accessor(Vector &&vector) = delete;
+
 	/**
 	 * @return An accessor to a vector.
 	 * @see QuantPDE::Grid::accessor
@@ -529,9 +535,6 @@ public:
 	GridVectorNonConst accessor(Vector &vector) const {
 		return GridVectorNonConst(*this, vector);
 	}
-
-	// TODO: handle rvalue refeferences with std::move
-	GridVectorNonConst accessor(Vector &&vector) = delete;
 
 	/**
 	 * Creates and returns an accessor to a matrix.
@@ -574,9 +577,6 @@ public:
 	GridMatrix accessor(Matrix &matrix) const {
 		return GridMatrix(*this, matrix);
 	}
-
-	// No good reason to pass an rvalue to a matrix accessor
-	GridMatrix accessor(Matrix &&matrix) = delete;
 
 	/**
 	 * Creates and returns a matrix builder. This should be used when the
@@ -677,7 +677,7 @@ public:
 	 */
 	void coordinates(const Index *indices, Real *coordinates) const {
 		// Unroll loop
-		for(Index i = 0; i < dim; i++) {
+		for(Index i = 0; i < Dimension; i++) {
 			coordinates[i] = axes[i][indices[i]];
 		}
 	}
@@ -698,11 +698,12 @@ public:
 	Vector image(F &&function) const {
 		Vector v = vector();
 
-		Real coords[dim];
+		Real coords[Dimension];
 		for(auto node : accessor(v)) {
 			coordinates(&node, coords);
-			*node = QUANT_PDE_UNPACK_AND_CALL(
-					std::forward<F>(function), coords, dim);
+			//*node = QUANT_PDE_UNPACK_AND_CALL(
+			//		std::forward<F>(function), coords,
+			//		Dimension);
 		}
 
 		return v;
@@ -721,9 +722,9 @@ public:
 	 * @param grid A grid.
 	 */
 	friend std::ostream &operator<<(std::ostream &os,
-			const Grid<dim> &grid) {
+			const Grid<Dimension> &grid) {
 		os << grid[0];
-		for(Index i = 1; i < dim; i++) {
+		for(Index i = 1; i < Dimension; i++) {
 			os << " x " << grid[i];
 		}
 		return os;

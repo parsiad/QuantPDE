@@ -35,76 +35,105 @@ struct IntegerPower<Base, 0>
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace Metafunctions {
+
 namespace GenerateSequenceHelpers {
 
-template <int... Is>
+template <int ...Is>
 struct Sequence {
 };
 
 } // GenerateSequenceHelpers
 
+} // Metafunctions
+
 /**
  * Used to generate a sequence of integers.
  */
-template <int N, int... Is>
+template <int N, int ...Is>
 struct GenerateSequence : GenerateSequence<N - 1, N - 1, Is...> {
 };
 
-template <int... Is>
-struct GenerateSequence<0, Is...> : GenerateSequenceHelpers::Sequence<Is...> {
+template <int ...Is>
+struct GenerateSequence<0, Is...>
+		: Metafunctions::GenerateSequenceHelpers::Sequence<Is...> {
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Did not know where else to put this; not really a metafunction
-
-namespace UnpackAndCall {
-
-template <typename F, typename T, Index... indices>
-Real call(F &&function, const T *array,
-		GenerateSequenceHelpers::Sequence<indices...>) {
-	return (std::forward<F>(function))( array[indices]... );
-}
-
-}
-
-#define QUANT_PDE_UNPACK_AND_CALL(function, array, N)          \
-		QuantPDE::UnpackAndCall::call(function, array, \
-		GenerateSequence<N>())
-
-////////////////////////////////////////////////////////////////////////////////
+namespace Metafunctions {
 
 namespace NaryFunctionSignatureHelpers {
 
-template <template <class...> class Target, unsigned N, class R, class T,
-		class... Ts>
-struct Recurse : Recurse <Target, N - 1, R, T, T, Ts...> {
+template <template <class...> class Target, class R, unsigned N, class T,
+		class ...Ts>
+struct Recurse : Recurse <Target, R, N - 1, T, T, Ts...> {
 };
 
-template <template <class...> class Target, class R, class T, class... Ts>
-struct Recurse<Target, 0, R, T, Ts...> {
+template <template <class...> class Target, class R, class T, class ...Ts>
+struct Recurse<Target, R, 0, T, Ts...> {
 	typedef Target<R, Ts...> type;
 };
 
-template <template <class...> class Target, unsigned N, class R, class T>
-using Type = typename Recurse<Target, N, R, T>::type;
+template <template <class...> class Target, class R, unsigned N, class T>
+using Type = typename Recurse<Target, R, N, T>::type;
 
-template <typename R, typename... Ts>
+template <typename R, typename ...Ts>
 using Target = R (Ts...);
 
 } // NaryFunctionSignatureHelpers
 
-/**
- * NaryFunctionSignature is synonymous to the type R (T...), where T... is
- * repeated N times.
- */
-template<unsigned N, class R, class T>
-using NaryFunctionSignature = NaryFunctionSignatureHelpers::Type<
-		NaryFunctionSignatureHelpers::Target, N, R, T>;
+namespace NaryMethodHelpers {
 
-}
+template <template <class...> class Target, class R, class C, unsigned N,
+		class T, class ...Ts>
+struct Recurse : Recurse <Target, R, C, N - 1, T, T, Ts...> {
+};
+
+template <template <class...> class Target, class R, class C, class T,
+		class ...Ts>
+struct Recurse<Target, R, C, 0, T, Ts...> {
+	typedef Target<R, C, Ts...> type;
+};
+
+template <template <class...> class Target, class R, class C, unsigned N,
+		class T>
+using Type = typename Recurse<Target, R, C, N, T>::type;
+
+template <typename R, class C, typename ...Ts>
+using TargetNonConst = R (C::*)(Ts...);
+
+template <typename R, class C, typename ...Ts>
+using TargetConst = R (C::*)(Ts...) const;
+
+} // NaryFunctionSignatureHelpers
+
+} // Metafunctions
+
+/**
+ * Type definition for `R(T, ..., T)`, where `T` appears `N` times.
+ */
+template<class R, unsigned N, class T>
+using NaryFunctionSignature = Metafunctions::NaryFunctionSignatureHelpers::Type<
+		Metafunctions::NaryFunctionSignatureHelpers::Target, R, N, T>;
+
+/**
+ * Type definition for `R (C::*)(T, ..., T)` where `T` appears `N` times.
+ */
+template<class R, class C, unsigned N, class T>
+using NaryMethodNonConst = Metafunctions::NaryMethodHelpers::Type<
+		Metafunctions::NaryMethodHelpers::TargetNonConst, R, C, N, T>;
+
+/**
+ * Type definition for `R (C::*)(T, ..., T) const` where `T` appears `N` times.
+ */
+template<class R, class C, unsigned N, class T>
+using NaryMethodConst = Metafunctions::NaryMethodHelpers::Type<
+		Metafunctions::NaryMethodHelpers::TargetConst, R, C, N, T>;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace Metafunctions {
 
 namespace IsLValueHelpers {
 
@@ -118,13 +147,18 @@ char (& Helper(...))[1];
 template <typename T>
 char (& Helper(T&, typename Nondeducible<const volatile T&>::type))[2];
 
-}
+} // IsLValueHelpers
 
-#define QUANT_PDE_IS_LVALUE(x) \
-		(sizeof(QuantPDE::IsLValueHelpers::Helper((x),(x))) == 2)
+} // Metafunctions
 
-#define QUANT_PDE_ASSERT_ON_RVALUE(x) static_assert(QUANT_PDE_IS_LVALUE(x), \
+#define QUANT_PDE_IS_LVALUE(X) \
+		(sizeof(QuantPDE::Metafunctions::IsLValueHelpers::Helper((X), \
+		(X))) == 2)
+
+#define QUANT_PDE_ASSERT_LVALUE(X) static_assert(QUANT_PDE_IS_LVALUE(X), \
 		"Passing by rvalue is not supported")
+
+} // QuantPDE
 
 #endif
 

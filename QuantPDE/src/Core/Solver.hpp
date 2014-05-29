@@ -2,21 +2,32 @@
 #define QUANT_PDE_CORE_SOLVER
 
 #include <cassert>       // assert
+#include <memory>        // std::unique_ptr
 #include <queue>         // std::priority_queue
 #include <tuple>         // std::tuple
-#include <unordered_map> // std::unordered_map
-#include <unordered_set> // std::unordered_set
+#include <type_traits>   // std::conditional
 #include <vector>        // std::vector
 
 namespace QuantPDE {
 
-template <Index dim>
+/**
+ * Used to solve (approximately) a problem description.
+ * @see QuantPDE::Problem
+ */
+template <Index Dimension, bool InitialAtLeft = false>
 class Solver {
 
-	static_assert(dim > 0, "Dimension must be positive");
+	static_assert(Dimension > 0, "Dimension must be positive");
 
 	template <typename U>
 	using Dated = std::tuple<U, Real>;
+
+	template <typename U>
+	struct Earlier {
+		bool operator()(const U &a, const U &b) const {
+			return std::get<1>(a) < std::get<1>(b);
+		}
+	};
 
 	template <typename U>
 	struct Later {
@@ -26,22 +37,30 @@ class Solver {
 	};
 
 	template <typename U>
+	using Order = typename std::conditional<InitialAtLeft, Later<U>,
+			Earlier<U>>::type;
+
+	template <typename U>
 	using MinPriorityQueue = std::priority_queue<U, std::vector<U>,
-			Later<U>>;
+			Order<U>>;
 
 	////////////////////////////////////////////////////////////////////////
 
 	MinPriorityQueue< Dated<const Constraint *> > startQueue, endQueue;
-	MinPriorityQueue< Dated<const Event<dim> *> > eventQueue;
+	MinPriorityQueue< Dated<const Event<Dimension> *> > eventQueue;
 
-	std::unordered_set<const Constraint *> active;
+	ConstraintSet active;
 
-	typedef std::function<void (const Constraint &, Real, Real)> Routine;
-	std::unordered_map<std::string, Routine> routines;
+	//std::queue< std::unique_ptr<Stepper<Dimension, InitialAtLeft>> >
+	//		steppers;
 
-	Real earliest, now;
+	Real now;
 
-	const Stepper<dim> *stepper;
+	////////////////////////////////////////////////////////////////////////
+
+	Function<Dimension> solution;
+
+	////////////////////////////////////////////////////////////////////////
 
 	Real topmost() {
 		Real r;
@@ -52,82 +71,44 @@ class Solver {
 
 		if(!endQueue.empty()) {
 			Real t = std::get<1>( endQueue.top() );
-			r = std::min(t, r);
+			r = std::max(t, r);
 		}
 
 		if(!eventQueue.empty()) {
 			Real t = std::get<1>( eventQueue.top() );
-			r = std::min(t, r);
+			r = std::max(t, r);
 		}
 
 		return r;
 	}
 
-	void advance() {
-		assert(!done());
-		assert(topmost() == now);
-
-		while(!eventQueue.empty() && std::get<1>(
-				eventQueue.top()) == now) {
-			solution = std::get<0>(eventQueue.pop())->advance(
-					solution);
-		}
-
-		while(!endQueue.empty() && std::get<1>(
-				endQueue.top()) == now) {
-			active.erase( std::get<0>(endQueue.pop()) );
-		}
-
-		while(!startQueue.empty() && std::get<1>(
-				startQueue.top()) == now) {
-			active.insert( std::get<0>(startQueue.pop()) );
-		}
-
-		Real next = topmost();
-
-		// TODO: Run ConstraintHandler
+	bool done() {
+		return startQueue.empty() && endQueue.empty()
+				&& eventQueue.empty();
 	}
 
 protected:
 
-	const Grid<dim> &grid;
-	Function<dim> solution;
-
 	/**
-	 * Associates a routine with a family of constraints.
-	 * @param identifier The identifier associated with the family of
-	 *                   constraints.
-	 * @param routine The routine.
+	 * Pushes a stepper onto the queue. Each time a set of active
+	 * constraints is enconutered, a stepper is popped from the queue to
+	 * handle the set and advance the solution.
+	 * @param stepper The stepper.
 	 */
-	template <typename F>
-	void registerRoutine(const std::string &identifier, F &&routine) {
-		routines[identifier] = routine;
-	}
-
-	/**
-	 * Run before anything has been done.
-	 */
-	virtual void onStart() {
-	}
-
-	/**
-	 * Run when time cannot be advanced further.
-	 */
-	virtual void onFinish() {
-	}
+	//void add(std::unique_ptr< Stepper<Dimension, InitialAtLeft> > stepper) {
+	//	steppers.push( std::move(stepper) );
+	//}
 
 public:
 
 	/**
 	 * Constructor.
 	 */
-	Solver(const Problem<dim> &problem, const Grid<dim> &grid,
-			const Stepper<dim> &stepper) noexcept
-			: earliest(topmost()), now(earliest), stepper(&stepper),
-			grid(grid), solution(problem.initial) {
+	Solver(const Problem<Dimension, InitialAtLeft> &problem) noexcept
+			: now( topmost() ), solution(problem.initialCondition())
+			{
 
-		for(const std::tuple< std::unique_ptr<Constraint>, Real,
-				Real > &t : problem.constraints) {
+		for(auto t : problem.constraints()) {
 
 			const Constraint *constraint = std::get<0>(t).get();
 
@@ -143,12 +124,11 @@ public:
 
 		}
 
-		for(const std::tuple< std::unique_ptr<Event<dim>>, Real> &tuple
-				: problem.events) {
+		for(auto t : problem.events()) {
 
 			eventQueue.push(std::make_tuple(
-				std::get<0>(tuple).get(),
-				std::get<1>(tuple)
+				std::get<0>(t).get(),
+				std::get<1>(t)
 			));
 
 		}
@@ -156,16 +136,7 @@ public:
 	}
 
 	// Disable rvalue constructors
-	Solver(const Problem<dim> &, const Grid<dim> &, Stepper<dim> &&)
-			= delete;
-	Solver(const Problem<dim> &, Grid<dim> &&, const Stepper<dim> &)
-			= delete;
-	Solver(const Problem<dim> &, Grid<dim> &&, Stepper<dim> &&) = delete;
-	Solver(Problem<dim> &&, const Grid<dim> &, const Stepper<dim> &)
-			= delete;
-	Solver(Problem<dim> &&, const Grid<dim> &, Stepper<dim> &&) = delete;
-	Solver(Problem<dim> &&, Grid<dim> &&, const Stepper<dim> &) = delete;
-	Solver(Problem<dim> &&, Grid<dim> &&, Stepper<dim> &&) = delete;
+	Solver(Problem<Dimension, InitialAtLeft> &&problem) = delete;
 
 	/**
 	 * Destructor.
@@ -178,45 +149,65 @@ public:
 	Solver &operator=(const Solver &that) & = delete;
 
 	/**
-	 * @return True if and only if the solution cannot be advanced
-	 *         further.
+	 * Advance time.
 	 */
-	bool done() {
-		return startQueue.empty() && endQueue.empty()
-				&& eventQueue.empty();
+	void advance() {
+		assert(!done());
+		assert(topmost() == now);
+
+		while(!endQueue.empty() && std::get<1>(
+				endQueue.top()) == now) {
+			if(InitialAtLeft) { // Unroll conditional
+				active.erase ( std::get<0>(endQueue.pop()) );
+			} else {
+				active.insert( std::get<0>(endQueue.pop()) );
+			}
+		}
+
+		while(!startQueue.empty() && std::get<1>(
+				startQueue.top()) == now) {
+			if(InitialAtLeft) { // Unroll conditional
+				active.insert( std::get<0>(startQueue.pop()) );
+			} else {
+				active.erase ( std::get<0>(startQueue.pop()) );
+			}
+		}
+
+		// If the active set is empty, this is either an isolated event
+		// or we have advanced too many times
+		assert(!active.empty());
+
+		Real next = topmost();
+		//solution = steppers.pop()->transform(solution, active, now,
+		//		next);
+		now = next;
+
+		while(!eventQueue.empty() && std::get<1>(
+				eventQueue.top()) == now) {
+			solution = std::get<0>(eventQueue.pop())->transform(
+					solution);
+		}
 	}
 
 	/**
 	 * Advance time until the terminal time.
 	 */
 	void advanceUntilDone() {
-		onStart();
 		while(!done()) {
 			advance();
 		}
-		onFinish();
 	}
 
 	/**
-	 * Returns the solution.
+	 * @return The current solution. Calling this immediately after
+	 *         initializing the solver is guaranteed to return the initial
+	 *         condition associated with the problem.
 	 */
-	const Function<dim> &currentSolution() const {
+	const Function<Dimension> &currentSolution() const {
 		return solution;
 	}
 
 };
-
-#define QUANT_PDE_REGISTER_ROUTINE(class)                      \
-	registerRoutine(                                       \
-		QUANT_PDE_IDENTIFIER(class),                   \
-		[this] (const Constraint &a, Real b, Real c) { \
-			_##class(a, b, c);                     \
-		}                                              \
-	)
-
-typedef Solver<1> Solver1;
-typedef Solver<2> Solver2;
-typedef Solver<3> Solver3;
 
 }
 
