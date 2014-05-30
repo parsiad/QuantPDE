@@ -668,11 +668,6 @@ class RectilinearGrid : public Domain<Dimension> {
 
 	class FastMatrixBuilder final {
 
-		virtual Real &get(const Index *indices) {
-			return this->M.insert(this->G->unroll(indices),
-					this->G->unroll(indices + Dimension));
-		}
-
 		RectilinearGrid *grid;
 		Matrix M;
 
