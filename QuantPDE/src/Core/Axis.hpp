@@ -91,7 +91,7 @@ public:
 
 		Real *p = n;
 		n = new Real[length];
-		memcpy(n, that.n, length * sizeof(Real));
+		std::memcpy(n, that.n, length * sizeof(Real));
 
 		delete [] p;
 

@@ -23,7 +23,7 @@ using Function = std::function< NRealToReal<N> >;
 
 #define QUANT_PDE_TMP ( std::forward<F>(function) )( array[Indices]... )
 template <typename F, typename T, int ...Indices>
-auto unpackAndCall(F &&function, const T *array,
+inline auto packAndCall(F &&function, const T *array,
 		Metafunctions::GenerateSequenceHelpers::Sequence<Indices...>)
 		-> decltype( QUANT_PDE_TMP ) {
 	return QUANT_PDE_TMP;
@@ -36,10 +36,11 @@ auto unpackAndCall(F &&function, const T *array,
  * @param function The function.
  * @param array The array.
  */
-#define QUANT_PDE_TMP unpackAndCall( std::forward<F>(function), array, \
+#define QUANT_PDE_TMP packAndCall( std::forward<F>(function), array, \
 		GenerateSequence<N>() )
 template <int N, typename F, typename T>
-auto unpackAndCall(F &&function, const T *array) -> decltype( QUANT_PDE_TMP ) {
+inline auto packAndCall(F &&function, const T *array)
+		-> decltype( QUANT_PDE_TMP ) {
 	return QUANT_PDE_TMP;
 }
 #undef QUANT_PDE_TMP
@@ -48,7 +49,7 @@ auto unpackAndCall(F &&function, const T *array) -> decltype( QUANT_PDE_TMP ) {
 
 #define QUANT_PDE_TMP ( std::forward<C>(caller).*method )( array[Indices]... )
 template <typename C, typename M, typename T, int ...Indices>
-auto unpackAndCall(C &&caller, M method, const T *array,
+inline auto packAndCall(C &&caller, M method, const T *array,
 		Metafunctions::GenerateSequenceHelpers::Sequence<Indices...>)
 		-> decltype( QUANT_PDE_TMP ) {
 	return QUANT_PDE_TMP;
@@ -62,10 +63,10 @@ auto unpackAndCall(C &&caller, M method, const T *array,
  * @param method The function.
  * @param array The array.
  */
-#define QUANT_PDE_TMP unpackAndCall( std::forward<C>(caller), method, array, \
+#define QUANT_PDE_TMP packAndCall( std::forward<C>(caller), method, array, \
 		GenerateSequence<N>() )
 template <int N, typename C, typename M, typename T>
-auto unpackAndCall(C &&caller, M method, const T *array)
+inline auto packAndCall(C &&caller, M method, const T *array)
 		-> decltype( QUANT_PDE_TMP ) {
 	return QUANT_PDE_TMP;
 }

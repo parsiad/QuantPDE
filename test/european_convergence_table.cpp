@@ -153,15 +153,15 @@ endl <<
 	RectilinearGrid1 R(S);
 
 	// Payoff function
-	Function1 payoff = std::bind(
-		isCall ? call : put,
-		std::placeholders::_1,
+	Function1 payoff = bind(
+		isCall ? callPayoff : putPayoff,
+		placeholders::_1,
 		strike
 	);
 
 	// Alternatively, we could have used...
-	//auto payoff = QUANT_PDE_MODULES_PAYOFFS_CALL_FIXED_STRIKE(strike);
-	//auto payoff = QUANT_PDE_MODULES_PAYOFFS_PUT_FIXED_STRIKE(strike);
+	//auto payoff = QUANT_PDE_MODULES_CALL_PAYOFF_FIXED_STRIKE(strike);
+	//auto payoff = QUANT_PDE_MODULES_PUT_PAYOFF_FIXED_STRIKE(strike);
 
 	for(unsigned l = 0; l < refinement; l++, steps *= 2) {
 
@@ -169,12 +169,8 @@ endl <<
 		// Build spatial grid
 		///////////////////////////////////////////////////////////////
 
-		R.refine( RectilinearGrid1::NewTickBetweenEachPair{} );
-		Vector V( R.image(payoff) );
-		auto accessor = R.accessor(V);
-		cerr << accessor(100.0124) << endl;
-		//cerr << R.accessor(v) << endl;
-		return 1;
+		// Refine the grid
+		R.refine( RectilinearGrid1::NewTickBetweenEachPair() );
 
 		///////////////////////////////////////////////////////////////
 		// Build problem
