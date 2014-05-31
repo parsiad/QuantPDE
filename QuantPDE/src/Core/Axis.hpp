@@ -139,8 +139,6 @@ public:
 		return length;
 	}
 
-	// TODO: Remove one of these
-	template <Index Dimension> friend class Grid;
 	template <Index Dimension> friend class RectilinearGrid;
 
 };
