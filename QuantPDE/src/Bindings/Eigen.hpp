@@ -3,6 +3,7 @@
 #define QUANT_PDE_BOUND
 
 #include <eigen3/Eigen/SparseCore>
+#include <eigen3/Eigen/IterativeLinearSolvers>
 
 namespace QuantPDE {
 
@@ -14,6 +15,9 @@ typedef Eigen::Matrix<Real, Eigen::Dynamic, 1> Vector;
 typedef Eigen::SparseMatrix<Real, Eigen::RowMajor> Matrix;
 
 typedef Eigen::VectorXi IntegerVector;
+
+// BiCGSTAB with IncompleteLUT preconditioner
+typedef Eigen::BiCGSTAB<Matrix, Eigen::IncompleteLUT<Real>> BiCGSTAB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,27 +33,6 @@ public:
 	}
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO: Find a place for this
-
-/*
-class BiCGSTABSolver : public LinearSolver {
-
-	// BiCGSTAB with IncompleteLUT preconditioner
-	BiCGSTAB<Matrix, IncompleteLUT<Real>> solver;
-
-	virtual void initialize(const Matrix &A) {
-		solver.compute(A);
-	}
-
-	virtual Vector solve(const Vector &b, const Vector &x0) const {
-		return solver.solveWithGuess(b, x0);
-	}
-
-};
-*/
 
 }
 

@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
 	Real strike         = 100.;
 	unsigned refinement = 5;
 	unsigned steps      = 25;
-	bool isCall         = true;
+	bool call           = true;
 
 	// Setting options with getopt
 	{ char c;
@@ -88,7 +88,7 @@ endl <<
 				strike = atof(optarg);
 				break;
 			case 'p':
-				isCall = false;
+				call = false;
 				break;
 			case 'r':
 				interest = atof(optarg);
@@ -154,7 +154,7 @@ endl <<
 
 	// Payoff function
 	Function1 payoff = bind(
-		isCall ? callPayoff : putPayoff,
+		call ? callPayoff : putPayoff,
 		placeholders::_1,
 		strike
 	);

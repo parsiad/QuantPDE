@@ -3,6 +3,7 @@
 
 #include <array>       // std::array
 #include <cassert>     // assert
+#include <cstdlib>     // size_t
 #include <iostream>    // std::ostream
 #include <memory>      // std::shared_ptr, std::unique_ptr
 #include <type_traits> // std::conditional
@@ -413,9 +414,9 @@ class Refiner {
 public:
 
 	/**
-	 * Constructor
+	 * Constructor.
 	 */
-	Refiner() {
+	Refiner() noexcept {
 	}
 
 	Refiner(const Refiner &that) = delete;
@@ -794,6 +795,8 @@ public:
 	 * halfway between the two.
 	 */
 	class NewTickBetweenEachPair : public Refiner<Dimension> {
+
+	public:
 
 		virtual std::unique_ptr< Domain<Dimension> > refine(
 				const Domain<Dimension> &domain) const {
