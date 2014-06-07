@@ -3,11 +3,11 @@
 
 namespace QuantPDE {
 
-template <size_t Dimension, size_t Controls, size_t Lookback, bool Forward>
+template <size_t Lookback, bool Forward>
 class LinearBDFBase : public Linearizer<Lookback> {
 
-	const Domain<Dimension> *domain;
-	const LinearOperator<Dimension, Controls> *op;
+	const DomainBase *domain;
+	const LinearOperator *op;
 
 	inline Real dt() {
 		const Real
@@ -161,15 +161,14 @@ public:
 
 };
 
-template <size_t Dimension, size_t Controls = 0, bool Forward = false>
-class LinearBDFOne : public LinearBDFBase<Dimension, Controls, 1, Forward> {
+template <bool Forward = false>
+class LinearBDFOne : public LinearBDFBase<1, Forward> {
 
 public:
 
 	template <typename D, typename L>
 	LinearBDFOne(D &domain, L &op) noexcept
-			: LinearBDFBase<Dimension, Controls, 1, Forward>(domain,
-			op) {
+			: LinearBDFBase<1, Forward>(domain, op) {
 	}
 
 	virtual Matrix A() {
@@ -183,25 +182,16 @@ public:
 };
 
 // Convenient alias
-template <size_t Dimension, size_t Controls = 0, bool Forward = false>
-using ImplicitMethod = LinearBDFOne<Dimension, Controls, Forward>;
-
-template <size_t Controls = 0, bool Forward = false>
-using LinearBDFOne1 = LinearBDFOne<1, Controls, Forward>;
-
-template <size_t Controls = 0, bool Forward = false>
-using LinearBDFOne2 = LinearBDFOne<2, Controls, Forward>;
-
-template <size_t Controls = 0, bool Forward = false>
-using LinearBDFOne3 = LinearBDFOne<3, Controls, Forward>;
+template <bool Forward = false>
+using ImplicitMethod = LinearBDFOne<Forward>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <size_t Dimension, size_t Controls = 0, bool Forward = false>
-class LinearBDFTwo : public LinearBDFBase<Dimension, Controls, 2, Forward> {
+template <bool Forward = false>
+class LinearBDFTwo : public LinearBDFBase<2, Forward> {
 
-	Matrix (LinearBDFTwo<Dimension, Controls, Forward>::*AA)();
-	Vector (LinearBDFTwo<Dimension, Controls, Forward>::*bb)();
+	Matrix (LinearBDFTwo<Forward>::*AA)();
+	Vector (LinearBDFTwo<Forward>::*bb)();
 
 	////////////////////////////////////////////////////////////////////////
 
@@ -219,8 +209,7 @@ public:
 
 	template <typename D, typename L>
 	LinearBDFTwo(D &domain, L &op) noexcept
-			: LinearBDFBase<Dimension, Controls, 2, Forward>(domain,
-			op) {
+			: LinearBDFBase<2, Forward>(domain, op) {
 	}
 
 	virtual void clear() {
@@ -238,22 +227,13 @@ public:
 
 };
 
-template <size_t Controls = 0, bool Forward = false>
-using LinearBDFTwo1 = LinearBDFTwo<1, Controls, Forward>;
-
-template <size_t Controls = 0, bool Forward = false>
-using LinearBDFTwo2 = LinearBDFTwo<2, Controls, Forward>;
-
-template <size_t Controls = 0, bool Forward = false>
-using LinearBDFTwo3 = LinearBDFTwo<3, Controls, Forward>;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-template <size_t Dimension, size_t Controls = 0, bool Forward = false>
-class LinearBDFThree : public LinearBDFBase<Dimension, Controls, 3, Forward> {
+template <bool Forward = false>
+class LinearBDFThree : public LinearBDFBase<3, Forward> {
 
-	Matrix (LinearBDFThree<Dimension, Controls, Forward>::*AA)();
-	Vector (LinearBDFThree<Dimension, Controls, Forward>::*bb)();
+	Matrix (LinearBDFThree<Forward>::*AA)();
+	Vector (LinearBDFThree<Forward>::*bb)();
 
 	////////////////////////////////////////////////////////////////////////
 
@@ -281,8 +261,7 @@ public:
 
 	template <typename D, typename L>
 	LinearBDFThree(D &domain, L &op) noexcept
-			: LinearBDFBase<Dimension, Controls, 3, Forward>(domain,
-			op) {
+			: LinearBDFBase<3, Forward>(domain, op) {
 	}
 
 	virtual void clear() {
@@ -300,22 +279,13 @@ public:
 
 };
 
-template <size_t Controls = 0, bool Forward = false>
-using LinearBDFThree1 = LinearBDFThree<1, Controls, Forward>;
-
-template <size_t Controls = 0, bool Forward = false>
-using LinearBDFThree2 = LinearBDFThree<2, Controls, Forward>;
-
-template <size_t Controls = 0, bool Forward = false>
-using LinearBDFThree3 = LinearBDFThree<3, Controls, Forward>;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-template <size_t Dimension, size_t Controls = 0, bool Forward = false>
-class LinearBDFFour : public LinearBDFBase<Dimension, Controls, 4, Forward> {
+template <bool Forward = false>
+class LinearBDFFour : public LinearBDFBase<4, Forward> {
 
-	Matrix (LinearBDFFour<Dimension, Controls, Forward>::*AA)();
-	Vector (LinearBDFFour<Dimension, Controls, Forward>::*bb)();
+	Matrix (LinearBDFFour<Forward>::*AA)();
+	Vector (LinearBDFFour<Forward>::*bb)();
 
 	////////////////////////////////////////////////////////////////////////
 
@@ -353,8 +323,7 @@ public:
 
 	template <typename D, typename L>
 	LinearBDFFour(D &domain, L &op) noexcept
-			: LinearBDFBase<Dimension, Controls, 4, Forward>(domain,
-			op) {
+			: LinearBDFBase<4, Forward>(domain, op) {
 	}
 
 	virtual void clear() {
@@ -372,22 +341,13 @@ public:
 
 };
 
-template <size_t Controls = 0, bool Forward = false>
-using LinearBDFFour1 = LinearBDFFour<1, Controls, Forward>;
-
-template <size_t Controls = 0, bool Forward = false>
-using LinearBDFFour2 = LinearBDFFour<2, Controls, Forward>;
-
-template <size_t Controls = 0, bool Forward = false>
-using LinearBDFFour3 = LinearBDFFour<3, Controls, Forward>;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-template <size_t Dimension, size_t Controls = 0, bool Forward = false>
-class LinearBDFFive : public LinearBDFBase<Dimension, Controls, 5, Forward> {
+template <bool Forward = false>
+class LinearBDFFive : public LinearBDFBase<5, Forward> {
 
-	Matrix (LinearBDFFive<Dimension, Controls, Forward>::*AA)();
-	Vector (LinearBDFFive<Dimension, Controls, Forward>::*bb)();
+	Matrix (LinearBDFFive<Forward>::*AA)();
+	Vector (LinearBDFFive<Forward>::*bb)();
 
 	////////////////////////////////////////////////////////////////////////
 
@@ -435,8 +395,7 @@ public:
 
 	template <typename D, typename L>
 	LinearBDFFive(D &domain, L &op) noexcept
-			: LinearBDFBase<Dimension, Controls, 5, Forward>(domain,
-			op) {
+			: LinearBDFBase<5, Forward>(domain, op) {
 	}
 
 	virtual void clear() {
@@ -454,22 +413,13 @@ public:
 
 };
 
-template <size_t Controls = 0, bool Forward = false>
-using LinearBDFFive1 = LinearBDFFive<1, Controls, Forward>;
-
-template <size_t Controls = 0, bool Forward = false>
-using LinearBDFFive2 = LinearBDFFive<2, Controls, Forward>;
-
-template <size_t Controls = 0, bool Forward = false>
-using LinearBDFFive3 = LinearBDFFive<3, Controls, Forward>;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-template <size_t Dimension, size_t Controls = 0, bool Forward = false>
-class LinearBDFSix : public LinearBDFBase<Dimension, Controls, 6, Forward> {
+template <bool Forward = false>
+class LinearBDFSix : public LinearBDFBase<6, Forward> {
 
-	Matrix (LinearBDFSix<Dimension, Controls, Forward>::*AA)();
-	Vector (LinearBDFSix<Dimension, Controls, Forward>::*bb)();
+	Matrix (LinearBDFSix<Forward>::*AA)();
+	Vector (LinearBDFSix<Forward>::*bb)();
 
 	////////////////////////////////////////////////////////////////////////
 
@@ -527,8 +477,7 @@ public:
 
 	template <typename D, typename L>
 	LinearBDFSix(D &domain, L &op) noexcept
-			: LinearBDFBase<Dimension, Controls, 6, Forward>(domain,
-			op) {
+			: LinearBDFBase<6, Forward>(domain, op) {
 	}
 
 	virtual void clear() {
@@ -545,15 +494,6 @@ public:
 	}
 
 };
-
-template <size_t Controls = 0, bool Forward = false>
-using LinearBDFSix1 = LinearBDFSix<1, Controls, Forward>;
-
-template <size_t Controls = 0, bool Forward = false>
-using LinearBDFSix2 = LinearBDFSix<2, Controls, Forward>;
-
-template <size_t Controls = 0, bool Forward = false>
-using LinearBDFSix3 = LinearBDFSix<3, Controls, Forward>;
 
 } // QuantPDE
 

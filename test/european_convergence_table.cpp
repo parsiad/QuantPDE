@@ -189,7 +189,7 @@ endl <<
 		// Solve problem
 		///////////////////////////////////////////////////////////////
 
-		ConstantStepper<4> stepper(
+		ConstantStepper<1> stepper(
 			0., // Initial time
 			expiry,
 			steps
@@ -202,8 +202,24 @@ endl <<
 			[dividends]  (Real, Real) { return dividends;  }
 		);
 
-		LinearBDFFour1<> bdf(R, blackScholes);
+		ImplicitMethod<> bdf(R, blackScholes);
 		bdf.setIteration(stepper);
+
+		/*
+		PenaltyMethod1<> penalty(
+			R,
+			bdf,
+			bdf,
+			[strike] (
+				const Domain1 &domain, Index i,
+				Real,
+				const Vector &v
+			) {
+				auto x = domain.coordinates(i);
+				return v(i) < x[0] - strike;
+			}
+		);
+		*/
 
 		BiCGSTABSolver solver;
 		Vector v = stepper.iterateUntilDone(

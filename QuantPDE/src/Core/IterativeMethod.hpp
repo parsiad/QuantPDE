@@ -3,6 +3,7 @@
 
 #include <deque>        // std::deque
 #include <forward_list> // std::list
+#include <functional>   // std::function
 #include <memory>       // std::unique_ptr
 #include <tuple>        // std::tuple
 #include <type_traits>  // std::conditional
@@ -452,7 +453,6 @@ const IterandHistory<Lookback> &Iteration<Lookback>::iterands() const {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <size_t Dimension, size_t Controls>
 class LinearOperator {
 
 public:
@@ -469,6 +469,11 @@ public:
 
 	virtual Matrix discretize(Real time) const = 0;
 
+};
+
+template <size_t Controls>
+class ControlledLinearOperator : public LinearOperator {
+	// TODO
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -525,13 +530,13 @@ public:
 		Real startTime,
 		Real endTime,
 		Real dt,
-		Real dnorm,
+		Real target,
 		Real scale = 1
 	) noexcept :
 		startTime(startTime),
 		endTime(endTime),
 		dt(dt),
-		dnorm(dnorm),
+		dnorm(target),
 		scale(scale),
 		time(endTime)
 	{
@@ -553,25 +558,31 @@ public:
 					v_n0.cwiseAbs()
 				)
 			)
-		).maxCoeff;
+		).maxCoeff();
 
 		// TODO: Optimize
 		if(Forward) {
 			if(time + dt > endTime) {
 				dt = endTime - time;
+				time = endTime;
+			} else {
+				time += dt;
 			}
 
 			return dt;
 		} else {
 			if(time - dt < startTime) {
 				dt = time - startTime;
+				time = startTime;
+			} else {
+				time -= dt;
 			}
 
 			return -dt;
 		}
 	}
 
-	virtual bool done() {
+	virtual bool done() const {
 		return time <= startTime;
 	}
 
@@ -606,27 +617,80 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <size_t Lookback>
+// TODO: Change Domain<Dimension> to DomainBase
+
+template <Index Dimension, size_t Lookback = 1>
 class PenaltyMethod : public Linearizer<Lookback> {
 
+	typedef std::function< bool (
+		const Domain<Dimension> &, Index,
+		Real,
+		const Vector &
+	)> F;
+
+	const Domain<Dimension> *domain;
 	LinearizerBase *left, *right;
+
+	F predicate;
+	Real large;
+	Matrix P;
 
 public:
 
-	PenaltyMethod(LinearizerBase &left, LinearizerBase &right) noexcept
-			: left(&left), right(&right) {
+	template <typename D, typename F1>
+	PenaltyMethod(D &domain, LinearizerBase &left, LinearizerBase &right,
+			F1 &&predicate, Real tolerance = 1e-6) noexcept
+			: domain(&domain), left(&left), right(&right),
+			predicate( std::forward<F1>(predicate) ),
+			large( 1. / tolerance ) {
+	}
+
+	/*
+	[] (const Domain<Dimension> &domain, Index i,
+			const IterandHistory &iterands, Real nextTime) {
+		const Vector &v = std::get<1>( iterands[0] );
+		auto x = domain->coordinates(i);
+		return v(i) < x[0] - strike;
+	}
+	*/
+
+	virtual void onIterationStart() {
+		P = Matrix(domain->size(), domain->size());
+
+		for(Index i = 0; i < domain->size(); i++) {
+
+			bool penalize = predicate(
+				*domain, i,
+				this->nextTime(),
+				std::get<1>( this->iterands()[0] )
+			);
+
+			if(penalize) {
+				P.insert(i, i) = large;
+			}
+		}
+
+		P.makeCompressed();
 	}
 
 	virtual Matrix A() {
-		// TODO
+		return left->A() + P * right->A();
 	}
 
 	virtual Vector b() {
-		// TODO
+		return left->b() + P * left->b();
 	}
 
-
 };
+
+template <size_t Lookback = 1>
+using PenaltyMethod1 = PenaltyMethod<1, Lookback>;
+
+template <size_t Lookback = 1>
+using PenaltyMethod2 = PenaltyMethod<2, Lookback>;
+
+template <size_t Lookback = 1>
+using PenaltyMethod3 = PenaltyMethod<3, Lookback>;
 
 } // QuantPDE
 

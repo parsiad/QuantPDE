@@ -5,7 +5,7 @@ namespace QuantPDE {
 
 namespace Modules {
 
-class BlackScholesOperator : public LinearOperator<1, 0> {
+class BlackScholesOperator : public LinearOperator {
 
 	const RectilinearGrid1 *G;
 	Function2 r, v, q;

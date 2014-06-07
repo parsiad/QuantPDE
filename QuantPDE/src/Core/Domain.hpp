@@ -14,13 +14,73 @@ namespace QuantPDE {
 template <Index Dimension> class Refiner;
 
 /**
- * A pure virtual class representing a set of points in \f$\mathbb{R}^n\f$
- * together with an order (by which these points can be indexed and iterated
- * over).
+ * A pure virtual class representing a (finite) set of points in some space.
+ */
+class DomainBase {
+
+public:
+
+	virtual ~DomainBase() {
+	}
+
+	/**
+	 * @return A square matrix of order equal to the number of nodes on this
+	 *         domain.
+	 */
+	Matrix matrix() const {
+		return Matrix(size(), size());
+	}
+
+	/**
+	 * @return An identity matrix of order equal to the number of nodes on
+	 *         this domain.
+	 */
+	Matrix identity() const {
+		Matrix M(size(), size());
+		M.setIdentity();
+		return M;
+	}
+
+	/**
+	 * @return A zero vector of length equal to the number of nodes on this
+	 *         domain.
+	 */
+	Vector zero() const {
+		return Vector::Zero(size());
+	}
+
+	/**
+	 * @return A vector of ones of length equal to the number of nodes on
+	 *         this domain.
+	 */
+	Vector ones() const {
+		return Vector::Ones(size());
+	}
+
+	/**
+	 * @return A vector of length equal to the number of nodes on this
+	 *         domain. No guarantees are made on the contents of this
+	 *         vector.
+	 */
+	Vector vector() const {
+		return Vector(size());
+	}
+
+	/**
+	 * @return The total number of nodes on this domain.
+	 */
+	virtual Index size() const = 0;
+
+};
+
+/**
+ * A pure virtual class representing a (finite) set of points in
+ * \f$\mathbb{R}^n\f$ together with an order (by which these points can be
+ * indexed and iterated over).
  * @tparam Dimension \f$n\f$.
  */
 template <Index Dimension>
-class Domain {
+class Domain : public DomainBase {
 
 	static_assert(Dimension > 0, "Dimension must be positive");
 
@@ -251,9 +311,6 @@ class Domain {
 
 public:
 
-	virtual ~Domain() {
-	}
-
 	/**
 	 * Accessors can be used to iterate over vectors with respect to an
 	 * order imposed by a specific domain.
@@ -320,48 +377,6 @@ public:
 	}
 
 	/**
-	 * @return A square matrix of order equal to the number of nodes on this
-	 *         grid.
-	 */
-	Matrix matrix() const {
-		return Matrix(size(), size());
-	}
-
-	/**
-	 * @return An identity matrix of order equal to the number of nodes on
-	 *         this grid.
-	 */
-	Matrix identity() const {
-		Matrix M(size(), size());
-		M.setIdentity();
-		return M;
-	}
-
-	/**
-	 * @return A zero vector of length equal to the number of nodes on this
-	 *         grid.
-	 */
-	Vector zero() const {
-		return Vector::Zero(size());
-	}
-
-	/**
-	 * @return A vector of ones of length equal to the number of nodes on
-	 *         this grid.
-	 */
-	Vector ones() const {
-		return Vector::Ones(size());
-	}
-
-	/**
-	 * @return A vector of length equal to the number of nodes on this grid.
-	 *         No guarantees are made on the content of this vector.
-	 */
-	Vector vector() const {
-		return Vector(size());
-	}
-
-	/**
 	 * Used to evaluate the function on the domain.
 	 * Consider the following example, evaluating the function
 	 * \f$f\left(x,y\right)=xy\f$ on a two-dimensional domain:
@@ -373,7 +388,7 @@ public:
 	 * Vector v = D.image( [] (Real x, Real y) { return x * y; } );
 	 * \endcode
 	 * @param function A function.
-	 * @return The image of a function on this grid as a vector.
+	 * @return The image of a function on this domain as a vector.
 	 * @see QuantPDE::Domain::accessor
 	 */
 	template <typename F>
@@ -401,11 +416,6 @@ public:
 	 * @return The coordinates associated with this index.
 	 */
 	virtual std::array<Real, Dimension> coordinates(Index index) const = 0;
-
-	/**
-	 * @return The total number of nodes on this grid.
-	 */
-	virtual Index size() const = 0;
 
 };
 
@@ -455,6 +465,9 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/**
+ * A (finite) rectilinear grid.
+ */
 template <Index Dimension>
 class RectilinearGrid : public Domain<Dimension> {
 
