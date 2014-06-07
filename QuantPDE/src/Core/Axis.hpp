@@ -139,7 +139,7 @@ public:
 		return length;
 	}
 
-	template <Index Dimension> friend class RectilinearGrid;
+	template <Index> friend class RectilinearGrid;
 
 };
 
