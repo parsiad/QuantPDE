@@ -195,18 +195,22 @@ endl <<
 			steps
 		);
 
-		BlackScholesOperator op(
+		BlackScholesOperator blackScholes(
 			R,
 			[interest]   (Real, Real) { return interest;   },
 			[volatility] (Real, Real) { return volatility; },
 			[dividends]  (Real, Real) { return dividends;  }
 		);
 
-		LinearBDFFour1<> bdf( stepper, R, op );
+		LinearBDFFour1<> bdf(R, blackScholes);
+		bdf.setIteration(stepper);
 
 		BiCGSTABSolver solver;
-		Vector v = stepper.iterateUntilDone( R.image(payoff), bdf,
-				solver );
+		Vector v = stepper.iterateUntilDone(
+			R.image(payoff),
+			bdf,
+			solver
+		);
 
 		///////////////////////////////////////////////////////////////
 		// Table
@@ -224,7 +228,7 @@ endl <<
 		// Print out row of table
 		cout
 			<< scientific
-			<< setw(td) << R[0].size() << "\t"
+			<< setw(td) << R.size() << "\t"
 			<< setw(td) << steps    << "\t"
 			<< setw(td) << value    << "\t"
 			<< setw(td) << change   << "\t"

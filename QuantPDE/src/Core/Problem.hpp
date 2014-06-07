@@ -80,8 +80,6 @@ public:
 
 };
 
-typedef std::unordered_set<const Constraint *> ConstraintSet;
-
 #define QUANT_PDE_IDENTIFIER(DERIVED_CLASS) typeid(DERIVED_CLASS).name()
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,10 +87,10 @@ typedef std::unordered_set<const Constraint *> ConstraintSet;
 /**
  * Used to describe an initial value problem abstractly. Such a problem
  * description is not inherently coupled with a method to solve it.
- * @param InitialAtLeft Whether the initial condition occurs at the left
- *                      endpoint or the right one.
+ * @tparam Forward True if and only if the initial condition is at the start
+ *                 time.
  */
-template <Index Dimension, bool InitialAtLeft = false>
+template <Index Dimension, bool Forward = false>
 class Problem {
 
 	static_assert(Dimension > 0, "Dimension must be positive");
@@ -134,8 +132,7 @@ public:
 	 * @param event The event.
 	 * @param time The time at which the event occurs.
 	 */
-	void add(std::unique_ptr<const Event<Dimension>> event,
-			const Real &time) {
+	void add(std::unique_ptr<const Event<Dimension>> event, Real time) {
 		assert(time >= 0);
 
 		e.push_back(std::make_tuple(std::move(event), time));
@@ -147,13 +144,13 @@ public:
 	 * @param startTime The time at which this constraint goes into effect.
 	 * @param endTime The time at which this constraint goes out of effect.
 	 */
-	void add(std::unique_ptr<const Constraint> constraint,
-			const Real &startTime, const Real &endTime) {
+	void add(std::unique_ptr<const Constraint> constraint, Real startTime,
+			Real endTime) {
 		assert(startTime >= 0);
 		assert(endTime > startTime);
 
-		c.push_back(std::make_tuple(std::move(constraint),
-				startTime, endTime));
+		c.push_back(std::make_tuple(std::move(constraint), startTime,
+				endTime));
 	}
 
 	/**

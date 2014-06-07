@@ -202,12 +202,12 @@ public:
 	/**
 	 * @return The left-hand-side matrix (A).
 	 */
-	virtual Matrix A(Real dt) = 0;
+	virtual Matrix A() = 0;
 
 	/**
 	 * @return The right-hand-side vector (b).
 	 */
-	virtual Vector b(Real dt) = 0;
+	virtual Vector b() = 0;
 
 };
 
@@ -222,22 +222,27 @@ class Linearizer : public LinearizerBase {
 			"positive");
 
 	// Nonownership
-	const Iteration<Lookback> *iteration;
+	Iteration<Lookback> *iteration;
 
 protected:
+
+	Linearizer() noexcept : LinearizerBase(), iteration(nullptr) {
+	}
 
 	/**
 	 * @return The most recent iterands.
 	 */
 	const IterandHistory<Lookback> &iterands() const;
 
+	/**
+	 * @return The time with which the next solution is associated with.
+	 */
+	Real nextTime() const;
+
 public:
 
-	/**
-	 * Constructor.
-	 */
-	template <typename I>
-	Linearizer(I &iteration);
+	// TODO: Document
+	void setIteration(Iteration<Lookback> &iteration);
 
 };
 
@@ -274,8 +279,7 @@ public:
 	}
 
 	// TODO: Document
-	template <typename I>
-	void setChildIteration(I &childIteration) {
+	void setChildIteration(IterationBase &childIteration) {
 		child = &childIteration;
 	}
 
@@ -310,6 +314,7 @@ class Iteration : public IterationBase {
 	std::forward_list<Linearizer<Lookback> *> linearizers;
 
 	IterandHistory<Lookback> history;
+	Real implicitTime;
 
 	virtual Vector iterateUntilDone(
 		const Vector &initialIterand,
@@ -333,7 +338,7 @@ class Iteration : public IterationBase {
 		) );
 
 		// Iterate until done
-		Real implicitTime = time;
+		implicitTime = time;
 		do {
 			// Iterating at least once allows us to make assumptions
 			// about how many iterands we have available to us for
@@ -365,13 +370,13 @@ class Iteration : public IterationBase {
 
 				// Only compute A if necessary
 				if(!initialized || root.doesAChange()) {
-					solver.initialize(root.A(implicitTime));
+					solver.initialize(root.A());
 				}
 
 				history.push( std::make_tuple(
 					implicitTime,
 					solver.solve(
-						root.b(implicitTime),
+						root.b(),
 						std::get<1>( history[0] )
 					)
 				) );
@@ -402,10 +407,9 @@ public:
 	}
 
 	// TODO: Document
-	template <typename L>
 	Vector iterateUntilDone(
 		const Vector &initialIterand,
-		L &root,
+		LinearizerBase &root,
 		LinearSolver &solver
 	) {
 		return iterateUntilDone(
@@ -421,8 +425,12 @@ public:
 
 };
 
-template <size_t Lookback> template <typename I>
-Linearizer<Lookback>::Linearizer(I &iteration) {
+template <size_t Lookback>
+void Linearizer<Lookback>::setIteration(Iteration<Lookback> &iteration) {
+	if(this->iteration) {
+		this->iteration->linearizers.remove(this);
+	}
+
 	this->iteration = &iteration;
 	iteration.linearizers.push_front(this);
 }
@@ -430,6 +438,11 @@ Linearizer<Lookback>::Linearizer(I &iteration) {
 template <size_t Lookback>
 const IterandHistory<Lookback> &Linearizer<Lookback>::iterands() const {
 	return iteration->history;
+}
+
+template <size_t Lookback>
+Real Linearizer<Lookback>::nextTime() const {
+	return iteration->implicitTime;
 }
 
 template <size_t Lookback>
@@ -588,6 +601,30 @@ public:
 
 		return ( v_n1 - v_n0 ).squaredNorm() < toleranceSquared;
 	}
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <size_t Lookback>
+class PenaltyMethod : public Linearizer<Lookback> {
+
+	LinearizerBase *left, *right;
+
+public:
+
+	PenaltyMethod(LinearizerBase &left, LinearizerBase &right) noexcept
+			: left(&left), right(&right) {
+	}
+
+	virtual Matrix A() {
+		// TODO
+	}
+
+	virtual Vector b() {
+		// TODO
+	}
+
 
 };
 

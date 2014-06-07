@@ -9,31 +9,39 @@ class LinearBDFBase : public Linearizer<Lookback> {
 	const Domain<Dimension> *domain;
 	const LinearOperator<Dimension, Controls> *op;
 
-	inline Real dt(Real implicitTime) {
-		if(Forward) {
-			return implicitTime - std::get<0>(this->iterands()[0]);
-		} else {
-			return std::get<0>(this->iterands()[0]) - implicitTime;
-		}
+	inline Real dt() {
+		const Real
+			t0 = std::get<0>( this->iterands()[0] ),
+			t1 = this->nextTime()
+		;
+
+		return Forward ? t1 - t0 : t0 - t1;
 	}
 
 protected:
 
-	inline Matrix A1(Real implicitTime) {
-		return domain->identity() + op->discretize(implicitTime)
-				* dt(implicitTime);
+	inline Matrix A1() {
+		const Real t = this->nextTime();
+
+		return
+			domain->identity()
+			+ op->discretize(t) * dt();
 	}
 
-	inline Vector b1(Real implicitTime) {
-		return std::get<1>( this->iterands()[0] );
+	inline Vector b1() {
+		const Vector &v_n0 = std::get<1>( this->iterands()[0] );
+		return v_n0;
 	}
 
-	inline Matrix A2(Real implicitTime) {
-		return domain->identity() + 2. / 3. * op->discretize(
-				implicitTime) * dt(implicitTime);
+	inline Matrix A2() {
+		const Real t = this->nextTime();
+
+		return
+			domain->identity()
+			+ 2. / 3. * op->discretize(t) * dt();
 	}
 
-	inline Vector b2(Real implicitTime) {
+	inline Vector b2() {
 		const Vector
 			&v_n1 = std::get<1>( this->iterands()[ 0] ),
 			&v_n0 = std::get<1>( this->iterands()[-1] )
@@ -45,12 +53,15 @@ protected:
 		) / 3.;
 	}
 
-	inline Matrix A3(Real implicitTime) {
-		return domain->identity() + 6. / 11. * op->discretize(
-				implicitTime) * dt(implicitTime);
+	inline Matrix A3() {
+		const Real t = this->nextTime();
+
+		return
+			domain->identity()
+			+ 6. / 11. * op->discretize(t) * dt();
 	}
 
-	inline Vector b3(Real implicitTime) {
+	inline Vector b3() {
 		const Vector
 			&v_n2 = std::get<1>( this->iterands()[ 0] ),
 			&v_n1 = std::get<1>( this->iterands()[-1] ),
@@ -64,12 +75,14 @@ protected:
 		) / 11.;
 	}
 
-	inline Matrix A4(Real implicitTime) {
-		return domain->identity() + 12. / 25. * op->discretize(
-				implicitTime) * dt(implicitTime);
+	inline Matrix A4() {
+		const Real t = this->nextTime();
+		return
+			domain->identity()
+			+ 12. / 25. * op->discretize(t) * dt();
 	}
 
-	inline Vector b4(Real implicitTime) {
+	inline Vector b4() {
 		const Vector
 			&v_n3 = std::get<1>( this->iterands()[ 0] ),
 			&v_n2 = std::get<1>( this->iterands()[-1] ),
@@ -85,12 +98,15 @@ protected:
 		) / 25.;
 	}
 
-	inline Matrix A5(Real implicitTime) {
-		return domain->identity() + 60. / 137. * op->discretize(
-				implicitTime) * dt(implicitTime);
+	inline Matrix A5() {
+		const Real t = this->nextTime();
+
+		return
+			domain->identity()
+			+ 60. / 137. * op->discretize(t) * dt();
 	}
 
-	inline Vector b5(Real implicitTime) {
+	inline Vector b5() {
 		const Vector
 			&v_n4 = std::get<1>( this->iterands()[ 0] ),
 			&v_n3 = std::get<1>( this->iterands()[-1] ),
@@ -108,12 +124,15 @@ protected:
 		) / 137.;
 	}
 
-	inline Matrix A6(Real implicitTime) {
-		return domain->identity() + 60. / 147. * op->discretize(
-				implicitTime) * dt(implicitTime);
+	inline Matrix A6() {
+		const Real t = this->nextTime();
+
+		return
+			domain->identity()
+			+ 60. / 147. * op->discretize(t) * dt();
 	}
 
-	inline Vector b6(Real implicitTime) {
+	inline Vector b6() {
 		const Vector
 			&v_n5 = std::get<1>( this->iterands()[ 0] ),
 			&v_n4 = std::get<1>( this->iterands()[-1] ),
@@ -135,10 +154,9 @@ protected:
 
 public:
 
-	template <typename I, typename D, typename L>
-	LinearBDFBase(I &iteration, D &domain, L &op) noexcept
-			: Linearizer<Lookback>(iteration), domain(&domain),
-			op(&op) {
+	template <typename D, typename L>
+	LinearBDFBase(D &domain, L &op) noexcept
+			: domain(&domain), op(&op) {
 	}
 
 };
@@ -148,18 +166,18 @@ class LinearBDFOne : public LinearBDFBase<Dimension, Controls, 1, Forward> {
 
 public:
 
-	template <typename I, typename D, typename L>
-	LinearBDFOne(I &iteration, D &domain, L &op) noexcept
-			: LinearBDFBase<Dimension, Controls, 1, Forward>(
-			iteration, domain, op) {
+	template <typename D, typename L>
+	LinearBDFOne(D &domain, L &op) noexcept
+			: LinearBDFBase<Dimension, Controls, 1, Forward>(domain,
+			op) {
 	}
 
-	virtual Matrix A(Real implicitTime) {
-		return this->A1(implicitTime);
+	virtual Matrix A() {
+		return this->A1();
 	}
 
-	virtual Vector b(Real implicitTime) {
-		return this->b1(implicitTime);
+	virtual Vector b() {
+		return this->b1();
 	}
 
 };
@@ -182,30 +200,27 @@ using LinearBDFOne3 = LinearBDFOne<3, Controls, Forward>;
 template <size_t Dimension, size_t Controls = 0, bool Forward = false>
 class LinearBDFTwo : public LinearBDFBase<Dimension, Controls, 2, Forward> {
 
-	const Domain<Dimension> *domain;
-	const LinearOperator<Dimension, Controls> *op;
-
-	Matrix (LinearBDFTwo<Dimension, Controls, Forward>::*AA)(Real);
-	Vector (LinearBDFTwo<Dimension, Controls, Forward>::*bb)(Real);
+	Matrix (LinearBDFTwo<Dimension, Controls, Forward>::*AA)();
+	Vector (LinearBDFTwo<Dimension, Controls, Forward>::*bb)();
 
 	////////////////////////////////////////////////////////////////////////
 
-	Matrix _A1(Real implicitTime) {
+	Matrix _A1() {
 		AA = &LinearBDFTwo::A2;
-		return this->A1(implicitTime);
+		return this->A1();
 	}
 
-	Vector _b1(Real implicitTime) {
+	Vector _b1() {
 		bb = &LinearBDFTwo::b2;
-		return this->b1(implicitTime);
+		return this->b1();
 	}
 
 public:
 
-	template <typename I, typename D, typename L>
-	LinearBDFTwo(I &iteration, D &domain, L &op) noexcept
-			: LinearBDFBase<Dimension, Controls, 2, Forward>(
-			iteration, domain, op) {
+	template <typename D, typename L>
+	LinearBDFTwo(D &domain, L &op) noexcept
+			: LinearBDFBase<Dimension, Controls, 2, Forward>(domain,
+			op) {
 	}
 
 	virtual void clear() {
@@ -213,12 +228,12 @@ public:
 		bb = &LinearBDFTwo::_b1;
 	}
 
-	virtual Matrix A(Real implicitTime) {
-		return (this->*AA)(implicitTime);
+	virtual Matrix A() {
+		return (this->*AA)();
 	}
 
-	virtual Vector b(Real implicitTime) {
-		return (this->*bb)(implicitTime);
+	virtual Vector b() {
+		return (this->*bb)();
 	}
 
 };
@@ -237,40 +252,37 @@ using LinearBDFTwo3 = LinearBDFTwo<3, Controls, Forward>;
 template <size_t Dimension, size_t Controls = 0, bool Forward = false>
 class LinearBDFThree : public LinearBDFBase<Dimension, Controls, 3, Forward> {
 
-	const Domain<Dimension> *domain;
-	const LinearOperator<Dimension, Controls> *op;
-
-	Matrix (LinearBDFThree<Dimension, Controls, Forward>::*AA)(Real);
-	Vector (LinearBDFThree<Dimension, Controls, Forward>::*bb)(Real);
+	Matrix (LinearBDFThree<Dimension, Controls, Forward>::*AA)();
+	Vector (LinearBDFThree<Dimension, Controls, Forward>::*bb)();
 
 	////////////////////////////////////////////////////////////////////////
 
-	Matrix _A1(Real implicitTime) {
+	Matrix _A1() {
 		AA = &LinearBDFThree::_A2;
-		return this->A1(implicitTime);
+		return this->A1();
 	}
 
-	Vector _b1(Real implicitTime) {
+	Vector _b1() {
 		bb = &LinearBDFThree::_b2;
-		return this->b1(implicitTime);
+		return this->b1();
 	}
 
-	Matrix _A2(Real implicitTime) {
+	Matrix _A2() {
 		AA = &LinearBDFThree::A3;
-		return this->A2(implicitTime);
+		return this->A2();
 	}
 
-	Vector _b2(Real implicitTime) {
+	Vector _b2() {
 		bb = &LinearBDFThree::b3;
-		return this->b2(implicitTime);
+		return this->b2();
 	}
 
 public:
 
-	template <typename I, typename D, typename L>
-	LinearBDFThree(I &iteration, D &domain, L &op) noexcept
-			: LinearBDFBase<Dimension, Controls, 3, Forward>(
-			iteration, domain, op) {
+	template <typename D, typename L>
+	LinearBDFThree(D &domain, L &op) noexcept
+			: LinearBDFBase<Dimension, Controls, 3, Forward>(domain,
+			op) {
 	}
 
 	virtual void clear() {
@@ -278,12 +290,12 @@ public:
 		bb = &LinearBDFThree::_b1;
 	}
 
-	virtual Matrix A(Real implicitTime) {
-		return (this->*AA)(implicitTime);
+	virtual Matrix A() {
+		return (this->*AA)();
 	}
 
-	virtual Vector b(Real implicitTime) {
-		return (this->*bb)(implicitTime);
+	virtual Vector b() {
+		return (this->*bb)();
 	}
 
 };
@@ -302,50 +314,47 @@ using LinearBDFThree3 = LinearBDFThree<3, Controls, Forward>;
 template <size_t Dimension, size_t Controls = 0, bool Forward = false>
 class LinearBDFFour : public LinearBDFBase<Dimension, Controls, 4, Forward> {
 
-	const Domain<Dimension> *domain;
-	const LinearOperator<Dimension, Controls> *op;
-
-	Matrix (LinearBDFFour<Dimension, Controls, Forward>::*AA)(Real);
-	Vector (LinearBDFFour<Dimension, Controls, Forward>::*bb)(Real);
+	Matrix (LinearBDFFour<Dimension, Controls, Forward>::*AA)();
+	Vector (LinearBDFFour<Dimension, Controls, Forward>::*bb)();
 
 	////////////////////////////////////////////////////////////////////////
 
-	Matrix _A1(Real implicitTime) {
+	Matrix _A1() {
 		AA = &LinearBDFFour::_A2;
-		return this->A1(implicitTime);
+		return this->A1();
 	}
 
-	Vector _b1(Real implicitTime) {
+	Vector _b1() {
 		bb = &LinearBDFFour::_b2;
-		return this->b1(implicitTime);
+		return this->b1();
 	}
 
-	Matrix _A2(Real implicitTime) {
+	Matrix _A2() {
 		AA = &LinearBDFFour::A3;
-		return this->A2(implicitTime);
+		return this->A2();
 	}
 
-	Vector _b2(Real implicitTime) {
+	Vector _b2() {
 		bb = &LinearBDFFour::b3;
-		return this->b2(implicitTime);
+		return this->b2();
 	}
 
-	Matrix _A3(Real implicitTime) {
+	Matrix _A3() {
 		AA = &LinearBDFFour::A4;
-		return this->A3(implicitTime);
+		return this->A3();
 	}
 
-	Vector _b3(Real implicitTime) {
+	Vector _b3() {
 		bb = &LinearBDFFour::b4;
-		return this->b3(implicitTime);
+		return this->b3();
 	}
 
 public:
 
-	template <typename I, typename D, typename L>
-	LinearBDFFour(I &iteration, D &domain, L &op) noexcept
-			: LinearBDFBase<Dimension, Controls, 4, Forward>(
-			iteration, domain, op) {
+	template <typename D, typename L>
+	LinearBDFFour(D &domain, L &op) noexcept
+			: LinearBDFBase<Dimension, Controls, 4, Forward>(domain,
+			op) {
 	}
 
 	virtual void clear() {
@@ -353,12 +362,12 @@ public:
 		bb = &LinearBDFFour::_b1;
 	}
 
-	virtual Matrix A(Real implicitTime) {
-		return (this->*AA)(implicitTime);
+	virtual Matrix A() {
+		return (this->*AA)();
 	}
 
-	virtual Vector b(Real implicitTime) {
-		return (this->*bb)(implicitTime);
+	virtual Vector b() {
+		return (this->*bb)();
 	}
 
 };
@@ -377,60 +386,57 @@ using LinearBDFFour3 = LinearBDFFour<3, Controls, Forward>;
 template <size_t Dimension, size_t Controls = 0, bool Forward = false>
 class LinearBDFFive : public LinearBDFBase<Dimension, Controls, 5, Forward> {
 
-	const Domain<Dimension> *domain;
-	const LinearOperator<Dimension, Controls> *op;
-
-	Matrix (LinearBDFFive<Dimension, Controls, Forward>::*AA)(Real);
-	Vector (LinearBDFFive<Dimension, Controls, Forward>::*bb)(Real);
+	Matrix (LinearBDFFive<Dimension, Controls, Forward>::*AA)();
+	Vector (LinearBDFFive<Dimension, Controls, Forward>::*bb)();
 
 	////////////////////////////////////////////////////////////////////////
 
-	Matrix _A1(Real implicitTime) {
+	Matrix _A1() {
 		AA = &LinearBDFFive::_A2;
-		return this->A1(implicitTime);
+		return this->A1();
 	}
 
-	Vector _b1(Real implicitTime) {
+	Vector _b1() {
 		bb = &LinearBDFFive::_b2;
-		return this->b1(implicitTime);
+		return this->b1();
 	}
 
-	Matrix _A2(Real implicitTime) {
+	Matrix _A2() {
 		AA = &LinearBDFFive::A3;
-		return this->A2(implicitTime);
+		return this->A2();
 	}
 
-	Vector _b2(Real implicitTime) {
+	Vector _b2() {
 		bb = &LinearBDFFive::b3;
-		return this->b2(implicitTime);
+		return this->b2();
 	}
 
-	Matrix _A3(Real implicitTime) {
+	Matrix _A3() {
 		AA = &LinearBDFFive::_A4;
-		return this->A3(implicitTime);
+		return this->A3();
 	}
 
-	Vector _b3(Real implicitTime) {
+	Vector _b3() {
 		bb = &LinearBDFFive::_b4;
-		return this->b3(implicitTime);
+		return this->b3();
 	}
 
-	Matrix _A4(Real implicitTime) {
+	Matrix _A4() {
 		AA = &LinearBDFFive::A5;
-		return this->A4(implicitTime);
+		return this->A4();
 	}
 
-	Vector _b4(Real implicitTime) {
+	Vector _b4() {
 		bb = &LinearBDFFive::b5;
-		return this->b4(implicitTime);
+		return this->b4();
 	}
 
 public:
 
-	template <typename I, typename D, typename L>
-	LinearBDFFive(I &iteration, D &domain, L &op) noexcept
-			: LinearBDFBase<Dimension, Controls, 5, Forward>(
-			iteration, domain, op) {
+	template <typename D, typename L>
+	LinearBDFFive(D &domain, L &op) noexcept
+			: LinearBDFBase<Dimension, Controls, 5, Forward>(domain,
+			op) {
 	}
 
 	virtual void clear() {
@@ -438,12 +444,12 @@ public:
 		bb = &LinearBDFFive::_b1;
 	}
 
-	virtual Matrix A(Real implicitTime) {
-		return (this->*AA)(implicitTime);
+	virtual Matrix A() {
+		return (this->*AA)();
 	}
 
-	virtual Vector b(Real implicitTime) {
-		return (this->*bb)(implicitTime);
+	virtual Vector b() {
+		return (this->*bb)();
 	}
 
 };
@@ -462,70 +468,67 @@ using LinearBDFFive3 = LinearBDFFive<3, Controls, Forward>;
 template <size_t Dimension, size_t Controls = 0, bool Forward = false>
 class LinearBDFSix : public LinearBDFBase<Dimension, Controls, 6, Forward> {
 
-	const Domain<Dimension> *domain;
-	const LinearOperator<Dimension, Controls> *op;
-
-	Matrix (LinearBDFSix<Dimension, Controls, Forward>::*AA)(Real);
-	Vector (LinearBDFSix<Dimension, Controls, Forward>::*bb)(Real);
+	Matrix (LinearBDFSix<Dimension, Controls, Forward>::*AA)();
+	Vector (LinearBDFSix<Dimension, Controls, Forward>::*bb)();
 
 	////////////////////////////////////////////////////////////////////////
 
-	Matrix _A1(Real implicitTime) {
+	Matrix _A1() {
 		AA = &LinearBDFSix::_A2;
-		return this->A1(implicitTime);
+		return this->A1();
 	}
 
-	Vector _b1(Real implicitTime) {
+	Vector _b1() {
 		bb = &LinearBDFSix::_b2;
-		return this->b1(implicitTime);
+		return this->b1();
 	}
 
-	Matrix _A2(Real implicitTime) {
+	Matrix _A2() {
 		AA = &LinearBDFSix::A3;
-		return this->A2(implicitTime);
+		return this->A2();
 	}
 
-	Vector _b2(Real implicitTime) {
+	Vector _b2() {
 		bb = &LinearBDFSix::b3;
-		return this->b2(implicitTime);
+		return this->b2();
 	}
 
-	Matrix _A3(Real implicitTime) {
+	Matrix _A3() {
 		AA = &LinearBDFSix::_A4;
-		return this->A3(implicitTime);
+		return this->A3();
 	}
 
-	Vector _b3(Real implicitTime) {
+	Vector _b3() {
 		bb = &LinearBDFSix::_b4;
-		return this->b3(implicitTime);
+		return this->b3();
 	}
 
-	Matrix _A4(Real implicitTime) {
+	Matrix _A4() {
 		AA = &LinearBDFSix::_A5;
-		return this->A4(implicitTime);
+		return this->A4();
 	}
 
-	Vector _b4(Real implicitTime) {
+	Vector _b4() {
 		bb = &LinearBDFSix::_b5;
-		return this->b4(implicitTime);
+		return this->b4();
 	}
 
-	Matrix _A5(Real implicitTime) {
+	Matrix _A5() {
 		AA = &LinearBDFSix::A6;
-		return this->A5(implicitTime);
+		return this->A5();
 	}
 
-	Vector _b5(Real implicitTime) {
+	Vector _b5() {
 		bb = &LinearBDFSix::b6;
-		return this->b6(implicitTime);
+		return this->b6();
 	}
 
 public:
 
-	template <typename I, typename D, typename L>
-	LinearBDFSix(I &iteration, D &domain, L &op) noexcept
-			: LinearBDFBase<Dimension, Controls, 6, Forward>(
-			iteration, domain, op) {
+	template <typename D, typename L>
+	LinearBDFSix(D &domain, L &op) noexcept
+			: LinearBDFBase<Dimension, Controls, 6, Forward>(domain,
+			op) {
 	}
 
 	virtual void clear() {
@@ -533,12 +536,12 @@ public:
 		bb = &LinearBDFSix::_b1;
 	}
 
-	virtual Matrix A(Real implicitTime) {
-		return (this->*AA)(implicitTime);
+	virtual Matrix A() {
+		return (this->*AA)();
 	}
 
-	virtual Vector b(Real implicitTime) {
-		return (this->*bb)(implicitTime);
+	virtual Vector b() {
+		return (this->*bb)();
 	}
 
 };
@@ -551,7 +554,6 @@ using LinearBDFSix2 = LinearBDFSix<2, Controls, Forward>;
 
 template <size_t Controls = 0, bool Forward = false>
 using LinearBDFSix3 = LinearBDFSix<3, Controls, Forward>;
-
 
 } // QuantPDE
 

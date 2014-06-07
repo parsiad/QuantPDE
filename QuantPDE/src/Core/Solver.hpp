@@ -10,11 +10,13 @@
 
 namespace QuantPDE {
 
+typedef std::unordered_set<const Constraint *> ConstraintSet;
+
 /**
  * Used to solve (approximately) a problem description.
  * @see QuantPDE::Problem
  */
-template <Index Dimension, bool InitialAtLeft = false>
+template <Index Dimension, bool Forward = false>
 class Solver {
 
 	static_assert(Dimension > 0, "Dimension must be positive");
@@ -37,7 +39,7 @@ class Solver {
 	};
 
 	template <typename U>
-	using Order = typename std::conditional<InitialAtLeft, Later<U>,
+	using Order = typename std::conditional<Forward, Later<U>,
 			Earlier<U>>::type;
 
 	template <typename U>
@@ -51,7 +53,7 @@ class Solver {
 
 	ConstraintSet active;
 
-	//std::queue< std::unique_ptr<Stepper<Dimension, InitialAtLeft>> >
+	//std::queue< std::unique_ptr<Stepper<Dimension, Forward>> >
 	//		steppers;
 
 	Real now;
@@ -71,12 +73,20 @@ class Solver {
 
 		if(!endQueue.empty()) {
 			Real t = std::get<1>( endQueue.top() );
-			r = std::max(t, r);
+			if(Forward) { // TODO: Optimize
+				r = std::min(t, r);
+			} else {
+				r = std::max(t, r);
+			}
 		}
 
 		if(!eventQueue.empty()) {
 			Real t = std::get<1>( eventQueue.top() );
-			r = std::max(t, r);
+			if(Forward) { // TODO: Optimize
+				r = std::min(t, r);
+			} else {
+				r = std::max(t, r);
+			}
 		}
 
 		return r;
@@ -87,24 +97,12 @@ class Solver {
 				&& eventQueue.empty();
 	}
 
-protected:
-
-	/**
-	 * Pushes a stepper onto the queue. Each time a set of active
-	 * constraints is enconutered, a stepper is popped from the queue to
-	 * handle the set and advance the solution.
-	 * @param stepper The stepper.
-	 */
-	//void add(std::unique_ptr< Stepper<Dimension, InitialAtLeft> > stepper) {
-	//	steppers.push( std::move(stepper) );
-	//}
-
 public:
 
 	/**
 	 * Constructor.
 	 */
-	Solver(const Problem<Dimension, InitialAtLeft> &problem) noexcept
+	Solver(const Problem<Dimension, Forward> &problem) noexcept
 			: now( topmost() ), solution(problem.initialCondition())
 			{
 
@@ -135,9 +133,6 @@ public:
 
 	}
 
-	// Disable rvalue constructors
-	Solver(Problem<Dimension, InitialAtLeft> &&problem) = delete;
-
 	/**
 	 * Destructor.
 	 */
@@ -157,7 +152,7 @@ public:
 
 		while(!endQueue.empty() && std::get<1>(
 				endQueue.top()) == now) {
-			if(InitialAtLeft) { // Unroll conditional
+			if(Forward) { // Unroll conditional
 				active.erase ( std::get<0>(endQueue.pop()) );
 			} else {
 				active.insert( std::get<0>(endQueue.pop()) );
@@ -166,7 +161,7 @@ public:
 
 		while(!startQueue.empty() && std::get<1>(
 				startQueue.top()) == now) {
-			if(InitialAtLeft) { // Unroll conditional
+			if(Forward) { // Unroll conditional
 				active.insert( std::get<0>(startQueue.pop()) );
 			} else {
 				active.erase ( std::get<0>(startQueue.pop()) );
