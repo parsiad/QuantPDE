@@ -129,7 +129,7 @@ endl <<
 		<< setw(td) << "Ratio"
 		<< endl
 	;
-	cout.precision(4);
+	cout.precision(6);
 	Real previousValue = nan(""), previousChange = nan("");
 
 	// Initial discretization
@@ -189,7 +189,7 @@ endl <<
 		// Solve problem
 		///////////////////////////////////////////////////////////////
 
-		ConstantStepper<2> stepper(
+		ConstantStepper<4> stepper(
 			0., // Initial time
 			expiry,
 			steps
@@ -202,7 +202,7 @@ endl <<
 			[dividends]  (Real, Real) { return dividends;  }
 		);
 
-		LinearBDFTwo1<> bdf( stepper, R, op );
+		LinearBDFFour1<> bdf( stepper, R, op );
 
 		BiCGSTABSolver solver;
 		Vector v = stepper.iterateUntilDone( R.image(payoff), bdf,
