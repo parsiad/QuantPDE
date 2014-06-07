@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_DOMAIN
-#define QUANT_PDE_DOMAIN
+#ifndef QUANT_PDE_CORE_DOMAIN
+#define QUANT_PDE_CORE_DOMAIN
 
 #include <array>       // std::array
 #include <cassert>     // assert
@@ -328,6 +328,16 @@ public:
 	}
 
 	/**
+	 * @return An identity matrix of order equal to the number of nodes on
+	 *         this grid.
+	 */
+	Matrix identity() const {
+		Matrix M(size(), size());
+		M.setIdentity();
+		return M;
+	}
+
+	/**
 	 * @return A zero vector of length equal to the number of nodes on this
 	 *         grid.
 	 */
@@ -437,13 +447,10 @@ public:
 
 };
 
-#define QUANT_PDE_REFINE_DOMAIN_IN_PLACE(DERIVED_CLASS, REFINER)           \
-		do {                                                       \
-			std::unique_ptr< Domain<Dimension> > refined =     \
-					REFINER.refine( *this );           \
-			const DERIVED_CLASS &derived = dynamic_cast<       \
-					const DERIVED_CLASS &>( *refined); \
-			this->operator=( std::move(derived) );             \
+#define QUANT_PDE_REFINE_IN_PLACE(DERIVED_CLASS, REFINER)            \
+		do {                                                 \
+			(*this) = dynamic_cast<DERIVED_CLASS &&>(    \
+					*REFINER.refine( *this ) );  \
 		} while(0)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -584,11 +591,14 @@ class RectilinearGrid : public Domain<Dimension> {
 
 			Index idxs[] {indices...};
 
-			Index i = packAndCall<Dimension>(*grid,
-					&RectilinearGrid::index, idxs);
-			Index j = packAndCall<Dimension>(*grid,
-					&RectilinearGrid::index, idxs
-					+ Dimension);
+			NaryMethodConst<Index, RectilinearGrid, Dimension,
+					Index> pointer
+					= &RectilinearGrid::index;
+
+			Index i = packAndCall<Dimension>(*grid, pointer, idxs);
+			Index j = packAndCall<Dimension>(*grid, pointer,
+					idxs + Dimension);
+
 
 			return matrix->insert(i, j);
 		}
@@ -649,11 +659,13 @@ class RectilinearGrid : public Domain<Dimension> {
 
 			Index idxs[] {indices...};
 
-			Index i = packAndCall<Dimension>(*grid,
-					&RectilinearGrid::index, idxs);
-			Index j = packAndCall<Dimension>(*grid,
-					&RectilinearGrid::index, idxs
-					+ Dimension);
+			NaryMethodConst<Index, RectilinearGrid, Dimension,
+					Index> pointer
+					= &RectilinearGrid::index;
+
+			Index i = packAndCall<Dimension>(*grid, pointer, idxs);
+			Index j = packAndCall<Dimension>(*grid, pointer,
+					idxs + Dimension);
 
 			entries.push_back( Entry(i, j, 0.) );
 			return entries.back().value();
@@ -669,7 +681,7 @@ class RectilinearGrid : public Domain<Dimension> {
 
 	class FastMatrixBuilder final {
 
-		RectilinearGrid *grid;
+		const RectilinearGrid *grid;
 		Matrix M;
 
 	public:
@@ -716,11 +728,13 @@ class RectilinearGrid : public Domain<Dimension> {
 
 			Index idxs[] {indices...};
 
-			Index i = packAndCall<Dimension>(*grid,
-					&RectilinearGrid::index, idxs);
-			Index j = packAndCall<Dimension>(*grid,
-					&RectilinearGrid::index, idxs
-					+ Dimension);
+			NaryMethodConst<Index, RectilinearGrid, Dimension,
+					Index> pointer
+					= &RectilinearGrid::index;
+
+			Index i = packAndCall<Dimension>(*grid, pointer, idxs);
+			Index j = packAndCall<Dimension>(*grid, pointer,
+					idxs + Dimension);
 
 			return M.insert(i, j);
 		}
@@ -800,7 +814,7 @@ public:
 
 		virtual std::unique_ptr< Domain<Dimension> > refine(
 				const Domain<Dimension> &domain) const {
-			std::unique_ptr<Domain<Dimension>> pointer(
+			std::unique_ptr< Domain<Dimension> > pointer(
 					new RectilinearGrid());
 
 			const RectilinearGrid<Dimension> &original
@@ -1002,7 +1016,7 @@ public:
 	 *
 	 * auto builder = G.builder();
 	 *
-	 * // Branching inside the loop is expensive and should be eliminated int
+	 * // Branching inside the loop is expensive and should be eliminated in
 	 * // production code
 	 * for(Index i = 0; i < m; i++) {
 	 * 	for(Index j = 0; j < n; j++) {
@@ -1104,7 +1118,7 @@ public:
 	////////////////////////////////////////////////////////////////////////
 
 	virtual void refine(const Refiner<Dimension> &refiner) {
-		QUANT_PDE_REFINE_DOMAIN_IN_PLACE(RectilinearGrid, refiner);
+		QUANT_PDE_REFINE_IN_PLACE(RectilinearGrid, refiner);
 	}
 
 	virtual std::array<Real, Dimension> coordinates(Index index) const {

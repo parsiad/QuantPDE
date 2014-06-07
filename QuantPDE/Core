@@ -15,8 +15,8 @@
 #include "src/Core/Problem.hpp"
 #include "src/Core/Stepper.hpp"
 #include "src/Core/IterativeMethod.hpp"
+#include "src/Core/LinearBDF.hpp"
 #include "src/Core/Solver.hpp"
-#include "src/Core/Operator.hpp"
 
 #endif
 

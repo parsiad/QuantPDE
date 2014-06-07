@@ -2,8 +2,7 @@
 
 // TODO: Change these includes; shouldn't include src directory explicitly
 #include <QuantPDE/src/Modules/Payoffs.hpp>
-#include <QuantPDE/src/Modules/BlackScholesEquation.hpp>
-#include <QuantPDE/src/Modules/EuropeanOption.hpp>
+#include <QuantPDE/src/Modules/BlackScholesOperator.hpp>
 
 using namespace QuantPDE;
 using namespace QuantPDE::Modules;
@@ -176,6 +175,7 @@ endl <<
 		// Build problem
 		///////////////////////////////////////////////////////////////
 
+		/*
 		EuropeanOption europeanOption(
 			payoff,
 			[interest]   (Real, Real) { return interest;   },
@@ -183,20 +183,37 @@ endl <<
 			[dividends]  (Real, Real) { return dividends;  },
 			0., expiry
 		);
+		*/
 
 		///////////////////////////////////////////////////////////////
 		// Solve problem
 		///////////////////////////////////////////////////////////////
 
-		// ImplicitEuropeanSolver<> solver;
+		ConstantStepper<2> stepper(
+			0., // Initial time
+			expiry,
+			steps
+		);
+
+		BlackScholesOperator op(
+			R,
+			[interest]   (Real, Real) { return interest;   },
+			[volatility] (Real, Real) { return volatility; },
+			[dividends]  (Real, Real) { return dividends;  }
+		);
+
+		LinearBDFTwo1<> bdf( stepper, R, op );
+
+		BiCGSTABSolver solver;
+		Vector v = stepper.iterateUntilDone( R.image(payoff), bdf,
+				solver );
 
 		///////////////////////////////////////////////////////////////
 		// Table
 		///////////////////////////////////////////////////////////////
 
-		/*
 		// Solution at S = 100.
-		Real value = G.accessor(stepper.solution())(stock);
+		Real value = R.accessor( v )(stock);
 
 		// Change and ratio between successive solutions
 		Real
@@ -207,17 +224,16 @@ endl <<
 		// Print out row of table
 		cout
 			<< scientific
-			<< setw(td) << S.size()        << "\t"
-			<< setw(td) << stepper.steps() << "\t"
-			<< setw(td) << value           << "\t"
-			<< setw(td) << change          << "\t"
+			<< setw(td) << R[0].size() << "\t"
+			<< setw(td) << steps    << "\t"
+			<< setw(td) << value    << "\t"
+			<< setw(td) << change   << "\t"
 			<< setw(td) << ratio
 			<< endl
 		;
 
 		previousChange = change;
 		previousValue = value;
-		*/
 
 	}
 

@@ -1,11 +1,12 @@
-#ifndef QUANT_PDE_ITERATIVE_METHOD
-#define QUANT_PDE_ITERATIVE_METHOD
+#ifndef QUANT_PDE_CORE_ITERATIVE_METHOD
+#define QUANT_PDE_CORE_ITERATIVE_METHOD
 
-#include <deque>   // std::deque
-#include <list>    // std::list
-#include <memory>  // std::unique_ptr
-#include <tuple>   // std::tuple
-#include <utility> // std::forward, std::move
+#include <deque>        // std::deque
+#include <forward_list> // std::list
+#include <memory>       // std::unique_ptr
+#include <tuple>        // std::tuple
+#include <type_traits>  // std::conditional
+#include <utility>      // std::forward, std::move
 
 namespace QuantPDE {
 
@@ -13,6 +14,12 @@ namespace QuantPDE {
  * A pure virtual class representing a solver for equations of type \f$Ax=b\f$.
  */
 class LinearSolver {
+
+protected:
+
+	Matrix A;
+
+	virtual void initialize() = 0;
 
 public:
 
@@ -38,7 +45,11 @@ public:
 	 * should occur only once.
 	 * @param A The left-hand-side matrix.
 	 */
-	virtual void initialize(const Matrix &A) = 0;
+	template <typename M>
+	void initialize(M &&A) {
+		this->A = std::forward<M>(A);
+		initialize();
+	}
 
 	/**
 	 * Solves the linear system. This should only be called after a call
@@ -59,17 +70,23 @@ class BiCGSTABSolver : public LinearSolver {
 
 	BiCGSTAB solver;
 
-public:
-
-	virtual void initialize(const Matrix &A) {
+	virtual void initialize() {
 		solver.compute(A);
+		assert( solver.info() == Eigen::Success );
 	}
 
+public:
+
+	/**
+	 * Constructor.
+	 */
 	BiCGSTABSolver() noexcept : LinearSolver() {
 	}
 
 	virtual Vector solve(const Vector &b, const Vector &guess) const {
-		return solver.solveWithGuess(b, guess);
+		Vector v = solver.solveWithGuess(b, guess);
+		assert( solver.info() == Eigen::Success );
+		return v;
 	}
 
 };
@@ -80,6 +97,60 @@ public:
 template <size_t> class Iteration;
 template <size_t> class Iterands;
 
+// TODO: Document
+template <size_t Lookback>
+class IterandHistory final {
+
+	static_assert(Lookback > 0, "The number of iterands to store must be "
+			"positive");
+
+	typedef std::tuple<Real, Vector> T;
+
+	T data[Lookback];
+	size_t tail;
+
+	#ifndef NDEBUG
+	size_t size;
+	#endif
+
+public:
+
+	IterandHistory() noexcept : tail(0) {
+		#ifndef NDEBUG
+		size = 0;
+		#endif
+	}
+
+	IterandHistory(const IterandHistory &) = delete;
+	IterandHistory &operator=(const IterandHistory &) = delete;
+
+	void clear() {
+		tail = 0;
+
+		#ifndef NDEBUG
+		size = 0;
+		#endif
+	}
+
+	void push(T &&element) {
+		data[tail] = std::forward<T>(element);
+		tail = (tail + 1) % Lookback;
+
+		#ifndef NDEBUG
+		if(size < Lookback) {
+			size++;
+		}
+		#endif
+	}
+
+	const T &operator[](size_t index) const {
+		size_t position = (tail - 1 + index) % Lookback;
+		assert(position < size);
+		return data[position];
+	}
+
+};
+
 /**
  * Used to generate the left and right-hand sides of the linear system at each
  * iteration. This class should not be extended directly.
@@ -89,6 +160,15 @@ class LinearizerBase {
 
 public:
 
+	/**
+	 * Constructor.
+	 */
+	LinearizerBase() {
+	}
+
+	/**
+	 * Destructor.
+	 */
 	virtual ~LinearizerBase() {
 	}
 
@@ -96,18 +176,38 @@ public:
 	LinearizerBase(const LinearizerBase &) = delete;
 	LinearizerBase &operator=(const LinearizerBase &) = delete;
 
+	/**
+	 * Method called before iteration begins.
+	 */
+	virtual void clear() {
+		// Default: do nothing
+	}
+
+	/**
+	 * Method called on the start of an iteration.
+	 */
 	virtual void onIterationStart() {
 		// Default: do nothing
 	}
 
+	/**
+	 * @return True if and only if the left-hand-side matrix (A) changes
+	 *         from iteration to iteration.
+	 */
 	virtual bool doesAChange() const {
 		// Default: assume A changes
 		return true;
 	}
 
-	virtual Matrix A(Real implicitTime) const = 0;
+	/**
+	 * @return The left-hand-side matrix (A).
+	 */
+	virtual Matrix A(Real dt) = 0;
 
-	virtual Vector b() const = 0;
+	/**
+	 * @return The right-hand-side vector (b).
+	 */
+	virtual Vector b(Real dt) = 0;
 
 };
 
@@ -118,15 +218,24 @@ public:
 template <size_t Lookback>
 class Linearizer : public LinearizerBase {
 
+	static_assert(Lookback > 0, "The number of iterands to store must be "
+			"positive");
+
 	// Nonownership
 	const Iteration<Lookback> *iteration;
 
 protected:
 
-	const Iterands<Lookback> &iterands() const;
+	/**
+	 * @return The most recent iterands.
+	 */
+	const IterandHistory<Lookback> &iterands() const;
 
 public:
 
+	/**
+	 * Constructor.
+	 */
 	template <typename I>
 	Linearizer(I &iteration);
 
@@ -140,8 +249,8 @@ class IterationBase {
 
 	IterationBase *child;
 
-	virtual Real nextTime(Real time) {
-		return time;
+	virtual Real step() {
+		return 0.;
 	}
 
 	virtual Real initialTime(Real time) const {
@@ -150,7 +259,7 @@ class IterationBase {
 
 	virtual Vector iterateUntilDone(
 		const Vector &initialIterand,
-		const LinearizerBase &root,
+		LinearizerBase &root,
 		LinearSolver &solver,
 		Real time,
 		bool initialized
@@ -158,8 +267,16 @@ class IterationBase {
 
 public:
 
+	/**
+	 * Constructor.
+	 */
+	IterationBase() noexcept : child(nullptr) {
+	}
+
+	// TODO: Document
 	template <typename I>
-	IterationBase(I &childIteration) noexcept : child(&childIteration) {
+	void setChildIteration(I &childIteration) {
+		child = &childIteration;
 	}
 
 	virtual ~IterationBase() {
@@ -169,6 +286,9 @@ public:
 	IterationBase(const IterationBase &) = delete;
 	IterationBase &operator=(const IterationBase &) = delete;
 
+	/**
+	 * @return True if and only if this iteration has finished.
+	 */
 	virtual bool done() const = 0;
 
 	template <size_t> friend class Iteration;
@@ -181,69 +301,27 @@ public:
 template <size_t Lookback>
 class Iteration : public IterationBase {
 
+	static_assert(Lookback > 0, "The number of iterands to store must be "
+			"positive");
+
 	typedef std::tuple<Real, Vector> T;
 
-	class IterandHistory final {
-
-		T data[Lookback];
-		size_t tail;
-
-		#ifndef NDEBUG
-		size_t size;
-		#endif
-
-	public:
-
-		IterandHistory() noexcept : tail(0) {
-			#ifndef NDEBUG
-			size = 0;
-			#endif
-		}
-
-		IterandHistory(const IterandHistory &) = delete;
-		IterandHistory &operator=(const IterandHistory &) = delete;
-
-		void clear() {
-			tail = 0;
-
-			#ifndef NDEBUG
-			size = 0;
-			#endif
-		}
-
-		void push(T &&element) {
-			data[tail] = std::forward<T>(element);
-			tail = (tail + 1) % Lookback;
-
-			#ifndef NDEBUG
-			if(size < Lookback) {
-				size++;
-			}
-			#endif
-		}
-
-		const T &operator[](size_t index) {
-			size_t position = (tail - 1 + index) % Lookback;
-			assert(position < size);
-			return data[position];
-		}
-
-	};
-
 	// Nonownership
-	std::list<Linearizer<Lookback> *> linearizers;
+	std::forward_list<Linearizer<Lookback> *> linearizers;
 
-	IterandHistory history;
+	IterandHistory<Lookback> history;
 
 	virtual Vector iterateUntilDone(
 		const Vector &initialIterand,
-		const LinearizerBase &root,
+		LinearizerBase &root,
 		LinearSolver &solver,
 		Real time,
 		bool initialized
 	) {
 
-		assert(child != nullptr);
+		for(auto linearizer : linearizers) {
+			linearizer->clear();
+		}
 
 		time = initialTime(time);
 
@@ -261,7 +339,7 @@ class Iteration : public IterationBase {
 			// about how many iterands we have available to us for
 			// processing when implementing the done() method
 
-			implicitTime = nextTime(implicitTime);
+			implicitTime += step();
 
 			for(auto linearizer : linearizers) {
 				linearizer->onIterationStart();
@@ -293,9 +371,7 @@ class Iteration : public IterationBase {
 				history.push( std::make_tuple(
 					implicitTime,
 					solver.solve(
-						root.b(),
-
-						// Initial guess
+						root.b(implicitTime),
 						std::get<1>( history[0] )
 					)
 				) );
@@ -312,20 +388,27 @@ class Iteration : public IterationBase {
 
 protected:
 
-	const Iterands<Lookback> &iterands() const;
+	/**
+	 * @return The most recent iterands.
+	 */
+	const IterandHistory<Lookback> &iterands() const;
 
 public:
 
-	template <typename I>
-	Iteration(I &childIteration) noexcept : IterationBase(childIteration) {
+	/**
+	 * Constructor.
+	 */
+	Iteration() noexcept {
 	}
 
-	Vector solve(
+	// TODO: Document
+	template <typename L>
+	Vector iterateUntilDone(
 		const Vector &initialIterand,
-		const LinearizerBase &root,
+		L &root,
 		LinearSolver &solver
 	) {
-		return solve(
+		return iterateUntilDone(
 			initialIterand,
 			root,
 			solver,
@@ -335,65 +418,62 @@ public:
 	}
 
 	template <size_t> friend class Linearizer;
-	template <size_t> friend class Iterands;
 
 };
 
-template <size_t Lookback>
-class Iterands final {
-
-	typedef typename Iteration<Lookback>::IterandHistory H;
-	typedef std::tuple<Real, Vector> T;
-
-	const H *history;
-
-public:
-
-	Iterands(const H &history) noexcept
-			: history(&history) {
-	}
-
-	Iterands(const Iterands &that) noexcept : history(that.history) {
-	}
-
-	Iterands &operator=(const Iterands &that) & noexcept {
-		history = that.history;
-	}
-
-	const T &operator[](size_t index) {
-		return (*history)[index];
-	}
-
-};
-
-template <size_t Lookback>
-const Iterands<Lookback> &Linearizer<Lookback>::iterands() const {
-	return Iterands<Lookback>(iteration->history);
+template <size_t Lookback> template <typename I>
+Linearizer<Lookback>::Linearizer(I &iteration) {
+	this->iteration = &iteration;
+	iteration.linearizers.push_front(this);
 }
 
 template <size_t Lookback>
-const Iterands<Lookback> &Iteration<Lookback>::iterands() const {
-	return Iterands<Lookback>(history);
+const IterandHistory<Lookback> &Linearizer<Lookback>::iterands() const {
+	return iteration->history;
+}
+
+template <size_t Lookback>
+const IterandHistory<Lookback> &Iteration<Lookback>::iterands() const {
+	return history;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <size_t Lookback>
-class BackwardsConstantStepper : public Iteration<Lookback> {
+template <size_t Dimension, size_t Controls>
+class LinearOperator {
 
-	Real endTime, dt;
+public:
+
+	LinearOperator() noexcept {
+	}
+
+	virtual ~LinearOperator() {
+	}
+
+	// Disable copy constructor and assignment operator.
+	LinearOperator(const LinearOperator &) = delete;
+	LinearOperator &operator=(const LinearOperator &) & = delete;
+
+	virtual Matrix discretize(Real time) const = 0;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <size_t Lookback = 1, bool Forward = false>
+class ConstantStepper : public Iteration<Lookback> {
+
+	Real startTime, endTime, dt;
 	unsigned n, steps;
 
 public:
 
-	template <typename I>
-	BackwardsConstantStepper(
-		I &childIteration,
+	ConstantStepper(
 		Real startTime,
 		Real endTime,
 		unsigned steps
 	) noexcept :
-		Iteration<Lookback>(childIteration),
+		startTime(startTime),
 		endTime(endTime),
 		dt( (endTime - startTime) / steps ),
 		n(0),
@@ -404,43 +484,109 @@ public:
 		assert(steps > 0);
 	}
 
+	virtual Real initialTime(Real) const {
+		return Forward ? startTime : endTime; // TODO: Optimize
+	}
+
+	virtual Real step() {
+		n++;
+		return Forward ? dt : -dt; // TODO: Optimize
+	}
+
 	virtual bool done() const {
 		return n >= steps;
-	}
-
-	virtual Real nextTime(Real) {
-		return endTime - (++n) * dt;
-	}
-
-	virtual Real initialTime(Real) const {
-		return endTime;
 	}
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <size_t Lookback>
+template <size_t Lookback = 1, bool Forward = false>
+class VariableStepper : public Iteration<Lookback> {
+
+	Real startTime, endTime, dt, dnorm, scale, time;
+
+public:
+
+	VariableStepper(
+		Real startTime,
+		Real endTime,
+		Real dt,
+		Real dnorm,
+		Real scale = 1
+	) noexcept :
+		startTime(startTime),
+		endTime(endTime),
+		dt(dt),
+		dnorm(dnorm),
+		scale(scale),
+		time(endTime)
+	{
+	}
+
+	virtual Real initialTime(Real) const {
+		return endTime;
+	}
+
+	virtual Real step() {
+		const Vector
+			&v_n0 = std::get<1>( this->iterands()[-1] ),
+			&v_n1 = std::get<1>( this->iterands()[ 0] )
+		;
+
+		dt *= dnorm / ( v_n1 - v_n0 ).cwiseAbs().cwiseQuotient(
+			( scale * Vector::Ones( v_n1.size() ) ).cwiseMax(
+				v_n1.cwiseAbs().cwiseMax(
+					v_n0.cwiseAbs()
+				)
+			)
+		).maxCoeff;
+
+		// TODO: Optimize
+		if(Forward) {
+			if(time + dt > endTime) {
+				dt = endTime - time;
+			}
+
+			return dt;
+		} else {
+			if(time - dt < startTime) {
+				dt = time - startTime;
+			}
+
+			return -dt;
+		}
+	}
+
+	virtual bool done() {
+		return time <= startTime;
+	}
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <size_t Lookback = 1>
 class ToleranceIteration : public Iteration<Lookback> {
 
 	Real toleranceSquared;
 
 public:
 
-	template <typename I>
 	ToleranceIteration(
-		I &childIteration,
 		Real tolerance = 1e-6
 	) noexcept :
-		Iteration<Lookback>(childIteration),
 		toleranceSquared(tolerance * tolerance)
 	{
 	}
 
 	virtual bool done() const {
-		auto x = this->iterands();
-		return ( std::get<1>( x[-1] ) - std::get<1>( x[0] ) )
-				.squaredNorm() < toleranceSquared;
+		const Vector
+			&v_n0 = std::get<1>( this->iterands()[-1] ),
+			&v_n1 = std::get<1>( this->iterands()[ 0] )
+		;
+
+		return ( v_n1 - v_n0 ).squaredNorm() < toleranceSquared;
 	}
 
 };
