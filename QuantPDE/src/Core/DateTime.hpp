@@ -42,17 +42,17 @@ public:
 		December  = 12
 	};
 
-	typedef Integer Seconds;
+	typedef int Seconds;
 
-	typedef Integer Minutes;
+	typedef int Minutes;
 
-	typedef Integer Hours;
+	typedef int Hours;
 
-	typedef Integer Day;
+	typedef int Day;
 
-	typedef Integer Year;
+	typedef int Year;
 
-	typedef Integer YearDay;
+	typedef int YearDay;
 
 	/**
 	 * Initialize using a UNIX timestamp.

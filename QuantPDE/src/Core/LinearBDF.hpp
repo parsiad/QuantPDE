@@ -3,14 +3,14 @@
 
 namespace QuantPDE {
 
-template <bool Forward>
+template <bool Forward, size_t Lookback>
 class LinearBDFBase : public Linearizer {
 
 	const DomainBase *domain;
 	const LinearOperator *op;
 
-	Real t6, t5, t4, t3, t2, t1, t0;
-	Real     h5, h4, h3, h2, h1, h0;
+	Real t[Lookback + 1];
+	Real h[Lookback];
 
 	inline Real difference(Real t1, Real t0) {
 		return Forward ? t1 - t0 : t0 - t1;
@@ -19,14 +19,14 @@ class LinearBDFBase : public Linearizer {
 protected:
 
 	inline Matrix A1() {
-		t1 = this->nextTime();
-		t0 = this->times()[0];
+		t[1] = this->nextTime();
+		t[0] = this->times()[0];
 
-		h0 = difference(t1, t0);
+		h[0] = difference(t[1], t[0]);
 
 		return
 			domain->identity()
-			+ op->discretize(t1) * h0;
+			+ op->discretize(t[1]) * h[0];
 	}
 
 	inline Vector b1() {
@@ -35,23 +35,23 @@ protected:
 	}
 
 	inline Matrix A2() {
-		t2 = this->nextTime();
-		t1 = this->times()[ 0];
-		t0 = this->times()[-1];
+		t[2] = this->nextTime();
+		t[1] = this->times()[ 0];
+		t[0] = this->times()[-1];
 
-		h1 = difference(t2, t1);
-		h0 = difference(t2, t0);
+		h[1] = difference(t[2], t[1]);
+		h[0] = difference(t[2], t[0]);
 
 		return
 			domain->identity()
-			+ (h0 * h1) / (h0 + h1) * op->discretize(t2)
+			+ (h[0] * h[1]) / (h[0] + h[1]) * op->discretize(t[2])
 		;
 
 		// Constant timestep case:
 		/*
 		return
 			domain->identity()
-			+ 2. / 3. * op->discretize(t2) * dt()
+			+ 2. / 3. * op->discretize(t[2]) * dt()
 		;
 		*/
 	}
@@ -63,9 +63,9 @@ protected:
 		;
 
 		return (
-			  h0*h0 * v1
-			- h1*h1 * v0
-		) / ( (h0 + h1) * (h0 - h1) );
+			  h[0]*h[0] * v1
+			- h[1]*h[1] * v0
+		) / ( (h[0] + h[1]) * (h[0] - h[1]) );
 
 		// Constant timestep case:
 		/*
@@ -77,26 +77,26 @@ protected:
 	}
 
 	inline Matrix A3() {
-		t3 = this->nextTime();
-		t2 = this->times()[ 0];
-		t1 = this->times()[-1];
-		t0 = this->times()[-2];
+		t[3] = this->nextTime();
+		t[2] = this->times()[ 0];
+		t[1] = this->times()[-1];
+		t[0] = this->times()[-2];
 
-		h2 = difference(t3, t2);
-		h1 = difference(t3, t1);
-		h0 = difference(t3, t0);
+		h[2] = difference(t[3], t[2]);
+		h[1] = difference(t[3], t[1]);
+		h[0] = difference(t[3], t[0]);
 
 		return
 			domain->identity()
-			+ ( h0 * h1 * h2 ) / ( h0 * h1 + h0 * h2 + h1 * h2 )
-					* op->discretize(t3)
+			+ ( h[0] * h[1] * h[2] ) / ( h[0] * h[1] + h[0] * h[2] + h[1] * h[2] )
+					* op->discretize(t[3])
 		;
 
 		// Constant timestep case:
 		/*
 		return
 			domain->identity()
-			+ 6. / 11. * op->discretize(t3) * dt()
+			+ 6. / 11. * op->discretize(t[3]) * dt()
 		;
 		*/
 	}
@@ -109,10 +109,10 @@ protected:
 		;
 
 		return (
-			  (h0*h0 * h1*h1) / ((h0 - h2) * (h1 - h2)) * v2
-			- (h0*h0 * h2*h2) / ((h0 - h1) * (h1 - h2)) * v1
-			+ (h1*h1 * h2*h2) / ((h0 - h1) * (h0 - h2)) * v0
-		) / (h0 * h1 + h0 * h2 + h1 * h2);
+			  (h[0]*h[0] * h[1]*h[1]) / ((h[0] - h[2]) * (h[1] - h[2])) * v2
+			- (h[0]*h[0] * h[2]*h[2]) / ((h[0] - h[1]) * (h[1] - h[2])) * v1
+			+ (h[1]*h[1] * h[2]*h[2]) / ((h[0] - h[1]) * (h[0] - h[2])) * v0
+		) / (h[0] * h[1] + h[0] * h[2] + h[1] * h[2]);
 
 		// Constant timestep case:
 		/*
@@ -126,27 +126,27 @@ protected:
 
 	inline Matrix A4() {
 
-		t4 = this->nextTime();
-		t3 = this->times()[ 0];
-		t2 = this->times()[-1];
-		t1 = this->times()[-2];
-		t0 = this->times()[-3];
+		t[4] = this->nextTime();
+		t[3] = this->times()[ 0];
+		t[2] = this->times()[-1];
+		t[1] = this->times()[-2];
+		t[0] = this->times()[-3];
 
-		h3 = difference(t4, t3);
-		h2 = difference(t4, t2);
-		h1 = difference(t4, t1);
-		h0 = difference(t4, t0);
+		h[3] = difference(t[4], t[3]);
+		h[2] = difference(t[4], t[2]);
+		h[1] = difference(t[4], t[1]);
+		h[0] = difference(t[4], t[0]);
 
 		return domain->identity()
-			+ (h0*h1*h2*h3) / (h0*h1*h2 + h0*h1*h3 + h0*h2*h3 + h1*h2*h3)
-					* op->discretize(t4);
+			+ (h[0]*h[1]*h[2]*h[3]) / (h[0]*h[1]*h[2] + h[0]*h[1]*h[3] + h[0]*h[2]*h[3] + h[1]*h[2]*h[3])
+					* op->discretize(t[4]);
 
 
 		// Constant timestep case:
 		/*
 		return
 			domain->identity()
-			+ 12. / 25. * op->discretize(t4) * dt();
+			+ 12. / 25. * op->discretize(t[4]) * dt();
 		*/
 	}
 
@@ -159,11 +159,11 @@ protected:
 		;
 
 		return (
-			  (h0*h0 * h1*h1 * h2*h2) / ((h0 - h3)*(h1 - h3)*(h2 - h3)) * v3
-			- (h0*h0 * h1*h1 * h3*h3) / ((h0 - h2)*(h1 - h2)*(h2 - h3)) * v2
-			+ (h0*h0 * h2*h2 * h3*h3) / ((h0 - h1)*(h1 - h2)*(h1 - h3)) * v1
-			- (h1*h1 * h2*h2 * h3*h3) / ((h0 - h1)*(h0 - h2)*(h0 - h3)) * v0
-		) / (h0*h1*h2 + h0*h1*h3 + h0*h2*h3 + h1*h2*h3);
+			  (h[0]*h[0] * h[1]*h[1] * h[2]*h[2]) / ((h[0] - h[3])*(h[1] - h[3])*(h[2] - h[3])) * v3
+			- (h[0]*h[0] * h[1]*h[1] * h[3]*h[3]) / ((h[0] - h[2])*(h[1] - h[2])*(h[2] - h[3])) * v2
+			+ (h[0]*h[0] * h[2]*h[2] * h[3]*h[3]) / ((h[0] - h[1])*(h[1] - h[2])*(h[1] - h[3])) * v1
+			- (h[1]*h[1] * h[2]*h[2] * h[3]*h[3]) / ((h[0] - h[1])*(h[0] - h[2])*(h[0] - h[3])) * v0
+		) / (h[0]*h[1]*h[2] + h[0]*h[1]*h[3] + h[0]*h[2]*h[3] + h[1]*h[2]*h[3]);
 
 		// Constant timestep case:
 		/*
@@ -177,30 +177,30 @@ protected:
 	}
 
 	inline Matrix A5() {
-		t5 = this->nextTime();
-		t4 = this->times()[ 0];
-		t3 = this->times()[-1];
-		t2 = this->times()[-2];
-		t1 = this->times()[-3];
-		t0 = this->times()[-4];
+		t[5] = this->nextTime();
+		t[4] = this->times()[ 0];
+		t[3] = this->times()[-1];
+		t[2] = this->times()[-2];
+		t[1] = this->times()[-3];
+		t[0] = this->times()[-4];
 
-		h4 = difference(t5, t4);
-		h3 = difference(t5, t3);
-		h2 = difference(t5, t2);
-		h1 = difference(t5, t1);
-		h0 = difference(t5, t0);
+		h[4] = difference(t[5], t[4]);
+		h[3] = difference(t[5], t[3]);
+		h[2] = difference(t[5], t[2]);
+		h[1] = difference(t[5], t[1]);
+		h[0] = difference(t[5], t[0]);
 
 		return
 			domain->identity()
-			+ (h0*h1*h2*h3*h4) / (h0*h1*h2*h3 + h0*h1*h2*h4 + h0*h1*h3*h4 + h0*h2*h3*h4 + h1*h2*h3*h4)
-					* op->discretize(t5)
+			+ (h[0]*h[1]*h[2]*h[3]*h[4]) / (h[0]*h[1]*h[2]*h[3] + h[0]*h[1]*h[2]*h[4] + h[0]*h[1]*h[3]*h[4] + h[0]*h[2]*h[3]*h[4] + h[1]*h[2]*h[3]*h[4])
+					* op->discretize(t[5])
 		;
 
 		// Constant timestep case:
 		/*
 		return
 			domain->identity()
-			+ 60. / 137. * op->discretize(t5) * dt()
+			+ 60. / 137. * op->discretize(t[5]) * dt()
 		;
 		*/
 	}
@@ -215,12 +215,12 @@ protected:
 		;
 
 		return (
-			  (h0*h0 * h1*h1 * h2*h2 * h3*h3) / ((h0 - h4)*(h1 - h4)*(h2 - h4)*(h3 - h4)) * v4
-			- (h0*h0 * h1*h1 * h2*h2 * h4*h4) / ((h0 - h3)*(h1 - h3)*(h2 - h3)*(h3 - h4)) * v3
-			+ (h0*h0 * h1*h1 * h3*h3 * h4*h4) / ((h0 - h2)*(h1 - h2)*(h2 - h3)*(h2 - h4)) * v2
-			- (h0*h0 * h2*h2 * h3*h3 * h4*h4) / ((h0 - h1)*(h1 - h2)*(h1 - h3)*(h1 - h4)) * v1
-			+ (h1*h1 * h2*h2 * h3*h3 * h4*h4) / ((h0 - h1)*(h0 - h2)*(h0 - h3)*(h0 - h4)) * v0
-		) / (h0*h1*h2*h3 + h0*h1*h2*h4 + h0*h1*h3*h4 + h0*h2*h3*h4 + h1*h2*h3*h4);
+			  (h[0]*h[0] * h[1]*h[1] * h[2]*h[2] * h[3]*h[3]) / ((h[0] - h[4])*(h[1] - h[4])*(h[2] - h[4])*(h[3] - h[4])) * v4
+			- (h[0]*h[0] * h[1]*h[1] * h[2]*h[2] * h[4]*h[4]) / ((h[0] - h[3])*(h[1] - h[3])*(h[2] - h[3])*(h[3] - h[4])) * v3
+			+ (h[0]*h[0] * h[1]*h[1] * h[3]*h[3] * h[4]*h[4]) / ((h[0] - h[2])*(h[1] - h[2])*(h[2] - h[3])*(h[2] - h[4])) * v2
+			- (h[0]*h[0] * h[2]*h[2] * h[3]*h[3] * h[4]*h[4]) / ((h[0] - h[1])*(h[1] - h[2])*(h[1] - h[3])*(h[1] - h[4])) * v1
+			+ (h[1]*h[1] * h[2]*h[2] * h[3]*h[3] * h[4]*h[4]) / ((h[0] - h[1])*(h[0] - h[2])*(h[0] - h[3])*(h[0] - h[4])) * v0
+		) / (h[0]*h[1]*h[2]*h[3] + h[0]*h[1]*h[2]*h[4] + h[0]*h[1]*h[3]*h[4] + h[0]*h[2]*h[3]*h[4] + h[1]*h[2]*h[3]*h[4]);
 
 		// Constant timestep case:
 		/*
@@ -235,25 +235,25 @@ protected:
 	}
 
 	inline Matrix A6() {
-		t6 = this->nextTime();
-		t5 = this->times()[ 0];
-		t4 = this->times()[-1];
-		t3 = this->times()[-2];
-		t2 = this->times()[-3];
-		t1 = this->times()[-4];
-		t0 = this->times()[-5];
+		t[6] = this->nextTime();
+		t[5] = this->times()[ 0];
+		t[4] = this->times()[-1];
+		t[3] = this->times()[-2];
+		t[2] = this->times()[-3];
+		t[1] = this->times()[-4];
+		t[0] = this->times()[-5];
 
-		h5 = difference(t6, t5);
-		h4 = difference(t6, t4);
-		h3 = difference(t6, t3);
-		h2 = difference(t6, t2);
-		h1 = difference(t6, t1);
-		h0 = difference(t6, t0);
+		h[5] = difference(t[6], t[5]);
+		h[4] = difference(t[6], t[4]);
+		h[3] = difference(t[6], t[3]);
+		h[2] = difference(t[6], t[2]);
+		h[1] = difference(t[6], t[1]);
+		h[0] = difference(t[6], t[0]);
 
 		return
 			domain->identity()
-			+ (h0*h1*h2*h3*h4*h5) / (h0*h1*h2*h3*h4 + h0*h1*h2*h3*h5 + h0*h1*h2*h4*h5 + h0*h1*h3*h4*h5 + h0*h2*h3*h4*h5 + h1*h2*h3*h4*h5)
-					* op->discretize(t6)
+			+ (h[0]*h[1]*h[2]*h[3]*h[4]*h[5]) / (h[0]*h[1]*h[2]*h[3]*h[4] + h[0]*h[1]*h[2]*h[3]*h[5] + h[0]*h[1]*h[2]*h[4]*h[5] + h[0]*h[1]*h[3]*h[4]*h[5] + h[0]*h[2]*h[3]*h[4]*h[5] + h[1]*h[2]*h[3]*h[4]*h[5])
+					* op->discretize(t[6])
 		;
 
 		// Constant timestep case:
@@ -276,13 +276,13 @@ protected:
 		;
 
 		return (
-			  (h0*h0 * h1*h1 * h2*h2 * h3*h3 * h4*h4) / ((h0 - h5)*(h1 - h5)*(h2 - h5)*(h3 - h5)*(h4 - h5)) * v5
-			- (h0*h0 * h1*h1 * h2*h2 * h3*h3 * h5*h5) / ((h0 - h4)*(h1 - h4)*(h2 - h4)*(h3 - h4)*(h4 - h5)) * v4
-			+ (h0*h0 * h1*h1 * h2*h2 * h4*h4 * h5*h5) / ((h0 - h3)*(h1 - h3)*(h2 - h3)*(h3 - h4)*(h3 - h5)) * v3
-			- (h0*h0 * h1*h1 * h3*h3 * h4*h4 * h5*h5) / ((h0 - h2)*(h1 - h2)*(h2 - h3)*(h2 - h4)*(h2 - h5)) * v2
-			+ (h0*h0 * h2*h2 * h3*h3 * h4*h4 * h5*h5) / ((h0 - h1)*(h1 - h2)*(h1 - h3)*(h1 - h4)*(h1 - h5)) * v1
-			- (h1*h1 * h2*h2 * h3*h3 * h4*h4 * h5*h5) / ((h0 - h1)*(h0 - h2)*(h0 - h3)*(h0 - h4)*(h0 - h5)) * v0
-		) / (h0*h1*h2*h3*h4 + h0*h1*h2*h3*h5 + h0*h1*h2*h4*h5 + h0*h1*h3*h4*h5 + h0*h2*h3*h4*h5 + h1*h2*h3*h4*h5);
+			  (h[0]*h[0] * h[1]*h[1] * h[2]*h[2] * h[3]*h[3] * h[4]*h[4]) / ((h[0] - h[5])*(h[1] - h[5])*(h[2] - h[5])*(h[3] - h[5])*(h[4] - h[5])) * v5
+			- (h[0]*h[0] * h[1]*h[1] * h[2]*h[2] * h[3]*h[3] * h[5]*h[5]) / ((h[0] - h[4])*(h[1] - h[4])*(h[2] - h[4])*(h[3] - h[4])*(h[4] - h[5])) * v4
+			+ (h[0]*h[0] * h[1]*h[1] * h[2]*h[2] * h[4]*h[4] * h[5]*h[5]) / ((h[0] - h[3])*(h[1] - h[3])*(h[2] - h[3])*(h[3] - h[4])*(h[3] - h[5])) * v3
+			- (h[0]*h[0] * h[1]*h[1] * h[3]*h[3] * h[4]*h[4] * h[5]*h[5]) / ((h[0] - h[2])*(h[1] - h[2])*(h[2] - h[3])*(h[2] - h[4])*(h[2] - h[5])) * v2
+			+ (h[0]*h[0] * h[2]*h[2] * h[3]*h[3] * h[4]*h[4] * h[5]*h[5]) / ((h[0] - h[1])*(h[1] - h[2])*(h[1] - h[3])*(h[1] - h[4])*(h[1] - h[5])) * v1
+			- (h[1]*h[1] * h[2]*h[2] * h[3]*h[3] * h[4]*h[4] * h[5]*h[5]) / ((h[0] - h[1])*(h[0] - h[2])*(h[0] - h[3])*(h[0] - h[4])*(h[0] - h[5])) * v0
+		) / (h[0]*h[1]*h[2]*h[3]*h[4] + h[0]*h[1]*h[2]*h[3]*h[5] + h[0]*h[1]*h[2]*h[4]*h[5] + h[0]*h[1]*h[3]*h[4]*h[5] + h[0]*h[2]*h[3]*h[4]*h[5] + h[1]*h[2]*h[3]*h[4]*h[5]);
 
 		// Constant timestep case:
 		/*
@@ -359,7 +359,7 @@ typedef CrankNicolson<true > ForwardCrankNicolson;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool Forward>
-class LinearBDFOne : public LinearBDFBase<Forward> {
+class LinearBDFOne : public LinearBDFBase<Forward, 1> {
 
 protected:
 
@@ -375,7 +375,7 @@ public:
 
 	template <typename D, typename L>
 	LinearBDFOne(D &domain, L &op) noexcept
-			: LinearBDFBase<Forward>(domain, op) {
+			: LinearBDFBase<Forward, 1>(domain, op) {
 	}
 
 };
@@ -390,7 +390,7 @@ typedef ForwardLinearBDFOne ForwardImplicitEuler;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool Forward>
-class LinearBDFTwo : public LinearBDFBase<Forward> {
+class LinearBDFTwo : public LinearBDFBase<Forward, 2> {
 
 	Matrix (LinearBDFTwo<Forward>::*AA)();
 	Vector (LinearBDFTwo<Forward>::*bb)();
@@ -426,7 +426,7 @@ public:
 
 	template <typename D, typename L>
 	LinearBDFTwo(D &domain, L &op) noexcept
-			: LinearBDFBase<Forward>(domain, op) {
+			: LinearBDFBase<Forward, 2>(domain, op) {
 	}
 
 };
@@ -437,7 +437,7 @@ typedef LinearBDFTwo<true > ForwardLinearBDFTwo;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool Forward>
-class LinearBDFThree : public LinearBDFBase<Forward> {
+class LinearBDFThree : public LinearBDFBase<Forward, 3> {
 
 	Matrix (LinearBDFThree<Forward>::*AA)();
 	Vector (LinearBDFThree<Forward>::*bb)();
@@ -483,7 +483,7 @@ public:
 
 	template <typename D, typename L>
 	LinearBDFThree(D &domain, L &op) noexcept
-			: LinearBDFBase<Forward>(domain, op) {
+			: LinearBDFBase<Forward, 3>(domain, op) {
 	}
 
 };
@@ -494,7 +494,7 @@ typedef LinearBDFThree<true > ForwardLinearBDFThree;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool Forward>
-class LinearBDFFour : public LinearBDFBase<Forward> {
+class LinearBDFFour : public LinearBDFBase<Forward, 4> {
 
 	Matrix (LinearBDFFour<Forward>::*AA)();
 	Vector (LinearBDFFour<Forward>::*bb)();
@@ -550,7 +550,7 @@ public:
 
 	template <typename D, typename L>
 	LinearBDFFour(D &domain, L &op) noexcept
-			: LinearBDFBase<Forward>(domain, op) {
+			: LinearBDFBase<Forward, 4>(domain, op) {
 	}
 
 };
@@ -561,7 +561,7 @@ typedef LinearBDFFour<true > ForwardLinearBDFFour;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool Forward>
-class LinearBDFFive : public LinearBDFBase<Forward> {
+class LinearBDFFive : public LinearBDFBase<Forward, 5> {
 
 	Matrix (LinearBDFFive<Forward>::*AA)();
 	Vector (LinearBDFFive<Forward>::*bb)();
@@ -627,7 +627,7 @@ public:
 
 	template <typename D, typename L>
 	LinearBDFFive(D &domain, L &op) noexcept
-			: LinearBDFBase<Forward>(domain, op) {
+			: LinearBDFBase<Forward, 5>(domain, op) {
 	}
 
 };
@@ -638,7 +638,7 @@ typedef LinearBDFFive<true > ForwardLinearBDFFive;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool Forward>
-class LinearBDFSix : public LinearBDFBase<Forward> {
+class LinearBDFSix : public LinearBDFBase<Forward, 6> {
 
 	Matrix (LinearBDFSix<Forward>::*AA)();
 	Vector (LinearBDFSix<Forward>::*bb)();
@@ -714,7 +714,7 @@ public:
 
 	template <typename D, typename L>
 	LinearBDFSix(D &domain, L &op) noexcept
-			: LinearBDFBase<Forward>(domain, op) {
+			: LinearBDFBase<Forward, 6>(domain, op) {
 	}
 
 };
