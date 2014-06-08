@@ -1,8 +1,6 @@
 #ifndef QUANT_PDE_CORE_ITERATIVE_METHOD
 #define QUANT_PDE_CORE_ITERATIVE_METHOD
 
-// TODO: Remove <Lookback> parameter
-
 #include <deque>        // std::deque
 #include <forward_list> // std::list
 #include <functional>   // std::function
@@ -97,20 +95,56 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 // Forward declaration
-template <size_t> class Iteration;
-template <size_t> class Iterands;
 
-// TODO: Document
-template <size_t Lookback>
+/**
+ * Keeps track of the n most recent iterands in an iterative method.
+ */
 class IterandHistory final {
 
-	static_assert(Lookback > 0, "The number of iterands to store must be "
-			"positive");
+	template <typename T, size_t Index>
+	class TupleSelector final {
+
+		const IterandHistory *history;
+
+	public:
+
+		template <typename H>
+		TupleSelector(H &history) noexcept : history(&history) {
+		}
+
+		// Disable copy constructor and assignment operator
+		TupleSelector(const TupleSelector &) = delete;
+		TupleSelector &operator=(const TupleSelector &) = delete;
+
+		T operator[](int index) const {
+			assert(index >  -history->lookback);
+			assert(index <=  history->lookback);
+
+			int position = (history->tail - 1 + history->lookback
+					+ index) % history->lookback;
+
+			assert(position < history->size);
+
+			return std::get<Index>( history->data[position] );
+		}
+
+	};
+
+public:
+
+	typedef TupleSelector<Real, 0> Times;
+	typedef TupleSelector<const Vector &, 1> Iterands;
+
+private:
 
 	typedef std::tuple<Real, Vector> T;
+	T *data;
 
-	T data[Lookback];
+	Times ts;
+	Iterands its;
+
 	size_t tail;
+	int lookback;
 
 	#ifndef NDEBUG
 	size_t size;
@@ -118,15 +152,31 @@ class IterandHistory final {
 
 public:
 
-	IterandHistory() noexcept : tail(0) {
-		#ifndef NDEBUG
-		size = 0;
-		#endif
+	/**
+	 * Constructor.
+	 * @param lookback How many iterands to keep track of.
+	 */
+	IterandHistory(int lookback) noexcept : ts(*this), its(*this),
+			lookback(lookback) {
+		assert(lookback > 0);
+		data = new T[lookback];
+		clear();
 	}
 
+	/**
+	 * Destructor.
+	 */
+	virtual ~IterandHistory() {
+		delete [] data;
+	}
+
+	// Disable copy constructor and assignment operator.
 	IterandHistory(const IterandHistory &) = delete;
 	IterandHistory &operator=(const IterandHistory &) = delete;
 
+	/**
+	 * Removes all stored iterands.
+	 */
 	void clear() {
 		tail = 0;
 
@@ -135,38 +185,43 @@ public:
 		#endif
 	}
 
-	void push(T &&element) {
-		data[tail] = std::forward<T>(element);
-		tail = (tail + 1) % Lookback;
+	/**
+	 * Adds an iterand. Automatically removes the oldest iterand if too many
+	 * iterands are being sotred.
+	 * @param element The iterand.
+	 */
+	template <typename V>
+	void push(Real time, V &&iterand) {
+		data[tail] = std::make_tuple(time, std::forward<V>(iterand));
+		tail = (tail + 1) % lookback;
 
 		#ifndef NDEBUG
-		if(size < Lookback) {
+		if(size < lookback) {
 			size++;
 		}
 		#endif
 	}
 
-	const T &operator[](int index) const {
-		// Lookback is size_t; need to convert to something signed
-		// to make the following comparisons
-		assert(index >  -(int) Lookback);
-		assert(index <=  (int) Lookback);
+	const Times &times() const {
+		return ts;
+	}
 
-		size_t position = (tail - 1 + Lookback + index) % Lookback;
-
-		assert(position < size);
-
-		return data[position];
+	const Iterands &iterands() const {
+		return its;
 	}
 
 };
 
+class Iteration;
+
 /**
  * Used to generate the left and right-hand sides of the linear system at each
- * iteration. This class should not be extended directly.
+ * iteration.
  * @see QuantPDE::Linearizer
  */
-class LinearizerBase {
+class Linearizer {
+
+	Iteration *iteration;
 
 	/**
 	 * Method called before iteration begins.
@@ -203,50 +258,15 @@ protected:
 	 */
 	virtual Vector b() = 0;
 
-public:
-
-	/**
-	 * Constructor.
-	 */
-	LinearizerBase() {
-	}
-
-	/**
-	 * Destructor.
-	 */
-	virtual ~LinearizerBase() {
-	}
-
-	// Disable copy constructor and assignment operator.
-	LinearizerBase(const LinearizerBase &) = delete;
-	LinearizerBase &operator=(const LinearizerBase &) = delete;
-
-	template <size_t> friend class Iteration;
-
-};
-
-/**
- * Used to generate the left and right-hand sides of the linear system at each
- * iteration.
- */
-template <size_t Lookback>
-class Linearizer : public LinearizerBase {
-
-	static_assert(Lookback > 0, "The number of iterands to store must be "
-			"positive");
-
-	// Nonownership
-	Iteration<Lookback> *iteration;
-
-protected:
-
-	Linearizer() noexcept : LinearizerBase(), iteration(nullptr) {
-	}
-
 	/**
 	 * @return The most recent iterands.
 	 */
-	const IterandHistory<Lookback> &iterands() const;
+	const IterandHistory::Iterands &iterands() const;
+
+	/**
+	 * @return The times associated with the most recent iterands.
+	 */
+	const IterandHistory::Times &times() const;
 
 	/**
 	 * @return The time with which the next solution is associated with.
@@ -255,18 +275,43 @@ protected:
 
 public:
 
+	/**
+	 * Constructor.
+	 */
+	Linearizer() : iteration(nullptr) {
+	}
+
+	/**
+	 * Destructor.
+	 */
+	virtual ~Linearizer() {
+	}
+
+	// Disable copy constructor and assignment operator.
+	Linearizer(const Linearizer &) = delete;
+	Linearizer &operator=(const Linearizer &) = delete;
+
 	// TODO: Document
-	void setIteration(Iteration<Lookback> &iteration);
+	void setIteration(Iteration &iteration);
+
+	friend Iteration;
 
 };
 
 /**
- * Executes an iterative method. This class should notbe extended directly.
- * @see QuantPDE::Iteration
+ * Executes an iterative method.
  */
-class IterationBase {
+class Iteration {
 
-	IterationBase *child;
+	Iteration *child;
+
+	// Nonownership
+	std::forward_list<Linearizer *> linearizers;
+
+	IterandHistory history;
+	Real implicitTime;
+
+	size_t its;
 
 	/**
 	 * Method called before iteration begins.
@@ -295,61 +340,9 @@ class IterationBase {
 	 */
 	virtual bool done() const = 0;
 
-	// TODO: Document
 	virtual Vector iterateUntilDone(
 		const Vector &initialIterand,
-		LinearizerBase &root,
-		LinearSolver &solver,
-		Real time,
-		bool initialized
-	) = 0;
-
-public:
-
-	/**
-	 * Constructor.
-	 */
-	IterationBase() noexcept : child(nullptr) {
-	}
-
-	virtual ~IterationBase() {
-	}
-
-	// TODO: Document
-	void setChildIteration(IterationBase &childIteration) {
-		child = &childIteration;
-	}
-
-	// Disable copy constructor and assignment operator.
-	IterationBase(const IterationBase &) = delete;
-	IterationBase &operator=(const IterationBase &) = delete;
-
-	template <size_t> friend class Iteration;
-
-};
-
-/**
- * Executes an iterative method.
- */
-template <size_t Lookback>
-class Iteration : public IterationBase {
-
-	static_assert(Lookback > 0, "The number of iterands to store must be "
-			"positive");
-
-	typedef std::tuple<Real, Vector> T;
-
-	// Nonownership
-	std::forward_list<Linearizer<Lookback> *> linearizers;
-
-	IterandHistory<Lookback> history;
-	Real implicitTime;
-
-	size_t its;
-
-	virtual Vector iterateUntilDone(
-		const Vector &initialIterand,
-		LinearizerBase &root,
+		Linearizer &root,
 		LinearSolver &solver,
 		Real time,
 		bool initialized
@@ -366,10 +359,7 @@ class Iteration : public IterationBase {
 
 		// Keep track of the initial iterand
 		history.clear();
-		history.push( std::make_tuple(
-			time,
-			initialIterand
-		) );
+		history.push(time, initialIterand);
 
 		// Iterate until done
 		implicitTime = time;
@@ -391,17 +381,16 @@ class Iteration : public IterationBase {
 				// Inductive case (perform inner iteration)
 
 				// Add a new iterand
-				const T &tuple = history[0];
-				history.push( std::make_tuple(
+				history.push(
 					implicitTime,
 					child->iterateUntilDone(
-						std::get<1>( tuple ),
+						iterands()[0],
 						root,
 						solver,
-						std::get<0>( tuple ),
+						times()[0],
 						initialized
 					)
-				) );
+				);
 			} else {
 				// Base case (solve linear system)
 
@@ -410,13 +399,13 @@ class Iteration : public IterationBase {
 					solver.initialize(root.A());
 				}
 
-				history.push( std::make_tuple(
+				history.push(
 					implicitTime,
 					solver.solve(
 						root.b(),
-						std::get<1>( history[0] )
+						iterands()[0]
 					)
-				) );
+				);
 			}
 
 			// Must be initialized after the first iteration
@@ -426,7 +415,7 @@ class Iteration : public IterationBase {
 
 		} while( !done() );
 
-		return std::get<1>( history[0] );
+		return iterands()[0];
 
 	}
 
@@ -435,20 +424,41 @@ protected:
 	/**
 	 * @return The most recent iterands.
 	 */
-	const IterandHistory<Lookback> &iterands() const;
+	const IterandHistory::Iterands &iterands() const {
+		return history.iterands();
+	}
 
+	/**
+	 * @return The times associated with the most recent iterands.
+	 */
+	const IterandHistory::Times &times() const {
+		return history.times();
+	}
 public:
 
 	/**
 	 * Constructor.
 	 */
-	Iteration() noexcept {
+	Iteration(size_t lookback = 2) noexcept : child(nullptr),
+			history(lookback) {
 	}
+
+	virtual ~Iteration() {
+	}
+
+	// TODO: Document
+	void setChildIteration(Iteration &childIteration) {
+		child = &childIteration;
+	}
+
+	// Disable copy constructor and assignment operator.
+	Iteration(const Iteration &) = delete;
+	Iteration &operator=(const Iteration &) = delete;
 
 	// TODO: Document
 	Vector iterateUntilDone(
 		const Vector &initialIterand,
-		LinearizerBase &root,
+		Linearizer &root,
 		LinearSolver &solver
 	) {
 		return iterateUntilDone(
@@ -467,12 +477,10 @@ public:
 		return its;
 	}
 
-	template <size_t> friend class Linearizer;
-
+	friend Linearizer;
 };
 
-template <size_t Lookback>
-void Linearizer<Lookback>::setIteration(Iteration<Lookback> &iteration) {
+void Linearizer::setIteration(Iteration &iteration) {
 	if(this->iteration) {
 		this->iteration->linearizers.remove(this);
 	}
@@ -481,19 +489,16 @@ void Linearizer<Lookback>::setIteration(Iteration<Lookback> &iteration) {
 	iteration.linearizers.push_front(this);
 }
 
-template <size_t Lookback>
-const IterandHistory<Lookback> &Linearizer<Lookback>::iterands() const {
-	return iteration->history;
+const IterandHistory::Iterands &Linearizer::iterands() const {
+	return iteration->history.iterands();
 }
 
-template <size_t Lookback>
-Real Linearizer<Lookback>::nextTime() const {
+const IterandHistory::Times &Linearizer::times() const {
+	return iteration->history.times();
+}
+
+Real Linearizer::nextTime() const {
 	return iteration->implicitTime;
-}
-
-template <size_t Lookback>
-const IterandHistory<Lookback> &Iteration<Lookback>::iterands() const {
-	return history;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -523,8 +528,8 @@ class ControlledLinearOperator : public LinearOperator {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <size_t Lookback = 1, bool Forward = false>
-class ConstantStepper : public Iteration<Lookback> {
+template <bool Forward>
+class ConstantStepper : public Iteration {
 
 	Real startTime, endTime, dt;
 	unsigned n, steps;
@@ -551,8 +556,10 @@ public:
 	ConstantStepper(
 		Real startTime,
 		Real endTime,
-		unsigned steps
+		unsigned steps,
+		size_t lookback = 2
 	) noexcept :
+		Iteration(lookback),
 		startTime(startTime),
 		endTime(endTime),
 		dt( (endTime - startTime) / steps ),
@@ -565,13 +572,16 @@ public:
 
 };
 
+typedef ConstantStepper<false> ReverseConstantStepper;
+typedef ConstantStepper<true > ForwardConstantStepper;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-template <size_t Lookback = 1, bool Forward = false>
-class VariableStepper : public Iteration<Lookback> {
+template <bool Forward>
+class VariableStepper : public Iteration {
 
 	Real startTime, endTime, dt, target, scale, time;
-	Real (VariableStepper<Lookback, Forward>::*stepMethod)();
+	Real (VariableStepper<Forward>::*stepMethod)();
 
 	Real _step0() {
 		stepMethod = &VariableStepper::_step1;
@@ -580,8 +590,8 @@ class VariableStepper : public Iteration<Lookback> {
 
 	Real _step1() {
 		const Vector
-			&v1 = std::get<1>( this->iterands()[ 0] ),
-			&v0 = std::get<1>( this->iterands()[-1] )
+			&v1 = this->iterands()[ 0],
+			&v0 = this->iterands()[-1]
 		;
 
 		dt *= target / ( v1 - v0 ).cwiseAbs().cwiseQuotient(
@@ -638,8 +648,10 @@ public:
 		Real endTime,
 		Real dt,
 		Real target,
-		Real scale = 1
+		Real scale = 1,
+		size_t lookback = 2
 	) noexcept :
+		Iteration(lookback),
 		startTime(startTime),
 		endTime(endTime),
 		dt(dt),
@@ -650,18 +662,20 @@ public:
 
 };
 
+typedef VariableStepper<false> ReverseVariableStepper;
+typedef VariableStepper<true > ForwardVariableStepper;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-template <size_t Lookback = 1>
-class ToleranceIteration : public Iteration<Lookback> {
+class ToleranceIteration : public Iteration {
 
 	Real tolerance;
 	Real scale;
 
 	virtual bool done() const {
 		const Vector
-			&v1 = std::get<1>( this->iterands()[ 0] ),
-			&v0 = std::get<1>( this->iterands()[-1] )
+			&v1 = this->iterands()[ 0],
+			&v0 = this->iterands()[-1]
 		;
 
 		// 2014-06-07: Tested this; it works
@@ -675,8 +689,9 @@ class ToleranceIteration : public Iteration<Lookback> {
 
 public:
 
-	ToleranceIteration(Real tolerance = 1e-6, Real scale = 1) noexcept
-			: tolerance(tolerance), scale(scale) {
+	ToleranceIteration(Real tolerance = 1e-6, Real scale = 1,
+			size_t lookback = 2) noexcept : Iteration(lookback),
+			tolerance(tolerance), scale(scale) {
 		assert(tolerance > 0);
 		assert(scale > 0);
 	}
@@ -686,8 +701,8 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 /*
-template <Index Dimension, size_t Lookback = 1>
-class PenaltyMethod : public Linearizer<Lookback> {
+template <Index Dimension>
+class PenaltyMethod : public Linearizer {
 
 	typedef std::function< bool (
 		const Domain<Dimension> &, Index,
@@ -696,7 +711,7 @@ class PenaltyMethod : public Linearizer<Lookback> {
 	)> F;
 
 	const Domain<Dimension> *domain;
-	LinearizerBase *left, *right;
+	Linearizer *left, *right;
 
 	F predicate;
 	Real large;
@@ -705,7 +720,7 @@ class PenaltyMethod : public Linearizer<Lookback> {
 public:
 
 	template <typename D, typename F1>
-	PenaltyMethod(D &domain, LinearizerBase &left, LinearizerBase &right,
+	PenaltyMethod(D &domain, Linearizer &left, Linearizer &right,
 			F1 &&predicate, Real tolerance = 1e-6) noexcept
 			: domain(&domain), left(&left), right(&right),
 			predicate( std::forward<F1>(predicate) ),
@@ -720,7 +735,7 @@ public:
 			bool penalize = predicate(
 				*domain, i,
 				this->nextTime(),
-				std::get<1>( this->iterands()[0] )
+				this->iterands()[0]
 			);
 
 			if(penalize) {
@@ -740,16 +755,6 @@ public:
 	}
 
 };
-
-
-template <size_t Lookback = 1>
-using PenaltyMethod1 = PenaltyMethod<1, Lookback>;
-
-template <size_t Lookback = 1>
-using PenaltyMethod2 = PenaltyMethod<2, Lookback>;
-
-template <size_t Lookback = 1>
-using PenaltyMethod3 = PenaltyMethod<3, Lookback>;
 */
 
 } // QuantPDE

@@ -3,8 +3,8 @@
 
 namespace QuantPDE {
 
-template <size_t Lookback, bool Forward>
-class LinearBDFBase : public Linearizer<Lookback> {
+template <bool Forward>
+class LinearBDFBase : public Linearizer {
 
 	const DomainBase *domain;
 	const LinearOperator *op;
@@ -20,7 +20,7 @@ protected:
 
 	inline Matrix A1() {
 		t1 = this->nextTime();
-		t0 = std::get<0>( this->iterands()[0] );
+		t0 = this->times()[0];
 
 		h0 = difference(t1, t0);
 
@@ -30,14 +30,14 @@ protected:
 	}
 
 	inline Vector b1() {
-		const Vector &v0 = std::get<1>( this->iterands()[0] );
+		const Vector &v0 = this->iterands()[0];
 		return v0;
 	}
 
 	inline Matrix A2() {
 		t2 = this->nextTime();
-		t1 = std::get<0>( this->iterands()[ 0] );
-		t0 = std::get<0>( this->iterands()[-1] );
+		t1 = this->times()[ 0];
+		t0 = this->times()[-1];
 
 		h1 = difference(t2, t1);
 		h0 = difference(t2, t0);
@@ -58,8 +58,8 @@ protected:
 
 	inline Vector b2() {
 		const Vector
-			&v1 = std::get<1>( this->iterands()[ 0] ),
-			&v0 = std::get<1>( this->iterands()[-1] )
+			&v1 = this->iterands()[ 0],
+			&v0 = this->iterands()[-1]
 		;
 
 		return (
@@ -78,9 +78,9 @@ protected:
 
 	inline Matrix A3() {
 		t3 = this->nextTime();
-		t2 = std::get<0>( this->iterands()[ 0] );
-		t1 = std::get<0>( this->iterands()[-1] );
-		t0 = std::get<0>( this->iterands()[-2] );
+		t2 = this->times()[ 0];
+		t1 = this->times()[-1];
+		t0 = this->times()[-2];
 
 		h2 = difference(t3, t2);
 		h1 = difference(t3, t1);
@@ -103,9 +103,9 @@ protected:
 
 	inline Vector b3() {
 		const Vector
-			&v2 = std::get<1>( this->iterands()[ 0] ),
-			&v1 = std::get<1>( this->iterands()[-1] ),
-			&v0 = std::get<1>( this->iterands()[-2] )
+			&v2 = this->iterands()[ 0],
+			&v1 = this->iterands()[-1],
+			&v0 = this->iterands()[-2]
 		;
 
 		return (
@@ -127,10 +127,10 @@ protected:
 	inline Matrix A4() {
 
 		t4 = this->nextTime();
-		t3 = std::get<0>( this->iterands()[ 0] );
-		t2 = std::get<0>( this->iterands()[-1] );
-		t1 = std::get<0>( this->iterands()[-2] );
-		t0 = std::get<0>( this->iterands()[-3] );
+		t3 = this->times()[ 0];
+		t2 = this->times()[-1];
+		t1 = this->times()[-2];
+		t0 = this->times()[-3];
 
 		h3 = difference(t4, t3);
 		h2 = difference(t4, t2);
@@ -152,10 +152,10 @@ protected:
 
 	inline Vector b4() {
 		const Vector
-			&v3 = std::get<1>( this->iterands()[ 0] ),
-			&v2 = std::get<1>( this->iterands()[-1] ),
-			&v1 = std::get<1>( this->iterands()[-2] ),
-			&v0 = std::get<1>( this->iterands()[-3] )
+			&v3 = this->iterands()[ 0],
+			&v2 = this->iterands()[-1],
+			&v1 = this->iterands()[-2],
+			&v0 = this->iterands()[-3]
 		;
 
 		return (
@@ -178,11 +178,11 @@ protected:
 
 	inline Matrix A5() {
 		t5 = this->nextTime();
-		t4 = std::get<0>( this->iterands()[ 0] );
-		t3 = std::get<0>( this->iterands()[-1] );
-		t2 = std::get<0>( this->iterands()[-2] );
-		t1 = std::get<0>( this->iterands()[-3] );
-		t0 = std::get<0>( this->iterands()[-4] );
+		t4 = this->times()[ 0];
+		t3 = this->times()[-1];
+		t2 = this->times()[-2];
+		t1 = this->times()[-3];
+		t0 = this->times()[-4];
 
 		h4 = difference(t5, t4);
 		h3 = difference(t5, t3);
@@ -207,11 +207,11 @@ protected:
 
 	inline Vector b5() {
 		const Vector
-			&v4 = std::get<1>( this->iterands()[ 0] ),
-			&v3 = std::get<1>( this->iterands()[-1] ),
-			&v2 = std::get<1>( this->iterands()[-2] ),
-			&v1 = std::get<1>( this->iterands()[-3] ),
-			&v0 = std::get<1>( this->iterands()[-4] )
+			&v4 = this->iterands()[ 0],
+			&v3 = this->iterands()[-1],
+			&v2 = this->iterands()[-2],
+			&v1 = this->iterands()[-3],
+			&v0 = this->iterands()[-4]
 		;
 
 		return (
@@ -236,12 +236,12 @@ protected:
 
 	inline Matrix A6() {
 		t6 = this->nextTime();
-		t5 = std::get<0>( this->iterands()[ 0] );
-		t4 = std::get<0>( this->iterands()[-1] );
-		t3 = std::get<0>( this->iterands()[-2] );
-		t2 = std::get<0>( this->iterands()[-3] );
-		t1 = std::get<0>( this->iterands()[-4] );
-		t0 = std::get<0>( this->iterands()[-5] );
+		t5 = this->times()[ 0];
+		t4 = this->times()[-1];
+		t3 = this->times()[-2];
+		t2 = this->times()[-3];
+		t1 = this->times()[-4];
+		t0 = this->times()[-5];
 
 		h5 = difference(t6, t5);
 		h4 = difference(t6, t4);
@@ -267,12 +267,12 @@ protected:
 
 	inline Vector b6() {
 		const Vector
-			&v5 = std::get<1>( this->iterands()[ 0] ),
-			&v4 = std::get<1>( this->iterands()[-1] ),
-			&v3 = std::get<1>( this->iterands()[-2] ),
-			&v2 = std::get<1>( this->iterands()[-3] ),
-			&v1 = std::get<1>( this->iterands()[-4] ),
-			&v0 = std::get<1>( this->iterands()[-5] )
+			&v5 = this->iterands()[ 0],
+			&v4 = this->iterands()[-1],
+			&v3 = this->iterands()[-2],
+			&v2 = this->iterands()[-3],
+			&v1 = this->iterands()[-4],
+			&v0 = this->iterands()[-5]
 		;
 
 		return (
@@ -309,16 +309,16 @@ public:
 
 // TODO: This should be in a different file
 
-template <bool Forward = false>
-class CrankNicolson : public Linearizer<1> {
+template <bool Forward>
+class CrankNicolson : public Linearizer {
 
 	const DomainBase *domain;
 	const LinearOperator *op;
 
 	inline Real dt() {
 		const Real
-			t0 = std::get<0>( this->iterands()[0] ),
-			t1 = this->nextTime()
+			t1 = this->nextTime(),
+			t0 = this->times()[0]
 		;
 
 		return Forward ? t1 - t0 : t0 - t1;
@@ -336,8 +336,8 @@ protected:
 	}
 
 	virtual Vector b() {
-		const Real    t0 = std::get<0>( this->iterands()[0] );
-		const Vector &v0 = std::get<1>( this->iterands()[0] );
+		const Real    t0 = this->times()[0];
+		const Vector &v0 = this->iterands()[0];
 
 		return (
 			domain->identity()
@@ -353,10 +353,13 @@ public:
 
 };
 
+typedef CrankNicolson<false> ReverseCrankNicolson;
+typedef CrankNicolson<true > ForwardCrankNicolson;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-template <bool Forward = false>
-class LinearBDFOne : public LinearBDFBase<1, Forward> {
+template <bool Forward>
+class LinearBDFOne : public LinearBDFBase<Forward> {
 
 protected:
 
@@ -372,19 +375,22 @@ public:
 
 	template <typename D, typename L>
 	LinearBDFOne(D &domain, L &op) noexcept
-			: LinearBDFBase<1, Forward>(domain, op) {
+			: LinearBDFBase<Forward>(domain, op) {
 	}
 
 };
 
-// Convenient alias
-template <bool Forward = false>
-using ImplicitMethod = LinearBDFOne<Forward>;
+typedef LinearBDFOne<false> ReverseLinearBDFOne;
+typedef LinearBDFOne<true > ForwardLinearBDFOne;
+
+// More commonly referred to as the implicit Euler method
+typedef ReverseLinearBDFOne ReverseImplicitEuler;
+typedef ForwardLinearBDFOne ForwardImplicitEuler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <bool Forward = false>
-class LinearBDFTwo : public LinearBDFBase<2, Forward> {
+template <bool Forward>
+class LinearBDFTwo : public LinearBDFBase<Forward> {
 
 	Matrix (LinearBDFTwo<Forward>::*AA)();
 	Vector (LinearBDFTwo<Forward>::*bb)();
@@ -420,15 +426,18 @@ public:
 
 	template <typename D, typename L>
 	LinearBDFTwo(D &domain, L &op) noexcept
-			: LinearBDFBase<2, Forward>(domain, op) {
+			: LinearBDFBase<Forward>(domain, op) {
 	}
 
 };
 
+typedef LinearBDFTwo<false> ReverseLinearBDFTwo;
+typedef LinearBDFTwo<true > ForwardLinearBDFTwo;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-template <bool Forward = false>
-class LinearBDFThree : public LinearBDFBase<3, Forward> {
+template <bool Forward>
+class LinearBDFThree : public LinearBDFBase<Forward> {
 
 	Matrix (LinearBDFThree<Forward>::*AA)();
 	Vector (LinearBDFThree<Forward>::*bb)();
@@ -474,15 +483,18 @@ public:
 
 	template <typename D, typename L>
 	LinearBDFThree(D &domain, L &op) noexcept
-			: LinearBDFBase<3, Forward>(domain, op) {
+			: LinearBDFBase<Forward>(domain, op) {
 	}
 
 };
 
+typedef LinearBDFThree<false> ReverseLinearBDFThree;
+typedef LinearBDFThree<true > ForwardLinearBDFThree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-template <bool Forward = false>
-class LinearBDFFour : public LinearBDFBase<4, Forward> {
+template <bool Forward>
+class LinearBDFFour : public LinearBDFBase<Forward> {
 
 	Matrix (LinearBDFFour<Forward>::*AA)();
 	Vector (LinearBDFFour<Forward>::*bb)();
@@ -538,15 +550,18 @@ public:
 
 	template <typename D, typename L>
 	LinearBDFFour(D &domain, L &op) noexcept
-			: LinearBDFBase<4, Forward>(domain, op) {
+			: LinearBDFBase<Forward>(domain, op) {
 	}
 
 };
 
+typedef LinearBDFFour<false> ReverseLinearBDFFour;
+typedef LinearBDFFour<true > ForwardLinearBDFFour;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-template <bool Forward = false>
-class LinearBDFFive : public LinearBDFBase<5, Forward> {
+template <bool Forward>
+class LinearBDFFive : public LinearBDFBase<Forward> {
 
 	Matrix (LinearBDFFive<Forward>::*AA)();
 	Vector (LinearBDFFive<Forward>::*bb)();
@@ -612,15 +627,18 @@ public:
 
 	template <typename D, typename L>
 	LinearBDFFive(D &domain, L &op) noexcept
-			: LinearBDFBase<5, Forward>(domain, op) {
+			: LinearBDFBase<Forward>(domain, op) {
 	}
 
 };
 
+typedef LinearBDFFive<false> ReverseLinearBDFFive;
+typedef LinearBDFFive<true > ForwardLinearBDFFive;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-template <bool Forward = false>
-class LinearBDFSix : public LinearBDFBase<6, Forward> {
+template <bool Forward>
+class LinearBDFSix : public LinearBDFBase<Forward> {
 
 	Matrix (LinearBDFSix<Forward>::*AA)();
 	Vector (LinearBDFSix<Forward>::*bb)();
@@ -696,10 +714,13 @@ public:
 
 	template <typename D, typename L>
 	LinearBDFSix(D &domain, L &op) noexcept
-			: LinearBDFBase<6, Forward>(domain, op) {
+			: LinearBDFBase<Forward>(domain, op) {
 	}
 
 };
+
+typedef LinearBDFSix<false> ReverseLinearBDFSix;
+typedef LinearBDFSix<true > ForwardLinearBDFSix;
 
 } // QuantPDE
 

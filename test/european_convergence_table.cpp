@@ -22,8 +22,8 @@ using namespace std;
 
 // TODO: Remove
 
-template <size_t Lookback = 1>
-class AmericanPutPenalty : public Linearizer<Lookback> {
+/*
+class AmericanPutPenalty : public Linearizer {
 
 	const Domain1 *domain;
 	LinearizerBase *left;
@@ -65,6 +65,7 @@ public:
 	}
 
 };
+*/
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -245,55 +246,61 @@ endl <<
 		// Solve problem
 		///////////////////////////////////////////////////////////////
 
-		BlackScholesOperator blackScholes(
-			R,
-			[interest]   (Real, Real) { return interest;   },
-			[volatility] (Real, Real) { return volatility; },
-			[dividends]  (Real, Real) { return dividends;  }
-		);
+		unsigned realizedSteps;
+		Real value;
+		{
+			BlackScholesOperator blackScholes(
+				R,
+				[interest]   (Real, Real) {return interest;  },
+				[volatility] (Real, Real) {return volatility;},
+				[dividends]  (Real, Real) {return dividends; }
+			);
 
-		Iteration<2> *stepper;
-		if(!variable) {
-			stepper = new ConstantStepper<2>(
-				0., // Initial time
-				expiry,
-				steps
+			Iteration *stepper;
+			if(!variable) {
+				stepper = new ReverseConstantStepper(
+					0., // Initial time
+					expiry,
+					steps
+				);
+			} else {
+				stepper = new ReverseVariableStepper(
+					0., // Initial time
+					expiry,
+					expiry / steps,
+					target
+				);
+				target /= 2;
+			}
+
+			//ToleranceIteration<> tolerance;
+			//stepper->setChildIteration(tolerance);
+
+			ReverseLinearBDFTwo bdf(R, blackScholes);
+			bdf.setIteration(*stepper);
+
+			//AmericanPutPenalty<> penalty(R, bdf, strike);
+			//penalty.setIteration(tolerance);
+
+			BiCGSTABSolver solver;
+			Vector solutionVector = stepper->iterateUntilDone(
+				R.image(payoff),
+				bdf, //penalty,
+				solver
 			);
-		} else {
-			stepper = new VariableStepper<2>(
-				0.,
-				expiry,
-				expiry / steps,
-				target
-			);
-			target /= 2;
+
+			// Number of steps taken
+			realizedSteps = stepper->iterations();
+
+			// Solution at S = 100.
+			value = R.accessor(solutionVector)(stock);
+
+			delete stepper;
 		}
-
-		//ToleranceIteration<> tolerance;
-		//stepper->setChildIteration(tolerance);
-
-		LinearBDFTwo<> bdf(R, blackScholes);
-		bdf.setIteration(*stepper);
-
-		//AmericanPutPenalty<> penalty(R, bdf, strike);
-		//penalty.setIteration(tolerance);
-
-		BiCGSTABSolver solver;
-		Vector v = stepper->iterateUntilDone(
-			R.image(payoff),
-			bdf, //penalty,
-			solver
-		);
-
-		unsigned realizedSteps = stepper->iterations();
-		delete stepper;
 
 		///////////////////////////////////////////////////////////////
 		// Table
 		///////////////////////////////////////////////////////////////
-
-		// Solution at S = 100.
-		Real value = R.accessor( v )(stock);
 
 		// Change and ratio between successive solutions
 		Real
