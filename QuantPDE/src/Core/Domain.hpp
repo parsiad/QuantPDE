@@ -467,6 +467,7 @@ public:
 
 /**
  * A (finite) rectilinear grid.
+ * @see QuantPDE::Domain
  */
 template <Index Dimension>
 class RectilinearGrid : public Domain<Dimension> {

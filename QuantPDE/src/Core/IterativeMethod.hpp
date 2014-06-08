@@ -439,7 +439,7 @@ public:
 	/**
 	 * Constructor.
 	 */
-	Iteration(size_t lookback = 2) noexcept : child(nullptr),
+	Iteration(int lookback = 2) noexcept : child(nullptr),
 			history(lookback) {
 	}
 
@@ -557,7 +557,7 @@ public:
 		Real startTime,
 		Real endTime,
 		unsigned steps,
-		size_t lookback = 2
+		int lookback = 2
 	) noexcept :
 		Iteration(lookback),
 		startTime(startTime),
@@ -594,6 +594,7 @@ class VariableStepper : public Iteration {
 			&v0 = this->iterands()[-1]
 		;
 
+		// Tested 2014-06-08
 		dt *= target / ( v1 - v0 ).cwiseAbs().cwiseQuotient(
 			( scale * Vector::Ones( v1.size() ) ).cwiseMax(
 				v1.cwiseAbs().cwiseMax(
@@ -638,7 +639,11 @@ class VariableStepper : public Iteration {
 	}
 
 	virtual bool done() const {
-		return time <= startTime;
+		if(Forward) {
+			return time <= startTime;
+		} else {
+			return time >= endTime;
+		}
 	}
 
 public:
@@ -649,7 +654,7 @@ public:
 		Real dt,
 		Real target,
 		Real scale = 1,
-		size_t lookback = 2
+		int lookback = 2
 	) noexcept :
 		Iteration(lookback),
 		startTime(startTime),
@@ -658,6 +663,11 @@ public:
 		target(target),
 		scale(scale)
 	{
+		assert(startTime >= 0.);
+		assert(startTime < endTime);
+		assert(dt > 0);
+		assert(target > 0);
+		assert(scale > 0);
 	}
 
 };
@@ -678,7 +688,7 @@ class ToleranceIteration : public Iteration {
 			&v0 = this->iterands()[-1]
 		;
 
-		// 2014-06-07: Tested this; it works
+		// Tested 2014-06-07
 		return
 			( v1 - v0 ).cwiseAbs().cwiseQuotient(
 				( scale * Vector::Ones(v1.size()) ).cwiseMax(
@@ -690,7 +700,7 @@ class ToleranceIteration : public Iteration {
 public:
 
 	ToleranceIteration(Real tolerance = 1e-6, Real scale = 1,
-			size_t lookback = 2) noexcept : Iteration(lookback),
+			int lookback = 2) noexcept : Iteration(lookback),
 			tolerance(tolerance), scale(scale) {
 		assert(tolerance > 0);
 		assert(scale > 0);

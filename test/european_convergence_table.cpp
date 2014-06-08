@@ -273,7 +273,7 @@ endl <<
 				target /= 2;
 			}
 
-			//ToleranceIteration<> tolerance;
+			//ToleranceIteration tolerance;
 			//stepper->setChildIteration(tolerance);
 
 			ReverseLinearBDFTwo bdf(R, blackScholes);

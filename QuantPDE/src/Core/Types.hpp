@@ -3,8 +3,6 @@
 
 namespace QuantPDE {
 
-typedef int Integer;
-
 }
 
 #endif
