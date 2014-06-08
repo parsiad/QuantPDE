@@ -30,8 +30,8 @@ protected:
 	}
 
 	inline Vector b1() {
-		const Vector &v_n0 = std::get<1>( this->iterands()[0] );
-		return v_n0;
+		const Vector &v0 = std::get<1>( this->iterands()[0] );
+		return v0;
 	}
 
 	inline Matrix A2() {
@@ -58,20 +58,20 @@ protected:
 
 	inline Vector b2() {
 		const Vector
-			&v_n1 = std::get<1>( this->iterands()[ 0] ),
-			&v_n0 = std::get<1>( this->iterands()[-1] )
+			&v1 = std::get<1>( this->iterands()[ 0] ),
+			&v0 = std::get<1>( this->iterands()[-1] )
 		;
 
 		return (
-			  h0*h0 * v_n1
-			- h1*h1 * v_n0
+			  h0*h0 * v1
+			- h1*h1 * v0
 		) / ( (h0 + h1) * (h0 - h1) );
 
 		// Constant timestep case:
 		/*
 		return (
-			  4. * v_n1
-			- 1. * v_n0
+			  4. * v1
+			- 1. * v0
 		) / 3.;
 		*/
 	}
@@ -103,23 +103,23 @@ protected:
 
 	inline Vector b3() {
 		const Vector
-			&v_n2 = std::get<1>( this->iterands()[ 0] ),
-			&v_n1 = std::get<1>( this->iterands()[-1] ),
-			&v_n0 = std::get<1>( this->iterands()[-2] )
+			&v2 = std::get<1>( this->iterands()[ 0] ),
+			&v1 = std::get<1>( this->iterands()[-1] ),
+			&v0 = std::get<1>( this->iterands()[-2] )
 		;
 
 		return (
-			  (h0*h0 * h1*h1) / ((h0 - h2) * (h1 - h2)) * v_n2
-			- (h0*h0 * h2*h2) / ((h0 - h1) * (h1 - h2)) * v_n1
-			+ (h1*h1 * h2*h2) / ((h0 - h1) * (h0 - h2)) * v_n0
+			  (h0*h0 * h1*h1) / ((h0 - h2) * (h1 - h2)) * v2
+			- (h0*h0 * h2*h2) / ((h0 - h1) * (h1 - h2)) * v1
+			+ (h1*h1 * h2*h2) / ((h0 - h1) * (h0 - h2)) * v0
 		) / (h0 * h1 + h0 * h2 + h1 * h2);
 
 		// Constant timestep case:
 		/*
 		return (
-			  18. * v_n2
-			- 9.  * v_n1
-			+ 2.  * v_n0
+			  18. * v2
+			- 9.  * v1
+			+ 2.  * v0
 		) / 11.;
 		*/
 	}
@@ -152,26 +152,26 @@ protected:
 
 	inline Vector b4() {
 		const Vector
-			&v_n3 = std::get<1>( this->iterands()[ 0] ),
-			&v_n2 = std::get<1>( this->iterands()[-1] ),
-			&v_n1 = std::get<1>( this->iterands()[-2] ),
-			&v_n0 = std::get<1>( this->iterands()[-3] )
+			&v3 = std::get<1>( this->iterands()[ 0] ),
+			&v2 = std::get<1>( this->iterands()[-1] ),
+			&v1 = std::get<1>( this->iterands()[-2] ),
+			&v0 = std::get<1>( this->iterands()[-3] )
 		;
 
 		return (
-			  (h0*h0 * h1*h1 * h2*h2) / ((h0 - h3)*(h1 - h3)*(h2 - h3)) * v_n3
-			- (h0*h0 * h1*h1 * h3*h3) / ((h0 - h2)*(h1 - h2)*(h2 - h3)) * v_n2
-			+ (h0*h0 * h2*h2 * h3*h3) / ((h0 - h1)*(h1 - h2)*(h1 - h3)) * v_n1
-			- (h1*h1 * h2*h2 * h3*h3) / ((h0 - h1)*(h0 - h2)*(h0 - h3)) * v_n0
+			  (h0*h0 * h1*h1 * h2*h2) / ((h0 - h3)*(h1 - h3)*(h2 - h3)) * v3
+			- (h0*h0 * h1*h1 * h3*h3) / ((h0 - h2)*(h1 - h2)*(h2 - h3)) * v2
+			+ (h0*h0 * h2*h2 * h3*h3) / ((h0 - h1)*(h1 - h2)*(h1 - h3)) * v1
+			- (h1*h1 * h2*h2 * h3*h3) / ((h0 - h1)*(h0 - h2)*(h0 - h3)) * v0
 		) / (h0*h1*h2 + h0*h1*h3 + h0*h2*h3 + h1*h2*h3);
 
 		// Constant timestep case:
 		/*
 		return (
-			  48. * v_n3
-			- 36. * v_n2
-			+ 16. * v_n1
-			- 3.  * v_n0
+			  48. * v3
+			- 36. * v2
+			+ 16. * v1
+			- 3.  * v0
 		) / 25.;
 		*/
 	}
@@ -207,29 +207,29 @@ protected:
 
 	inline Vector b5() {
 		const Vector
-			&v_n4 = std::get<1>( this->iterands()[ 0] ),
-			&v_n3 = std::get<1>( this->iterands()[-1] ),
-			&v_n2 = std::get<1>( this->iterands()[-2] ),
-			&v_n1 = std::get<1>( this->iterands()[-3] ),
-			&v_n0 = std::get<1>( this->iterands()[-4] )
+			&v4 = std::get<1>( this->iterands()[ 0] ),
+			&v3 = std::get<1>( this->iterands()[-1] ),
+			&v2 = std::get<1>( this->iterands()[-2] ),
+			&v1 = std::get<1>( this->iterands()[-3] ),
+			&v0 = std::get<1>( this->iterands()[-4] )
 		;
 
 		return (
-			  (h0*h0 * h1*h1 * h2*h2 * h3*h3) / ((h0 - h4)*(h1 - h4)*(h2 - h4)*(h3 - h4)) * v_n4
-			- (h0*h0 * h1*h1 * h2*h2 * h4*h4) / ((h0 - h3)*(h1 - h3)*(h2 - h3)*(h3 - h4)) * v_n3
-			+ (h0*h0 * h1*h1 * h3*h3 * h4*h4) / ((h0 - h2)*(h1 - h2)*(h2 - h3)*(h2 - h4)) * v_n2
-			- (h0*h0 * h2*h2 * h3*h3 * h4*h4) / ((h0 - h1)*(h1 - h2)*(h1 - h3)*(h1 - h4)) * v_n1
-			+ (h1*h1 * h2*h2 * h3*h3 * h4*h4) / ((h0 - h1)*(h0 - h2)*(h0 - h3)*(h0 - h4)) * v_n0
+			  (h0*h0 * h1*h1 * h2*h2 * h3*h3) / ((h0 - h4)*(h1 - h4)*(h2 - h4)*(h3 - h4)) * v4
+			- (h0*h0 * h1*h1 * h2*h2 * h4*h4) / ((h0 - h3)*(h1 - h3)*(h2 - h3)*(h3 - h4)) * v3
+			+ (h0*h0 * h1*h1 * h3*h3 * h4*h4) / ((h0 - h2)*(h1 - h2)*(h2 - h3)*(h2 - h4)) * v2
+			- (h0*h0 * h2*h2 * h3*h3 * h4*h4) / ((h0 - h1)*(h1 - h2)*(h1 - h3)*(h1 - h4)) * v1
+			+ (h1*h1 * h2*h2 * h3*h3 * h4*h4) / ((h0 - h1)*(h0 - h2)*(h0 - h3)*(h0 - h4)) * v0
 		) / (h0*h1*h2*h3 + h0*h1*h2*h4 + h0*h1*h3*h4 + h0*h2*h3*h4 + h1*h2*h3*h4);
 
 		// Constant timestep case:
 		/*
 		return (
-			  300. * v_n4
-			- 300. * v_n3
-			+ 200. * v_n2
-			- 75.  * v_n1
-			+ 12.  * v_n0
+			  300. * v4
+			- 300. * v3
+			+ 200. * v2
+			- 75.  * v1
+			+ 12.  * v0
 		) / 137.;
 		*/
 	}
@@ -267,32 +267,32 @@ protected:
 
 	inline Vector b6() {
 		const Vector
-			&v_n5 = std::get<1>( this->iterands()[ 0] ),
-			&v_n4 = std::get<1>( this->iterands()[-1] ),
-			&v_n3 = std::get<1>( this->iterands()[-2] ),
-			&v_n2 = std::get<1>( this->iterands()[-3] ),
-			&v_n1 = std::get<1>( this->iterands()[-4] ),
-			&v_n0 = std::get<1>( this->iterands()[-5] )
+			&v5 = std::get<1>( this->iterands()[ 0] ),
+			&v4 = std::get<1>( this->iterands()[-1] ),
+			&v3 = std::get<1>( this->iterands()[-2] ),
+			&v2 = std::get<1>( this->iterands()[-3] ),
+			&v1 = std::get<1>( this->iterands()[-4] ),
+			&v0 = std::get<1>( this->iterands()[-5] )
 		;
 
-		return
-			  (h0*h0 * h1*h1 * h2*h2 * h3*h3 * h4*h4) / ((h0 - h5)*(h1 - h5)*(h2 - h5)*(h3 - h5)*(h4 - h5)*(h0*h1*h2*h3*h4 + h0*h1*h2*h3*h5 + h0*h1*h2*h4*h5 + h0*h1*h3*h4*h5 + h0*h2*h3*h4*h5 + h1*h2*h3*h4*h5)) * v_n5
-			- (h0*h0 * h1*h1 * h2*h2 * h3*h3 * h5*h5) / ((h0 - h4)*(h1 - h4)*(h2 - h4)*(h3 - h4)*(h4 - h5)*(h0*h1*h2*h3*h4 + h0*h1*h2*h3*h5 + h0*h1*h2*h4*h5 + h0*h1*h3*h4*h5 + h0*h2*h3*h4*h5 + h1*h2*h3*h4*h5)) * v_n4
-			+ (h0*h0 * h1*h1 * h2*h2 * h4*h4 * h5*h5) / ((h0 - h3)*(h1 - h3)*(h2 - h3)*(h3 - h4)*(h3 - h5)*(h0*h1*h2*h3*h4 + h0*h1*h2*h3*h5 + h0*h1*h2*h4*h5 + h0*h1*h3*h4*h5 + h0*h2*h3*h4*h5 + h1*h2*h3*h4*h5)) * v_n3
-			- (h0*h0 * h1*h1 * h3*h3 * h4*h4 * h5*h5) / ((h0 - h2)*(h1 - h2)*(h2 - h3)*(h2 - h4)*(h2 - h5)*(h0*h1*h2*h3*h4 + h0*h1*h2*h3*h5 + h0*h1*h2*h4*h5 + h0*h1*h3*h4*h5 + h0*h2*h3*h4*h5 + h1*h2*h3*h4*h5)) * v_n2
-			+ (h0*h0 * h2*h2 * h3*h3 * h4*h4 * h5*h5) / ((h0 - h1)*(h1 - h2)*(h1 - h3)*(h1 - h4)*(h1 - h5)*(h0*h1*h2*h3*h4 + h0*h1*h2*h3*h5 + h0*h1*h2*h4*h5 + h0*h1*h3*h4*h5 + h0*h2*h3*h4*h5 + h1*h2*h3*h4*h5)) * v_n1
-			- (h1*h1 * h2*h2 * h3*h3 * h4*h4 * h5*h5) / ((h0 - h1)*(h0 - h2)*(h0 - h3)*(h0 - h4)*(h0 - h5)*(h0*h1*h2*h3*h4 + h0*h1*h2*h3*h5 + h0*h1*h2*h4*h5 + h0*h1*h3*h4*h5 + h0*h2*h3*h4*h5 + h1*h2*h3*h4*h5)) * v_n0
-		;
+		return (
+			  (h0*h0 * h1*h1 * h2*h2 * h3*h3 * h4*h4) / ((h0 - h5)*(h1 - h5)*(h2 - h5)*(h3 - h5)*(h4 - h5)) * v5
+			- (h0*h0 * h1*h1 * h2*h2 * h3*h3 * h5*h5) / ((h0 - h4)*(h1 - h4)*(h2 - h4)*(h3 - h4)*(h4 - h5)) * v4
+			+ (h0*h0 * h1*h1 * h2*h2 * h4*h4 * h5*h5) / ((h0 - h3)*(h1 - h3)*(h2 - h3)*(h3 - h4)*(h3 - h5)) * v3
+			- (h0*h0 * h1*h1 * h3*h3 * h4*h4 * h5*h5) / ((h0 - h2)*(h1 - h2)*(h2 - h3)*(h2 - h4)*(h2 - h5)) * v2
+			+ (h0*h0 * h2*h2 * h3*h3 * h4*h4 * h5*h5) / ((h0 - h1)*(h1 - h2)*(h1 - h3)*(h1 - h4)*(h1 - h5)) * v1
+			- (h1*h1 * h2*h2 * h3*h3 * h4*h4 * h5*h5) / ((h0 - h1)*(h0 - h2)*(h0 - h3)*(h0 - h4)*(h0 - h5)) * v0
+		) / (h0*h1*h2*h3*h4 + h0*h1*h2*h3*h5 + h0*h1*h2*h4*h5 + h0*h1*h3*h4*h5 + h0*h2*h3*h4*h5 + h1*h2*h3*h4*h5);
 
 		// Constant timestep case:
 		/*
 		return (
-			  360. * v_n5
-			- 450. * v_n4
-			+ 400. * v_n3
-			- 225. * v_n2
-			+ 72.  * v_n1
-			- 10.  * v_n0
+			  360. * v5
+			- 450. * v4
+			+ 400. * v3
+			- 225. * v2
+			+ 72.  * v1
+			- 10.  * v0
 		) / 147.;
 		*/
 	}
@@ -324,29 +324,31 @@ class CrankNicolson : public Linearizer<1> {
 		return Forward ? t1 - t0 : t0 - t1;
 	}
 
-public:
-
-	template <typename D, typename L>
-	CrankNicolson(D &domain, L &op) noexcept : domain(&domain), op(&op) {
-	}
+protected:
 
 	virtual Matrix A() {
-		const Real t = this->nextTime();
+		const Real t1 = this->nextTime();
 
 		return
 			domain->identity()
-			+ op->discretize(t) * dt() / 2.
+			+ op->discretize(t1) * dt() / 2.
 		;
 	}
 
 	virtual Vector b() {
-		const Real t = std::get<0>( this->iterands()[0] );
-		const Vector &v = std::get<1>( this->iterands()[0] );
+		const Real    t0 = std::get<0>( this->iterands()[0] );
+		const Vector &v0 = std::get<1>( this->iterands()[0] );
 
 		return (
 			domain->identity()
-			- op->discretize(t) * dt() / 2.
-		) * v;
+			- op->discretize(t0) * dt() / 2.
+		) * v0;
+	}
+
+public:
+
+	template <typename D, typename L>
+	CrankNicolson(D &domain, L &op) noexcept : domain(&domain), op(&op) {
 	}
 
 };
@@ -356,12 +358,7 @@ public:
 template <bool Forward = false>
 class LinearBDFOne : public LinearBDFBase<1, Forward> {
 
-public:
-
-	template <typename D, typename L>
-	LinearBDFOne(D &domain, L &op) noexcept
-			: LinearBDFBase<1, Forward>(domain, op) {
-	}
+protected:
 
 	virtual Matrix A() {
 		return this->A1();
@@ -369,6 +366,13 @@ public:
 
 	virtual Vector b() {
 		return this->b1();
+	}
+
+public:
+
+	template <typename D, typename L>
+	LinearBDFOne(D &domain, L &op) noexcept
+			: LinearBDFBase<1, Forward>(domain, op) {
 	}
 
 };
@@ -397,17 +401,12 @@ class LinearBDFTwo : public LinearBDFBase<2, Forward> {
 		return this->b1();
 	}
 
-public:
-
-	template <typename D, typename L>
-	LinearBDFTwo(D &domain, L &op) noexcept
-			: LinearBDFBase<2, Forward>(domain, op) {
-	}
-
 	virtual void clear() {
 		AA = &LinearBDFTwo::_A1;
 		bb = &LinearBDFTwo::_b1;
 	}
+
+protected:
 
 	virtual Matrix A() {
 		return (this->*AA)();
@@ -415,6 +414,13 @@ public:
 
 	virtual Vector b() {
 		return (this->*bb)();
+	}
+
+public:
+
+	template <typename D, typename L>
+	LinearBDFTwo(D &domain, L &op) noexcept
+			: LinearBDFBase<2, Forward>(domain, op) {
 	}
 
 };
@@ -449,17 +455,12 @@ class LinearBDFThree : public LinearBDFBase<3, Forward> {
 		return this->b2();
 	}
 
-public:
-
-	template <typename D, typename L>
-	LinearBDFThree(D &domain, L &op) noexcept
-			: LinearBDFBase<3, Forward>(domain, op) {
-	}
-
 	virtual void clear() {
 		AA = &LinearBDFThree::_A1;
 		bb = &LinearBDFThree::_b1;
 	}
+
+protected:
 
 	virtual Matrix A() {
 		return (this->*AA)();
@@ -467,6 +468,13 @@ public:
 
 	virtual Vector b() {
 		return (this->*bb)();
+	}
+
+public:
+
+	template <typename D, typename L>
+	LinearBDFThree(D &domain, L &op) noexcept
+			: LinearBDFBase<3, Forward>(domain, op) {
 	}
 
 };
@@ -511,17 +519,12 @@ class LinearBDFFour : public LinearBDFBase<4, Forward> {
 		return this->b3();
 	}
 
-public:
-
-	template <typename D, typename L>
-	LinearBDFFour(D &domain, L &op) noexcept
-			: LinearBDFBase<4, Forward>(domain, op) {
-	}
-
 	virtual void clear() {
 		AA = &LinearBDFFour::_A1;
 		bb = &LinearBDFFour::_b1;
 	}
+
+protected:
 
 	virtual Matrix A() {
 		return (this->*AA)();
@@ -529,6 +532,13 @@ public:
 
 	virtual Vector b() {
 		return (this->*bb)();
+	}
+
+public:
+
+	template <typename D, typename L>
+	LinearBDFFour(D &domain, L &op) noexcept
+			: LinearBDFBase<4, Forward>(domain, op) {
 	}
 
 };
@@ -583,17 +593,12 @@ class LinearBDFFive : public LinearBDFBase<5, Forward> {
 		return this->b4();
 	}
 
-public:
-
-	template <typename D, typename L>
-	LinearBDFFive(D &domain, L &op) noexcept
-			: LinearBDFBase<5, Forward>(domain, op) {
-	}
-
 	virtual void clear() {
 		AA = &LinearBDFFive::_A1;
 		bb = &LinearBDFFive::_b1;
 	}
+
+protected:
 
 	virtual Matrix A() {
 		return (this->*AA)();
@@ -601,6 +606,13 @@ public:
 
 	virtual Vector b() {
 		return (this->*bb)();
+	}
+
+public:
+
+	template <typename D, typename L>
+	LinearBDFFive(D &domain, L &op) noexcept
+			: LinearBDFBase<5, Forward>(domain, op) {
 	}
 
 };
@@ -665,17 +677,12 @@ class LinearBDFSix : public LinearBDFBase<6, Forward> {
 		return this->b5();
 	}
 
-public:
-
-	template <typename D, typename L>
-	LinearBDFSix(D &domain, L &op) noexcept
-			: LinearBDFBase<6, Forward>(domain, op) {
-	}
-
 	virtual void clear() {
 		AA = &LinearBDFSix::_A1;
 		bb = &LinearBDFSix::_b1;
 	}
+
+protected:
 
 	virtual Matrix A() {
 		return (this->*AA)();
@@ -683,6 +690,13 @@ public:
 
 	virtual Vector b() {
 		return (this->*bb)();
+	}
+
+public:
+
+	template <typename D, typename L>
+	LinearBDFSix(D &domain, L &op) noexcept
+			: LinearBDFBase<6, Forward>(domain, op) {
 	}
 
 };

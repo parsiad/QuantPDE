@@ -80,10 +80,11 @@ int main(int argc, char **argv) {
 	unsigned refinement = 5;
 	unsigned steps      = 25;
 	bool call           = true;
+	bool variable       = false;
 
 	// Setting options with getopt
 	{ char c;
-	while((c = getopt(argc, argv, "d:hK:pr:R:s:S:T:v:")) != -1) {
+	while((c = getopt(argc, argv, "d:hK:pr:R:s:S:T:v:V")) != -1) {
 		switch(c) {
 			case 'd':
 				dividends = atof(optarg);
@@ -129,7 +130,10 @@ endl <<
 endl <<
 "-v REAL" << endl <<
 endl <<
-"    sets the volatility" << endl << endl;
+"    sets the volatility" << endl <<
+endl <<
+"-V" << endl <<
+"    uses variable-size timestepping" << endl << endl;
 				return 0;
 			case 'K':
 				strike = atof(optarg);
@@ -163,6 +167,9 @@ endl <<
 				break;
 			case 'v':
 				volatility = atof(optarg);
+				break;
+			case 'V':
+				variable = true;
 				break;
 		}
 	} }
@@ -210,7 +217,8 @@ endl <<
 	//auto payoff = QUANT_PDE_MODULES_CALL_PAYOFF_FIXED_STRIKE(strike);
 	//auto payoff = QUANT_PDE_MODULES_PUT_PAYOFF_FIXED_STRIKE(strike);
 
-	for(unsigned l = 0; l < refinement; l++, steps *= 2) {
+	Real target = expiry / steps * 10.;
+	for(unsigned l = 0; l < refinement; l++, steps *= variable ? 4 : 2) {
 
 		///////////////////////////////////////////////////////////////
 		// Build spatial grid
@@ -244,26 +252,41 @@ endl <<
 			[dividends]  (Real, Real) { return dividends;  }
 		);
 
-		ConstantStepper<6> stepper(
-			0., // Initial time
-			expiry,
-			steps
-		);
-		//ToleranceIteration<> tolerance;
-		//stepper.setChildIteration(tolerance);
+		Iteration<2> *stepper;
+		if(!variable) {
+			stepper = new ConstantStepper<2>(
+				0., // Initial time
+				expiry,
+				steps
+			);
+		} else {
+			stepper = new VariableStepper<2>(
+				0.,
+				expiry,
+				expiry / steps,
+				target
+			);
+			target /= 2;
+		}
 
-		LinearBDFSix<> bdf(R, blackScholes);
-		bdf.setIteration(stepper);
+		//ToleranceIteration<> tolerance;
+		//stepper->setChildIteration(tolerance);
+
+		LinearBDFTwo<> bdf(R, blackScholes);
+		bdf.setIteration(*stepper);
 
 		//AmericanPutPenalty<> penalty(R, bdf, strike);
 		//penalty.setIteration(tolerance);
 
 		BiCGSTABSolver solver;
-		Vector v = stepper.iterateUntilDone(
+		Vector v = stepper->iterateUntilDone(
 			R.image(payoff),
 			bdf, //penalty,
 			solver
 		);
+
+		unsigned realizedSteps = stepper->iterations();
+		delete stepper;
 
 		///////////////////////////////////////////////////////////////
 		// Table
@@ -281,10 +304,10 @@ endl <<
 		// Print out row of table
 		cout
 			<< scientific
-			<< setw(td) << R.size() << "\t"
-			<< setw(td) << steps    << "\t"
-			<< setw(td) << value    << "\t"
-			<< setw(td) << change   << "\t"
+			<< setw(td) << R.size()      << "\t"
+			<< setw(td) << realizedSteps << "\t"
+			<< setw(td) << value         << "\t"
+			<< setw(td) << change        << "\t"
 			<< setw(td) << ratio
 			<< endl
 		;

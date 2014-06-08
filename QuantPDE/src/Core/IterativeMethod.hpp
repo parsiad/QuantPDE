@@ -1,6 +1,8 @@
 #ifndef QUANT_PDE_CORE_ITERATIVE_METHOD
 #define QUANT_PDE_CORE_ITERATIVE_METHOD
 
+// TODO: Remove <Lookback> parameter
+
 #include <deque>        // std::deque
 #include <forward_list> // std::list
 #include <functional>   // std::function
@@ -166,24 +168,6 @@ public:
  */
 class LinearizerBase {
 
-public:
-
-	/**
-	 * Constructor.
-	 */
-	LinearizerBase() {
-	}
-
-	/**
-	 * Destructor.
-	 */
-	virtual ~LinearizerBase() {
-	}
-
-	// Disable copy constructor and assignment operator.
-	LinearizerBase(const LinearizerBase &) = delete;
-	LinearizerBase &operator=(const LinearizerBase &) = delete;
-
 	/**
 	 * Method called before iteration begins.
 	 */
@@ -197,6 +181,8 @@ public:
 	virtual void onIterationStart() {
 		// Default: do nothing
 	}
+
+protected:
 
 	/**
 	 * @return True if and only if the left-hand-side matrix (A) changes
@@ -216,6 +202,26 @@ public:
 	 * @return The right-hand-side vector (b).
 	 */
 	virtual Vector b() = 0;
+
+public:
+
+	/**
+	 * Constructor.
+	 */
+	LinearizerBase() {
+	}
+
+	/**
+	 * Destructor.
+	 */
+	virtual ~LinearizerBase() {
+	}
+
+	// Disable copy constructor and assignment operator.
+	LinearizerBase(const LinearizerBase &) = delete;
+	LinearizerBase &operator=(const LinearizerBase &) = delete;
+
+	template <size_t> friend class Iteration;
 
 };
 
@@ -262,14 +268,34 @@ class IterationBase {
 
 	IterationBase *child;
 
+	/**
+	 * Method called before iteration begins.
+	 */
+	virtual void clear() {
+		// Default: do nothing
+	}
+
+	/**
+	 * @return A step taken in time (positive or negative). Zero if none is
+	 *         taken.
+	 */
 	virtual Real step() {
 		return 0.;
 	}
 
+	/**
+	 * @return The initial time associated with this iteration.
+	 */
 	virtual Real initialTime(Real time) const {
 		return time;
 	}
 
+	/**
+	 * @return True if and only if this iteration is done.
+	 */
+	virtual bool done() const = 0;
+
+	// TODO: Document
 	virtual Vector iterateUntilDone(
 		const Vector &initialIterand,
 		LinearizerBase &root,
@@ -286,22 +312,17 @@ public:
 	IterationBase() noexcept : child(nullptr) {
 	}
 
+	virtual ~IterationBase() {
+	}
+
 	// TODO: Document
 	void setChildIteration(IterationBase &childIteration) {
 		child = &childIteration;
 	}
 
-	virtual ~IterationBase() {
-	}
-
 	// Disable copy constructor and assignment operator.
 	IterationBase(const IterationBase &) = delete;
 	IterationBase &operator=(const IterationBase &) = delete;
-
-	/**
-	 * @return True if and only if this iteration has finished.
-	 */
-	virtual bool done() const = 0;
 
 	template <size_t> friend class Iteration;
 
@@ -324,6 +345,8 @@ class Iteration : public IterationBase {
 	IterandHistory<Lookback> history;
 	Real implicitTime;
 
+	size_t its;
+
 	virtual Vector iterateUntilDone(
 		const Vector &initialIterand,
 		LinearizerBase &root,
@@ -331,6 +354,9 @@ class Iteration : public IterationBase {
 		Real time,
 		bool initialized
 	) {
+
+		its = 0;
+		clear();
 
 		for(auto linearizer : linearizers) {
 			linearizer->clear();
@@ -345,14 +371,13 @@ class Iteration : public IterationBase {
 			initialIterand
 		) );
 
-		//size_t iterations = 0;
-
 		// Iterate until done
 		implicitTime = time;
 		do {
 			// Iterating at least once allows us to make assumptions
 			// about how many iterands we have available to us for
-			// processing when implementing the done() method
+			// processing when implementing the done() method (at
+			// least two)
 
 			// Importing that this occurs before onIterationStart()
 			// calls
@@ -397,11 +422,9 @@ class Iteration : public IterationBase {
 			// Must be initialized after the first iteration
 			initialized = true;
 
-			//iterations++;
+			its++;
 
 		} while( !done() );
-
-		//std::cerr << iterations << std::endl;
 
 		return std::get<1>( history[0] );
 
@@ -435,6 +458,13 @@ public:
 			0.,
 			false
 		);
+	}
+
+	/**
+	 * @return Number of iterations performed.
+	 */
+	size_t iterations() const {
+		return its;
 	}
 
 	template <size_t> friend class Linearizer;
@@ -499,22 +529,8 @@ class ConstantStepper : public Iteration<Lookback> {
 	Real startTime, endTime, dt;
 	unsigned n, steps;
 
-public:
-
-	ConstantStepper(
-		Real startTime,
-		Real endTime,
-		unsigned steps
-	) noexcept :
-		startTime(startTime),
-		endTime(endTime),
-		dt( (endTime - startTime) / steps ),
-		n(0),
-		steps(steps)
-	{
-		assert(startTime >= 0.);
-		assert(startTime < endTime);
-		assert(steps > 0);
+	virtual void clear() {
+		n = 0;
 	}
 
 	virtual Real initialTime(Real) const {
@@ -530,6 +546,23 @@ public:
 		return n >= steps;
 	}
 
+public:
+
+	ConstantStepper(
+		Real startTime,
+		Real endTime,
+		unsigned steps
+	) noexcept :
+		startTime(startTime),
+		endTime(endTime),
+		dt( (endTime - startTime) / steps ),
+		steps(steps)
+	{
+		assert(startTime >= 0.);
+		assert(startTime < endTime);
+		assert(steps > 0);
+	}
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -537,40 +570,24 @@ public:
 template <size_t Lookback = 1, bool Forward = false>
 class VariableStepper : public Iteration<Lookback> {
 
-	Real startTime, endTime, dt, dnorm, scale, time;
+	Real startTime, endTime, dt, target, scale, time;
+	Real (VariableStepper<Lookback, Forward>::*stepMethod)();
 
-public:
-
-	VariableStepper(
-		Real startTime,
-		Real endTime,
-		Real dt,
-		Real target,
-		Real scale = 1
-	) noexcept :
-		startTime(startTime),
-		endTime(endTime),
-		dt(dt),
-		dnorm(target),
-		scale(scale),
-		time(endTime)
-	{
+	Real _step0() {
+		stepMethod = &VariableStepper::_step1;
+		return Forward ? dt : -dt; // TODO: Optimize
 	}
 
-	virtual Real initialTime(Real) const {
-		return endTime;
-	}
-
-	virtual Real step() {
+	Real _step1() {
 		const Vector
-			&v_n0 = std::get<1>( this->iterands()[-1] ),
-			&v_n1 = std::get<1>( this->iterands()[ 0] )
+			&v1 = std::get<1>( this->iterands()[ 0] ),
+			&v0 = std::get<1>( this->iterands()[-1] )
 		;
 
-		dt *= dnorm / ( v_n1 - v_n0 ).cwiseAbs().cwiseQuotient(
-			( scale * Vector::Ones( v_n1.size() ) ).cwiseMax(
-				v_n1.cwiseAbs().cwiseMax(
-					v_n0.cwiseAbs()
+		dt *= target / ( v1 - v0 ).cwiseAbs().cwiseQuotient(
+			( scale * Vector::Ones( v1.size() ) ).cwiseMax(
+				v1.cwiseAbs().cwiseMax(
+					v0.cwiseAbs()
 				)
 			)
 		).maxCoeff();
@@ -597,8 +614,38 @@ public:
 		}
 	}
 
+	virtual void clear() {
+		stepMethod = &VariableStepper::_step0;
+		time = Forward ? startTime : endTime; // TODO: Optimize
+	}
+
+	virtual Real initialTime(Real) const {
+		return endTime;
+	}
+
+	virtual Real step() {
+		return (this->*stepMethod)();
+	}
+
 	virtual bool done() const {
 		return time <= startTime;
+	}
+
+public:
+
+	VariableStepper(
+		Real startTime,
+		Real endTime,
+		Real dt,
+		Real target,
+		Real scale = 1
+	) noexcept :
+		startTime(startTime),
+		endTime(endTime),
+		dt(dt),
+		target(target),
+		scale(scale)
+	{
 	}
 
 };
@@ -611,27 +658,27 @@ class ToleranceIteration : public Iteration<Lookback> {
 	Real tolerance;
 	Real scale;
 
+	virtual bool done() const {
+		const Vector
+			&v1 = std::get<1>( this->iterands()[ 0] ),
+			&v0 = std::get<1>( this->iterands()[-1] )
+		;
+
+		// 2014-06-07: Tested this; it works
+		return
+			( v1 - v0 ).cwiseAbs().cwiseQuotient(
+				( scale * Vector::Ones(v1.size()) ).cwiseMax(
+					v1.cwiseAbs()
+				)
+			).maxCoeff() < tolerance;
+	}
+
 public:
 
 	ToleranceIteration(Real tolerance = 1e-6, Real scale = 1) noexcept
 			: tolerance(tolerance), scale(scale) {
 		assert(tolerance > 0);
 		assert(scale > 0);
-	}
-
-	virtual bool done() const {
-		const Vector
-			&v_n0 = std::get<1>( this->iterands()[-1] ),
-			&v_n1 = std::get<1>( this->iterands()[ 0] )
-		;
-
-		// 2014-06-07: Tested this; it works
-		return
-			( v_n1 - v_n0 ).cwiseAbs().cwiseQuotient(
-				( scale * Vector::Ones(v_n1.size()) ).cwiseMax(
-					v_n1.cwiseAbs()
-				)
-			).maxCoeff() < tolerance;
 	}
 
 };
