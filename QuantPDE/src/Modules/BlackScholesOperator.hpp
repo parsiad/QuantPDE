@@ -71,7 +71,7 @@ public:
 
 		// Boundaries
 		// Left:  (1 + r dt) V_i^{n+1} = V_i^n
-		// Right:            V_i^{n+1} = V_i^n (from linearity)
+		// Right:            V_i^{n+1} = V_i^n (linearity assumption)
 
 		M_G(0, 0) = r( time, S[0] );
 

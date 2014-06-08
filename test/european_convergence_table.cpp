@@ -20,6 +20,54 @@ using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+// TODO: Remove
+
+template <size_t Lookback = 1>
+class AmericanPutPenalty : public Linearizer<Lookback> {
+
+	const Domain1 *domain;
+	LinearizerBase *left;
+
+	Real strike, tolerance, large;
+	Matrix P;
+
+public:
+
+	template <typename D>
+	AmericanPutPenalty(D &domain, LinearizerBase &left, Real strike,
+			Real tolerance = 1e-6) noexcept : domain(&domain),
+			left(&left), strike(strike), tolerance(tolerance),
+			P( domain.size(), domain.size() ) {
+		P.reserve(IntegerVector::Constant(domain.size(), 1));
+	}
+
+	virtual void onIterationStart() {
+		const Vector &v = std::get<1>(this->iterands()[0]);
+
+		P.setZero();
+
+		for(Index i = 0; i < domain->size(); i++) {
+			auto x = domain->coordinates(i);
+			if( v(i) < strike - x[0] - tolerance ) {
+				P.insert(i, i) = 1. / tolerance;
+			}
+		}
+	}
+
+	virtual Matrix A() {
+		return left->A() + P;
+	}
+
+	virtual Vector b() {
+		return left->b() + P * domain->image(
+				QUANT_PDE_MODULES_PUT_PAYOFF_FIXED_STRIKE(
+				strike));
+	}
+
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
 int main(int argc, char **argv) {
 
 	// Default options
@@ -189,12 +237,6 @@ endl <<
 		// Solve problem
 		///////////////////////////////////////////////////////////////
 
-		ConstantStepper<1> stepper(
-			0., // Initial time
-			expiry,
-			steps
-		);
-
 		BlackScholesOperator blackScholes(
 			R,
 			[interest]   (Real, Real) { return interest;   },
@@ -202,29 +244,24 @@ endl <<
 			[dividends]  (Real, Real) { return dividends;  }
 		);
 
-		ImplicitMethod<> bdf(R, blackScholes);
+		ConstantStepper<6> stepper(
+			0., // Initial time
+			expiry,
+			steps
+		);
+		//ToleranceIteration<> tolerance;
+		//stepper.setChildIteration(tolerance);
+
+		LinearBDFSix<> bdf(R, blackScholes);
 		bdf.setIteration(stepper);
 
-		/*
-		PenaltyMethod1<> penalty(
-			R,
-			bdf,
-			bdf,
-			[strike] (
-				const Domain1 &domain, Index i,
-				Real,
-				const Vector &v
-			) {
-				auto x = domain.coordinates(i);
-				return v(i) < x[0] - strike;
-			}
-		);
-		*/
+		//AmericanPutPenalty<> penalty(R, bdf, strike);
+		//penalty.setIteration(tolerance);
 
 		BiCGSTABSolver solver;
 		Vector v = stepper.iterateUntilDone(
 			R.image(payoff),
-			bdf,
+			bdf, //penalty,
 			solver
 		);
 

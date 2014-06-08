@@ -26,10 +26,10 @@ Real putPayoff(Real stock, Real strike) {
 }
 
 #define QUANT_PDE_MODULES_CALL_PAYOFF_FIXED_STRIKE(STRIKE) std::bind( \
-		QuantPDE::Modules::Payoffs::call, std::placeholders::_1, STRIKE)
+		QuantPDE::Modules::callPayoff, std::placeholders::_1, STRIKE)
 
 #define QUANT_PDE_MODULES_PUT_PAYOFF_FIXED_STRIKE(STRIKE) std::bind( \
-		QuantPDE::Modules::Payoffs::put, std::placeholders::_1, STRIKE)
+		QuantPDE::Modules::putPayoff, std::placeholders::_1, STRIKE)
 
 } // Modules
 

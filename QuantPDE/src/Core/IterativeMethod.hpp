@@ -144,9 +144,16 @@ public:
 		#endif
 	}
 
-	const T &operator[](size_t index) const {
-		size_t position = (tail - 1 + index) % Lookback;
+	const T &operator[](int index) const {
+		// Lookback is size_t; need to convert to something signed
+		// to make the following comparisons
+		assert(index >  -(int) Lookback);
+		assert(index <=  (int) Lookback);
+
+		size_t position = (tail - 1 + Lookback + index) % Lookback;
+
 		assert(position < size);
+
 		return data[position];
 	}
 
@@ -338,6 +345,8 @@ class Iteration : public IterationBase {
 			initialIterand
 		) );
 
+		//size_t iterations = 0;
+
 		// Iterate until done
 		implicitTime = time;
 		do {
@@ -345,6 +354,8 @@ class Iteration : public IterationBase {
 			// about how many iterands we have available to us for
 			// processing when implementing the done() method
 
+			// Importing that this occurs before onIterationStart()
+			// calls
 			implicitTime += step();
 
 			for(auto linearizer : linearizers) {
@@ -386,7 +397,11 @@ class Iteration : public IterationBase {
 			// Must be initialized after the first iteration
 			initialized = true;
 
+			//iterations++;
+
 		} while( !done() );
+
+		//std::cerr << iterations << std::endl;
 
 		return std::get<1>( history[0] );
 
@@ -593,15 +608,15 @@ public:
 template <size_t Lookback = 1>
 class ToleranceIteration : public Iteration<Lookback> {
 
-	Real toleranceSquared;
+	Real tolerance;
+	Real scale;
 
 public:
 
-	ToleranceIteration(
-		Real tolerance = 1e-6
-	) noexcept :
-		toleranceSquared(tolerance * tolerance)
-	{
+	ToleranceIteration(Real tolerance = 1e-6, Real scale = 1) noexcept
+			: tolerance(tolerance), scale(scale) {
+		assert(tolerance > 0);
+		assert(scale > 0);
 	}
 
 	virtual bool done() const {
@@ -610,15 +625,20 @@ public:
 			&v_n1 = std::get<1>( this->iterands()[ 0] )
 		;
 
-		return ( v_n1 - v_n0 ).squaredNorm() < toleranceSquared;
+		// 2014-06-07: Tested this; it works
+		return
+			( v_n1 - v_n0 ).cwiseAbs().cwiseQuotient(
+				( scale * Vector::Ones(v_n1.size()) ).cwiseMax(
+					v_n1.cwiseAbs()
+				)
+			).maxCoeff() < tolerance;
 	}
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: Change Domain<Dimension> to DomainBase
-
+/*
 template <Index Dimension, size_t Lookback = 1>
 class PenaltyMethod : public Linearizer<Lookback> {
 
@@ -645,15 +665,6 @@ public:
 			large( 1. / tolerance ) {
 	}
 
-	/*
-	[] (const Domain<Dimension> &domain, Index i,
-			const IterandHistory &iterands, Real nextTime) {
-		const Vector &v = std::get<1>( iterands[0] );
-		auto x = domain->coordinates(i);
-		return v(i) < x[0] - strike;
-	}
-	*/
-
 	virtual void onIterationStart() {
 		P = Matrix(domain->size(), domain->size());
 
@@ -678,10 +689,11 @@ public:
 	}
 
 	virtual Vector b() {
-		return left->b() + P * left->b();
+		return left->b() + P * right->b();
 	}
 
 };
+
 
 template <size_t Lookback = 1>
 using PenaltyMethod1 = PenaltyMethod<1, Lookback>;
@@ -691,6 +703,7 @@ using PenaltyMethod2 = PenaltyMethod<2, Lookback>;
 
 template <size_t Lookback = 1>
 using PenaltyMethod3 = PenaltyMethod<3, Lookback>;
+*/
 
 } // QuantPDE
 
