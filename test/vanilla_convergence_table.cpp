@@ -135,12 +135,13 @@ endl <<
 	} }
 
 	// Setting up the table
-	const int td = 10;
+	const int td = 20;
 	cout
-		<< setw(td) << "Nodes"  << "\t"
-		<< setw(td) << "Steps"  << "\t"
-		<< setw(td) << "Value"  << "\t"
-		<< setw(td) << "Change" << "\t"
+		<< setw(td) << "Nodes"                  << "\t"
+		<< setw(td) << "Steps"                  << "\t"
+		<< setw(td) << "Mean Inner Iterations" << "\t"
+		<< setw(td) << "Value"                  << "\t"
+		<< setw(td) << "Change"                 << "\t"
 		<< setw(td) << "Ratio"
 		<< endl
 	;
@@ -193,6 +194,7 @@ endl <<
 		///////////////////////////////////////////////////////////////
 
 		unsigned realizedSteps;
+		Real averageInnerIterations = nan("");
 		Real value;
 		{
 			// Black-Scholes operator (L in V_t = LV)
@@ -263,7 +265,13 @@ endl <<
 			);
 
 			// Number of steps taken (outermost iteration)
-			realizedSteps = stepper->iterations();
+			realizedSteps = stepper->iterations()[0];
+
+			// Count average number of inner iterations
+			if(american) {
+				averageInnerIterations =
+						tolerance->meanIterations();
+			}
 
 			// Solution at S = 100.
 			value = grid.accessor(solutionVector)(stock);
@@ -282,10 +290,11 @@ endl <<
 		// Print out row of table
 		cout
 			<< scientific
-			<< setw(td) << grid.size()   << "\t"
-			<< setw(td) << realizedSteps << "\t"
-			<< setw(td) << value         << "\t"
-			<< setw(td) << change        << "\t"
+			<< setw(td) << grid.size()            << "\t"
+			<< setw(td) << realizedSteps          << "\t"
+			<< setw(td) << averageInnerIterations << "\t"
+			<< setw(td) << value                  << "\t"
+			<< setw(td) << change                 << "\t"
 			<< setw(td) << ratio
 			<< endl
 		;

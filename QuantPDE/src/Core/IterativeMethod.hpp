@@ -8,6 +8,7 @@
 #include <tuple>        // std::tuple
 #include <type_traits>  // std::conditional
 #include <utility>      // std::forward, std::move
+#include <vector>       // std::vector
 
 namespace QuantPDE {
 
@@ -320,7 +321,14 @@ class Iteration {
 	IterandHistory history;
 	Real implicitTime;
 
-	size_t its;
+	std::vector<size_t> its;
+
+	void clearIterations() {
+		its.clear();
+		if(child) {
+			child->clearIterations();
+		}
+	}
 
 	/**
 	 * Method called before iteration begins.
@@ -356,8 +364,8 @@ class Iteration {
 		Real time,
 		bool initialized
 	) {
+		its.push_back(0);
 
-		its = 0;
 		clear();
 
 		for(auto linearizer : linearizers) {
@@ -420,7 +428,8 @@ class Iteration {
 			// Must be initialized after the first iteration
 			initialized = true;
 
-			its++;
+			// Increase iteration count
+			its.back()++;
 
 			for(auto linearizer : linearizers) {
 				linearizer->onIterationEnd();
@@ -428,7 +437,6 @@ class Iteration {
 		} while( !done() );
 
 		return iterands()[0];
-
 	}
 
 protected:
@@ -474,6 +482,8 @@ public:
 		Linearizer &root,
 		LinearSolver &solver
 	) {
+		clearIterations();
+
 		return iterateUntilDone(
 			initialIterand,
 			root,
@@ -484,10 +494,21 @@ public:
 	}
 
 	/**
-	 * @return Number of iterations performed.
+	 * @return Vector with number of iterations.
 	 */
-	size_t iterations() const {
+	const std::vector<size_t> &iterations() const {
 		return its;
+	}
+
+	/**
+	 * @return The average number of iterations.
+	 */
+	Real meanIterations() const {
+		Real mean = its[0];
+		for(size_t i = 1; i < its.size(); i++) {
+			mean = (i * mean + its[i]) / (i + 1);
+		}
+		return mean;
 	}
 
 	friend Linearizer;
