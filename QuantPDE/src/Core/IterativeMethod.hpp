@@ -123,6 +123,8 @@ class IterandHistory final {
 			int position = (history->tail - 1 + history->lookback
 					+ index) % history->lookback;
 
+			//std::cout << position << " " << history->size << " " << history->lookback << std::endl;
+
 			assert(position < history->size);
 
 			return std::get<Index>( history->data[position] );
@@ -237,36 +239,24 @@ class Linearizer {
 		// Default: do nothing
 	}
 
-protected:
-
 	/**
-	 * @return True if and only if the left-hand-side matrix (A) changes
-	 *         from iteration to iteration.
+	 * Method called at the end of an iteration.
 	 */
-	virtual bool doesAChange() const {
-		// Default: assume A changes
-		return true;
+	virtual void onIterationEnd() {
+		// Default: do nothing
 	}
 
-	/**
-	 * @return The left-hand-side matrix (A).
-	 */
-	virtual Matrix A() = 0;
-
-	/**
-	 * @return The right-hand-side vector (b).
-	 */
-	virtual Vector b() = 0;
-
-	/**
-	 * @return The most recent iterands.
-	 */
-	const IterandHistory::Iterands &iterands() const;
+protected:
 
 	/**
 	 * @return The times associated with the most recent iterands.
 	 */
 	const IterandHistory::Times &times() const;
+
+	/**
+	 * @return The most recent iterands.
+	 */
+	const IterandHistory::Iterands &iterands() const;
 
 	/**
 	 * @return The time with which the next solution is associated with.
@@ -290,6 +280,25 @@ public:
 	// Disable copy constructor and assignment operator.
 	Linearizer(const Linearizer &) = delete;
 	Linearizer &operator=(const Linearizer &) = delete;
+
+	/**
+	 * @return True if and only if the left-hand-side matrix (A) changes
+	 *         from iteration to iteration.
+	 */
+	virtual bool doesAChange() const {
+		// Default: assume A changes
+		return true;
+	}
+
+	/**
+	 * @return The left-hand-side matrix (A).
+	 */
+	virtual Matrix A() = 0;
+
+	/**
+	 * @return The right-hand-side vector (b).
+	 */
+	virtual Vector b() = 0;
 
 	// TODO: Document
 	void setIteration(Iteration &iteration);
@@ -413,6 +422,9 @@ class Iteration {
 
 			its++;
 
+			for(auto linearizer : linearizers) {
+				linearizer->onIterationEnd();
+			}
 		} while( !done() );
 
 		return iterands()[0];
@@ -422,18 +434,19 @@ class Iteration {
 protected:
 
 	/**
+	 * @return The times associated with the most recent iterands.
+	 */
+	const IterandHistory::Times &times() const {
+		return history.times();
+	}
+
+	/**
 	 * @return The most recent iterands.
 	 */
 	const IterandHistory::Iterands &iterands() const {
 		return history.iterands();
 	}
 
-	/**
-	 * @return The times associated with the most recent iterands.
-	 */
-	const IterandHistory::Times &times() const {
-		return history.times();
-	}
 public:
 
 	/**
@@ -516,6 +529,11 @@ public:
 	// Disable copy constructor and assignment operator.
 	LinearOperator(const LinearOperator &) = delete;
 	LinearOperator &operator=(const LinearOperator &) & = delete;
+
+	virtual bool isConstantInTime() const {
+		// Default: nonconstant
+		return false;
+	}
 
 	virtual Matrix discretize(Real time) const = 0;
 

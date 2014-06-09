@@ -7,7 +7,6 @@ template <bool Forward, size_t Lookback>
 class LinearBDFBase : public Linearizer {
 
 	const DomainBase *domain;
-	const LinearOperator *op;
 
 	Real t[Lookback + 1];
 	Real h[Lookback];
@@ -17,6 +16,8 @@ class LinearBDFBase : public Linearizer {
 	}
 
 protected:
+
+	const LinearOperator *op;
 
 	inline Matrix A1() {
 		t[1] = this->nextTime();
@@ -303,6 +304,11 @@ public:
 	LinearBDFBase(D &domain, L &op) noexcept : domain(&domain), op(&op) {
 	}
 
+	virtual bool doesAChange() const {
+		// TODO: Implement this correctly
+		return true;
+	}
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -310,7 +316,16 @@ public:
 template <bool Forward>
 class LinearBDFOne : public LinearBDFBase<Forward, 1> {
 
-protected:
+public:
+
+	template <typename D, typename L>
+	LinearBDFOne(D &domain, L &op) noexcept
+			: LinearBDFBase<Forward, 1>(domain, op) {
+	}
+
+	virtual bool doesAChange() const {
+		return this->op->isConstantInTime();
+	}
 
 	virtual Matrix A() {
 		return this->A1();
@@ -318,13 +333,6 @@ protected:
 
 	virtual Vector b() {
 		return this->b1();
-	}
-
-public:
-
-	template <typename D, typename L>
-	LinearBDFOne(D &domain, L &op) noexcept
-			: LinearBDFBase<Forward, 1>(domain, op) {
 	}
 
 };
@@ -341,34 +349,29 @@ typedef ForwardLinearBDFOne ForwardImplicitEuler;
 template <bool Forward>
 class LinearBDFTwo : public LinearBDFBase<Forward, 2> {
 
-	Matrix (LinearBDFTwo<Forward>::*AA)();
-	Vector (LinearBDFTwo<Forward>::*bb)();
+	Matrix (LinearBDFTwo<Forward>::*AA )();
+	Vector (LinearBDFTwo<Forward>::*bb )();
+	void   (LinearBDFTwo<Forward>::*end)();
 
 	////////////////////////////////////////////////////////////////////////
 
-	Matrix _A1() {
-		AA = &LinearBDFTwo::A2;
-		return this->A1();
+	void _end1() {
+		AA  = &LinearBDFTwo::A2;
+		bb  = &LinearBDFTwo::b2;
+		end = &LinearBDFTwo::_end2;
 	}
 
-	Vector _b1() {
-		bb = &LinearBDFTwo::b2;
-		return this->b1();
+	void _end2() {
 	}
 
 	virtual void clear() {
-		AA = &LinearBDFTwo::_A1;
-		bb = &LinearBDFTwo::_b1;
+		AA  = &LinearBDFTwo::A1;
+		bb  = &LinearBDFTwo::b1;
+		end = &LinearBDFTwo::_end1;
 	}
 
-protected:
-
-	virtual Matrix A() {
-		return (this->*AA)();
-	}
-
-	virtual Vector b() {
-		return (this->*bb)();
+	virtual void onIterationEnd() {
+		(this->*end)();
 	}
 
 public:
@@ -376,6 +379,14 @@ public:
 	template <typename D, typename L>
 	LinearBDFTwo(D &domain, L &op) noexcept
 			: LinearBDFBase<Forward, 2>(domain, op) {
+	}
+
+	virtual Matrix A() {
+		return (this->*AA)();
+	}
+
+	virtual Vector b() {
+		return (this->*bb)();
 	}
 
 };
@@ -388,44 +399,35 @@ typedef LinearBDFTwo<true > ForwardLinearBDFTwo;
 template <bool Forward>
 class LinearBDFThree : public LinearBDFBase<Forward, 3> {
 
-	Matrix (LinearBDFThree<Forward>::*AA)();
-	Vector (LinearBDFThree<Forward>::*bb)();
+	Matrix (LinearBDFThree<Forward>::*AA )();
+	Vector (LinearBDFThree<Forward>::*bb )();
+	void   (LinearBDFThree<Forward>::*end)();
 
 	////////////////////////////////////////////////////////////////////////
 
-	Matrix _A1() {
-		AA = &LinearBDFThree::_A2;
-		return this->A1();
+	void _end1() {
+		AA  = &LinearBDFThree::A2;
+		bb  = &LinearBDFThree::b2;
+		end = &LinearBDFThree::_end2;
 	}
 
-	Vector _b1() {
-		bb = &LinearBDFThree::_b2;
-		return this->b1();
+	void _end2() {
+		AA  = &LinearBDFThree::A3;
+		bb  = &LinearBDFThree::b3;
+		end = &LinearBDFThree::_end3;
 	}
 
-	Matrix _A2() {
-		AA = &LinearBDFThree::A3;
-		return this->A2();
-	}
-
-	Vector _b2() {
-		bb = &LinearBDFThree::b3;
-		return this->b2();
+	void _end3() {
 	}
 
 	virtual void clear() {
-		AA = &LinearBDFThree::_A1;
-		bb = &LinearBDFThree::_b1;
+		AA  = &LinearBDFThree::A1;
+		bb  = &LinearBDFThree::b1;
+		end = &LinearBDFThree::_end1;
 	}
 
-protected:
-
-	virtual Matrix A() {
-		return (this->*AA)();
-	}
-
-	virtual Vector b() {
-		return (this->*bb)();
+	virtual void onIterationEnd() {
+		(this->*end)();
 	}
 
 public:
@@ -433,6 +435,14 @@ public:
 	template <typename D, typename L>
 	LinearBDFThree(D &domain, L &op) noexcept
 			: LinearBDFBase<Forward, 3>(domain, op) {
+	}
+
+	virtual Matrix A() {
+		return (this->*AA)();
+	}
+
+	virtual Vector b() {
+		return (this->*bb)();
 	}
 
 };
@@ -445,54 +455,41 @@ typedef LinearBDFThree<true > ForwardLinearBDFThree;
 template <bool Forward>
 class LinearBDFFour : public LinearBDFBase<Forward, 4> {
 
-	Matrix (LinearBDFFour<Forward>::*AA)();
-	Vector (LinearBDFFour<Forward>::*bb)();
+	Matrix (LinearBDFFour<Forward>::*AA )();
+	Vector (LinearBDFFour<Forward>::*bb )();
+	void   (LinearBDFFour<Forward>::*end)();
 
 	////////////////////////////////////////////////////////////////////////
 
-	Matrix _A1() {
-		AA = &LinearBDFFour::_A2;
-		return this->A1();
+	void _end1() {
+		AA  = &LinearBDFFour::A2;
+		bb  = &LinearBDFFour::b2;
+		end = &LinearBDFFour::_end2;
 	}
 
-	Vector _b1() {
-		bb = &LinearBDFFour::_b2;
-		return this->b1();
+	void _end2() {
+		AA  = &LinearBDFFour::A3;
+		bb  = &LinearBDFFour::b3;
+		end = &LinearBDFFour::_end3;
 	}
 
-	Matrix _A2() {
-		AA = &LinearBDFFour::_A3;
-		return this->A2();
+	void _end3() {
+		AA  = &LinearBDFFour::A4;
+		bb  = &LinearBDFFour::b4;
+		end = &LinearBDFFour::_end4;
 	}
 
-	Vector _b2() {
-		bb = &LinearBDFFour::_b3;
-		return this->b2();
-	}
-
-	Matrix _A3() {
-		AA = &LinearBDFFour::A4;
-		return this->A3();
-	}
-
-	Vector _b3() {
-		bb = &LinearBDFFour::b4;
-		return this->b3();
+	void _end4() {
 	}
 
 	virtual void clear() {
-		AA = &LinearBDFFour::_A1;
-		bb = &LinearBDFFour::_b1;
+		AA  = &LinearBDFFour::A1;
+		bb  = &LinearBDFFour::b1;
+		end = &LinearBDFFour::_end1;
 	}
 
-protected:
-
-	virtual Matrix A() {
-		return (this->*AA)();
-	}
-
-	virtual Vector b() {
-		return (this->*bb)();
+	virtual void onIterationEnd() {
+		(this->*end)();
 	}
 
 public:
@@ -500,6 +497,14 @@ public:
 	template <typename D, typename L>
 	LinearBDFFour(D &domain, L &op) noexcept
 			: LinearBDFBase<Forward, 4>(domain, op) {
+	}
+
+	virtual Matrix A() {
+		return (this->*AA)();
+	}
+
+	virtual Vector b() {
+		return (this->*bb)();
 	}
 
 };
@@ -512,64 +517,47 @@ typedef LinearBDFFour<true > ForwardLinearBDFFour;
 template <bool Forward>
 class LinearBDFFive : public LinearBDFBase<Forward, 5> {
 
-	Matrix (LinearBDFFive<Forward>::*AA)();
-	Vector (LinearBDFFive<Forward>::*bb)();
+	Matrix (LinearBDFFive<Forward>::*AA )();
+	Vector (LinearBDFFive<Forward>::*bb )();
+	void   (LinearBDFFive<Forward>::*end)();
 
 	////////////////////////////////////////////////////////////////////////
 
-	Matrix _A1() {
-		AA = &LinearBDFFive::_A2;
-		return this->A1();
+	void _end1() {
+		AA  = &LinearBDFFive::A2;
+		bb  = &LinearBDFFive::b2;
+		end = &LinearBDFFive::_end2;
 	}
 
-	Vector _b1() {
-		bb = &LinearBDFFive::_b2;
-		return this->b1();
+	void _end2() {
+		AA  = &LinearBDFFive::A3;
+		bb  = &LinearBDFFive::b3;
+		end = &LinearBDFFive::_end3;
 	}
 
-	Matrix _A2() {
-		AA = &LinearBDFFive::_A3;
-		return this->A2();
+	void _end3() {
+		AA  = &LinearBDFFive::A4;
+		bb  = &LinearBDFFive::b4;
+		end = &LinearBDFFive::_end4;
 	}
 
-	Vector _b2() {
-		bb = &LinearBDFFive::_b3;
-		return this->b2();
+	void _end4() {
+		AA  = &LinearBDFFive::A5;
+		bb  = &LinearBDFFive::b5;
+		end = &LinearBDFFive::_end5;
 	}
 
-	Matrix _A3() {
-		AA = &LinearBDFFive::_A4;
-		return this->A3();
-	}
-
-	Vector _b3() {
-		bb = &LinearBDFFive::_b4;
-		return this->b3();
-	}
-
-	Matrix _A4() {
-		AA = &LinearBDFFive::A5;
-		return this->A4();
-	}
-
-	Vector _b4() {
-		bb = &LinearBDFFive::b5;
-		return this->b4();
+	void _end5() {
 	}
 
 	virtual void clear() {
-		AA = &LinearBDFFive::_A1;
-		bb = &LinearBDFFive::_b1;
+		AA  = &LinearBDFFive::A1;
+		bb  = &LinearBDFFive::b1;
+		end = &LinearBDFFive::_end1;
 	}
 
-protected:
-
-	virtual Matrix A() {
-		return (this->*AA)();
-	}
-
-	virtual Vector b() {
-		return (this->*bb)();
+	virtual void onIterationEnd() {
+		(this->*end)();
 	}
 
 public:
@@ -577,6 +565,14 @@ public:
 	template <typename D, typename L>
 	LinearBDFFive(D &domain, L &op) noexcept
 			: LinearBDFBase<Forward, 5>(domain, op) {
+	}
+
+	virtual Matrix A() {
+		return (this->*AA)();
+	}
+
+	virtual Vector b() {
+		return (this->*bb)();
 	}
 
 };
@@ -589,74 +585,53 @@ typedef LinearBDFFive<true > ForwardLinearBDFFive;
 template <bool Forward>
 class LinearBDFSix : public LinearBDFBase<Forward, 6> {
 
-	Matrix (LinearBDFSix<Forward>::*AA)();
-	Vector (LinearBDFSix<Forward>::*bb)();
+	Matrix (LinearBDFSix<Forward>::*AA )();
+	Vector (LinearBDFSix<Forward>::*bb )();
+	void   (LinearBDFSix<Forward>::*end)();
 
 	////////////////////////////////////////////////////////////////////////
 
-	Matrix _A1() {
-		AA = &LinearBDFSix::_A2;
-		return this->A1();
+	void _end1() {
+		AA  = &LinearBDFSix::A2;
+		bb  = &LinearBDFSix::b2;
+		end = &LinearBDFSix::_end2;
 	}
 
-	Vector _b1() {
-		bb = &LinearBDFSix::_b2;
-		return this->b1();
+	void _end2() {
+		AA  = &LinearBDFSix::A3;
+		bb  = &LinearBDFSix::b3;
+		end = &LinearBDFSix::_end3;
 	}
 
-	Matrix _A2() {
-		AA = &LinearBDFSix::_A3;
-		return this->A2();
+	void _end3() {
+		AA  = &LinearBDFSix::A4;
+		bb  = &LinearBDFSix::b4;
+		end = &LinearBDFSix::_end4;
 	}
 
-	Vector _b2() {
-		bb = &LinearBDFSix::_b3;
-		return this->b2();
+	void _end4() {
+		AA  = &LinearBDFSix::A5;
+		bb  = &LinearBDFSix::b5;
+		end = &LinearBDFSix::_end5;
 	}
 
-	Matrix _A3() {
-		AA = &LinearBDFSix::_A4;
-		return this->A3();
+	void _end5() {
+		AA  = &LinearBDFSix::A6;
+		bb  = &LinearBDFSix::b6;
+		end = &LinearBDFSix::_end6;
 	}
 
-	Vector _b3() {
-		bb = &LinearBDFSix::_b4;
-		return this->b3();
-	}
-
-	Matrix _A4() {
-		AA = &LinearBDFSix::_A5;
-		return this->A4();
-	}
-
-	Vector _b4() {
-		bb = &LinearBDFSix::_b5;
-		return this->b4();
-	}
-
-	Matrix _A5() {
-		AA = &LinearBDFSix::A6;
-		return this->A5();
-	}
-
-	Vector _b5() {
-		bb = &LinearBDFSix::b6;
-		return this->b5();
+	void _end6() {
 	}
 
 	virtual void clear() {
-		AA = &LinearBDFSix::_A1;
-		bb = &LinearBDFSix::_b1;
+		AA  = &LinearBDFSix::A1;
+		bb  = &LinearBDFSix::b1;
+		end = &LinearBDFSix::_end1;
 	}
 
-protected:
-
-	virtual Matrix A() {
-		return (this->*AA)();
-	}
-
-	virtual Vector b() {
-		return (this->*bb)();
+	virtual void onIterationEnd() {
+		(this->*end)();
 	}
 
 public:
@@ -664,6 +639,14 @@ public:
 	template <typename D, typename L>
 	LinearBDFSix(D &domain, L &op) noexcept
 			: LinearBDFBase<Forward, 6>(domain, op) {
+	}
+
+	virtual Matrix A() {
+		return (this->*AA)();
+	}
+
+	virtual Vector b() {
+		return (this->*bb)();
 	}
 
 };

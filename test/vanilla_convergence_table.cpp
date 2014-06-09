@@ -20,55 +20,6 @@ using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// TODO: Remove
-
-/*
-class AmericanPutPenalty : public Linearizer {
-
-	const Domain1 *domain;
-	LinearizerBase *left;
-
-	Real strike, tolerance, large;
-	Matrix P;
-
-public:
-
-	template <typename D>
-	AmericanPutPenalty(D &domain, LinearizerBase &left, Real strike,
-			Real tolerance = 1e-6) noexcept : domain(&domain),
-			left(&left), strike(strike), tolerance(tolerance),
-			P( domain.size(), domain.size() ) {
-		P.reserve(IntegerVector::Constant(domain.size(), 1));
-	}
-
-	virtual void onIterationStart() {
-		const Vector &v = std::get<1>(this->iterands()[0]);
-
-		P.setZero();
-
-		for(Index i = 0; i < domain->size(); i++) {
-			auto x = domain->coordinates(i);
-			if( v(i) < strike - x[0] - tolerance ) {
-				P.insert(i, i) = 1. / tolerance;
-			}
-		}
-	}
-
-	virtual Matrix A() {
-		return left->A() + P;
-	}
-
-	virtual Vector b() {
-		return left->b() + P * domain->image(
-				QUANT_PDE_MODULES_PUT_PAYOFF_FIXED_STRIKE(
-				strike));
-	}
-
-};
-*/
-
-///////////////////////////////////////////////////////////////////////////////
-
 int main(int argc, char **argv) {
 
 	// Default options
@@ -82,21 +33,27 @@ int main(int argc, char **argv) {
 	unsigned steps      = 25;
 	bool call           = true;
 	bool variable       = false;
+	bool american       = false;
 
 	// Setting options with getopt
 	{ char c;
-	while((c = getopt(argc, argv, "d:hK:pr:R:s:S:T:v:V")) != -1) {
+	while((c = getopt(argc, argv, "Ad:hK:pr:R:s:S:T:v:V")) != -1) {
 		switch(c) {
+			case 'A':
+				american = true;
+				break;
 			case 'd':
 				dividends = atof(optarg);
 				break;
 			case 'h':
 				cerr <<
-"ConvergenceTableEuropean [OPTIONS]" << endl << endl <<
-"Outputs the rate of convergence for computing the price of a European call or" << endl <<
-"put using an upwind, fully implicit discretization of the Black-Scholes partial" << endl <<
-"differential equation." << endl <<
+"vanilla_convergence_table [OPTIONS]" << endl << endl <<
+"Outputs the rate of convergence for computing the price of a call or put using" << endl <<
+"a discretization of the Black-Scholes partial differential equation." << endl <<
 endl <<
+"-A" << endl <<
+endl <<
+"    American option (defeault is European)" << endl <<
 "-d REAL" << endl <<
 endl <<
 "    sets the dividend rate (default is 0.)" << endl <<
@@ -273,19 +230,26 @@ endl <<
 				target /= 2;
 			}
 
-			//ToleranceIteration tolerance;
-			//stepper->setChildIteration(tolerance);
-
 			ReverseLinearBDFTwo bdf(G, blackScholesOperator);
 			bdf.setIteration(*stepper);
 
-			//AmericanPutPenalty<> penalty(R, bdf, strike);
-			//penalty.setIteration(tolerance);
+			Linearizer *root;
+
+			// American-specific components
+			ToleranceIteration tolerance;
+			SimplePenaltyMethod1 penalty(G, bdf, payoff);
+			if(american) {
+				penalty.setIteration(tolerance);
+				stepper->setChildIteration(tolerance);
+				root = &penalty;
+			} else {
+				root = &bdf;
+			}
 
 			BiCGSTABSolver solver;
 			Vector solutionVector = stepper->iterateUntilDone(
 				G.image(payoff),
-				bdf, //penalty,
+				*root,
 				solver
 			);
 

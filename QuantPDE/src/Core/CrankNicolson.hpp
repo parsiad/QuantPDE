@@ -18,7 +18,11 @@ class CrankNicolson : public Linearizer {
 		return Forward ? t1 - t0 : t0 - t1;
 	}
 
-protected:
+public:
+
+	virtual bool doesAChange() const {
+		return op->isConstantInTime();
+	}
 
 	virtual Matrix A() {
 		const Real t1 = this->nextTime();
@@ -38,8 +42,6 @@ protected:
 			- op->discretize(t0) * dt() / 2.
 		) * v0;
 	}
-
-public:
 
 	template <typename D, typename L>
 	CrankNicolson(D &domain, L &op) noexcept : domain(&domain), op(&op) {
