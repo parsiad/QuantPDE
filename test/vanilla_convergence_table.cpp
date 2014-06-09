@@ -53,10 +53,12 @@ int main(int argc, char **argv) {
 endl <<
 "-A" << endl <<
 endl <<
-"    American option (defeault is European)" << endl <<
+"    American option (default is European)" << endl <<
+endl <<
 "-d REAL" << endl <<
 endl <<
 "    sets the dividend rate (default is 0.)" << endl <<
+endl <<
 "-K REAL" << endl <<
 endl <<
 "    sets the strike price (default is 100.)" << endl <<
@@ -147,22 +149,23 @@ endl <<
 
 	// Initial discretization
 	// TODO: Create grid based on initial stock price and strike price
-	Axis S {
-		0., 10., 20., 30., 40., 50., 60., 70.,
-		75., 80.,
-		84., 88., 92.,
-		94., 96., 98., 100., 102., 104., 106., 108., 110.,
-		114., 118.,
-		123.,
-		130., 140., 150.,
-		175.,
-		225.,
-		300.,
-		750.,
-		2000.,
-		10000.
-	};
-	RectilinearGrid1 G(S);
+	RectilinearGrid1 grid(
+		Axis {
+			0., 10., 20., 30., 40., 50., 60., 70.,
+			75., 80.,
+			84., 88., 92.,
+			94., 96., 98., 100., 102., 104., 106., 108., 110.,
+			114., 118.,
+			123.,
+			130., 140., 150.,
+			175.,
+			225.,
+			300.,
+			750.,
+			2000.,
+			10000.
+		}
+	);
 
 	// Payoff function
 	Function1 payoff = bind(
@@ -183,21 +186,7 @@ endl <<
 		///////////////////////////////////////////////////////////////
 
 		// Refine the grid
-		G.refine( RectilinearGrid1::NewTickBetweenEachPair() );
-
-		///////////////////////////////////////////////////////////////
-		// Build problem
-		///////////////////////////////////////////////////////////////
-
-		/*
-		EuropeanOption europeanOption(
-			payoff,
-			[interest]   (Real, Real) { return interest;   },
-			[volatility] (Real, Real) { return volatility; },
-			[dividends]  (Real, Real) { return dividends;  },
-			0., expiry
-		);
-		*/
+		grid.refine( RectilinearGrid1::NewTickBetweenEachPair() );
 
 		///////////////////////////////////////////////////////////////
 		// Solve problem
@@ -206,60 +195,78 @@ endl <<
 		unsigned realizedSteps;
 		Real value;
 		{
-			BlackScholesOperator blackScholesOperator(
-				G,
+			// Black-Scholes operator (L in V_t = LV)
+			BlackScholesOperator bsOperator(
+				grid,
 				[interest]   (Real, Real) {return interest;  },
 				[volatility] (Real, Real) {return volatility;},
 				[dividends]  (Real, Real) {return dividends; }
 			);
 
-			Iteration *stepper;
+			// Timestepping method
+			unique_ptr<Iteration> stepper;
 			if(!variable) {
-				stepper = new ReverseConstantStepper(
-					0., // Initial time
-					expiry,
-					steps
+				stepper = unique_ptr<Iteration>(
+					new ReverseConstantStepper(
+						0., // Initial time
+						expiry,
+						steps
+					)
 				);
 			} else {
-				stepper = new ReverseVariableStepper(
-					0., // Initial time
-					expiry,
-					expiry / steps,
-					target
+				stepper = unique_ptr<Iteration>(
+					new ReverseVariableStepper(
+						0., // Initial time
+						expiry,
+						expiry / steps,
+						target
+					)
 				);
 				target /= 2;
 			}
 
-			ReverseLinearBDFTwo bdf(G, blackScholesOperator);
+			// Time discretization method
+			ReverseLinearBDFTwo bdf(grid, bsOperator);
 			bdf.setIteration(*stepper);
 
+			// American-specific components; penalty method or not?
 			Linearizer *root;
-
-			// American-specific components
-			ToleranceIteration tolerance;
-			SimplePenaltyMethod1 penalty(G, bdf, payoff);
+			unique_ptr<ToleranceIteration> tolerance;
+			unique_ptr<SimplePenaltyMethod1> penalty;
 			if(american) {
-				penalty.setIteration(tolerance);
-				stepper->setInnerIteration(tolerance);
-				root = &penalty;
+				penalty = unique_ptr<SimplePenaltyMethod1>(
+					new SimplePenaltyMethod1(
+						grid,
+						bdf,
+						payoff // Penalty function
+					)
+				);
+
+				tolerance = unique_ptr<ToleranceIteration>(
+						new ToleranceIteration());
+
+				penalty->setIteration(*tolerance);
+				stepper->setInnerIteration(*tolerance);
+				root = penalty.get();
 			} else {
 				root = &bdf;
 			}
 
+			// Linear system solver
 			BiCGSTABSolver solver;
+
+			// Compute solution
 			Vector solutionVector = stepper->iterateUntilDone(
-				G.image(payoff),
+				grid.image(payoff),
 				*root,
 				solver
 			);
 
-			// Number of steps taken
+			// Number of steps taken (outermost iteration)
 			realizedSteps = stepper->iterations();
 
 			// Solution at S = 100.
-			value = G.accessor(solutionVector)(stock);
-
-			delete stepper;
+			value = grid.accessor(solutionVector)(stock);
 		}
 
 		///////////////////////////////////////////////////////////////
@@ -275,7 +282,7 @@ endl <<
 		// Print out row of table
 		cout
 			<< scientific
-			<< setw(td) << G.size()      << "\t"
+			<< setw(td) << grid.size()   << "\t"
 			<< setw(td) << realizedSteps << "\t"
 			<< setw(td) << value         << "\t"
 			<< setw(td) << change        << "\t"
