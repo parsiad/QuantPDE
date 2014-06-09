@@ -75,7 +75,7 @@ public:
 
 /**
  * A pure virtual class representing a (finite) set of points in
- * \f$\mathbb{R}^n\f$ together with an order (by which these points can be
+ * \f$R^n\f$ together with an order (by which these points can be
  * indexed and iterated over).
  * @tparam Dimension \f$n\f$.
  */

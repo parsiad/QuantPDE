@@ -205,7 +205,7 @@ endl <<
 		2000.,
 		10000.
 	};
-	RectilinearGrid1 R(S);
+	RectilinearGrid1 G(S);
 
 	// Payoff function
 	Function1 payoff = bind(
@@ -226,7 +226,7 @@ endl <<
 		///////////////////////////////////////////////////////////////
 
 		// Refine the grid
-		R.refine( RectilinearGrid1::NewTickBetweenEachPair() );
+		G.refine( RectilinearGrid1::NewTickBetweenEachPair() );
 
 		///////////////////////////////////////////////////////////////
 		// Build problem
@@ -249,8 +249,8 @@ endl <<
 		unsigned realizedSteps;
 		Real value;
 		{
-			BlackScholesOperator blackScholes(
-				R,
+			BlackScholesOperator blackScholesOperator(
+				G,
 				[interest]   (Real, Real) {return interest;  },
 				[volatility] (Real, Real) {return volatility;},
 				[dividends]  (Real, Real) {return dividends; }
@@ -276,7 +276,7 @@ endl <<
 			//ToleranceIteration tolerance;
 			//stepper->setChildIteration(tolerance);
 
-			ReverseLinearBDFTwo bdf(R, blackScholes);
+			ReverseLinearBDFTwo bdf(G, blackScholesOperator);
 			bdf.setIteration(*stepper);
 
 			//AmericanPutPenalty<> penalty(R, bdf, strike);
@@ -284,7 +284,7 @@ endl <<
 
 			BiCGSTABSolver solver;
 			Vector solutionVector = stepper->iterateUntilDone(
-				R.image(payoff),
+				G.image(payoff),
 				bdf, //penalty,
 				solver
 			);
@@ -293,7 +293,7 @@ endl <<
 			realizedSteps = stepper->iterations();
 
 			// Solution at S = 100.
-			value = R.accessor(solutionVector)(stock);
+			value = G.accessor(solutionVector)(stock);
 
 			delete stepper;
 		}
@@ -311,7 +311,7 @@ endl <<
 		// Print out row of table
 		cout
 			<< scientific
-			<< setw(td) << R.size()      << "\t"
+			<< setw(td) << G.size()      << "\t"
 			<< setw(td) << realizedSteps << "\t"
 			<< setw(td) << value         << "\t"
 			<< setw(td) << change        << "\t"

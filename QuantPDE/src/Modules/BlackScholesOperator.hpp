@@ -5,6 +5,11 @@ namespace QuantPDE {
 
 namespace Modules {
 
+/**
+ * Represents the operator
+ * \f$LV\equiv - 1/2 v^2 S^2 V_SS - (r - q) S V_S + r V\f$
+ * where \f$r\f$, \f$v\f$, and \f$q\f$ are not necessarily constant.
+ */
 class BlackScholesOperator : public LinearOperator {
 
 	const RectilinearGrid1 *G;

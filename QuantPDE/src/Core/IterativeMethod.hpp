@@ -708,65 +708,6 @@ public:
 
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-/*
-template <Index Dimension>
-class PenaltyMethod : public Linearizer {
-
-	typedef std::function< bool (
-		const Domain<Dimension> &, Index,
-		Real,
-		const Vector &
-	)> F;
-
-	const Domain<Dimension> *domain;
-	Linearizer *left, *right;
-
-	F predicate;
-	Real large;
-	Matrix P;
-
-public:
-
-	template <typename D, typename F1>
-	PenaltyMethod(D &domain, Linearizer &left, Linearizer &right,
-			F1 &&predicate, Real tolerance = 1e-6) noexcept
-			: domain(&domain), left(&left), right(&right),
-			predicate( std::forward<F1>(predicate) ),
-			large( 1. / tolerance ) {
-	}
-
-	virtual void onIterationStart() {
-		P = Matrix(domain->size(), domain->size());
-
-		for(Index i = 0; i < domain->size(); i++) {
-
-			bool penalize = predicate(
-				*domain, i,
-				this->nextTime(),
-				this->iterands()[0]
-			);
-
-			if(penalize) {
-				P.insert(i, i) = large;
-			}
-		}
-
-		P.makeCompressed();
-	}
-
-	virtual Matrix A() {
-		return left->A() + P * right->A();
-	}
-
-	virtual Vector b() {
-		return left->b() + P * right->b();
-	}
-
-};
-*/
-
 } // QuantPDE
 
 #endif
