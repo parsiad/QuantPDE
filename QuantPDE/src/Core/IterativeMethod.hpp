@@ -460,8 +460,8 @@ public:
 	}
 
 	// TODO: Document
-	void setChildIteration(Iteration &childIteration) {
-		child = &childIteration;
+	void setInnerIteration(Iteration &innerIteration) {
+		child = &innerIteration;
 	}
 
 	// Disable copy constructor and assignment operator.

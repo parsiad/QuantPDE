@@ -240,7 +240,7 @@ endl <<
 			SimplePenaltyMethod1 penalty(G, bdf, payoff);
 			if(american) {
 				penalty.setIteration(tolerance);
-				stepper->setChildIteration(tolerance);
+				stepper->setInnerIteration(tolerance);
 				root = &penalty;
 			} else {
 				root = &bdf;
