@@ -197,6 +197,10 @@ endl <<
 		Real averageInnerIterations = nan("");
 		Real value;
 		{
+			// How to discretize time
+			//typedef ReverseImplicitEuler TimeDiscretization;
+			typedef ReverseLinearBDFTwo TimeDiscretization;
+
 			// Black-Scholes operator (L in V_t = LV)
 			BlackScholesOperator bsOperator(
 				grid,
@@ -206,15 +210,15 @@ endl <<
 			);
 
 			// Timestepping method
-			Iteration *stepper;
+			Iteration *timeStepper;
 			if(!variable) {
-				stepper = new ReverseConstantStepper(
+				timeStepper = new ReverseConstantStepper(
 					0., // Initial time
 					expiry,
 					steps
 				);
 			} else {
-				stepper = new ReverseVariableStepper(
+				timeStepper = new ReverseVariableStepper(
 					0., // Initial time
 					expiry,
 					expiry / steps,
@@ -224,56 +228,61 @@ endl <<
 			}
 
 			// Time discretization method
-			ReverseLinearBDFTwo bdf(grid, bsOperator);
-			bdf.setIteration(*stepper);
+			TimeDiscretization timeDiscretization(grid, bsOperator);
+			timeDiscretization.setIteration(*timeStepper);
 
 			// American-specific components; penalty method or not?
 			Linearizer *root;
-			ToleranceIteration *tolerance = nullptr;
-			PenaltyMethodDifference1 *penalty = nullptr;
+			ToleranceIteration *toleranceIteration = nullptr;
+			PenaltyMethodDifference1 *penaltyMethod = nullptr;
 			if(american) {
-				penalty = new PenaltyMethodDifference1(
+				// American case
+				penaltyMethod = new PenaltyMethodDifference1(
 					grid,
-					bdf,
+					timeDiscretization,
 					[&payoff] (Real, Real x) {
 						return payoff(x);
 					}
 				);
 
-				tolerance = new ToleranceIteration();
+				toleranceIteration = new ToleranceIteration();
 
-				penalty->setIteration(*tolerance);
-				stepper->setInnerIteration(*tolerance);
-				root = penalty;
+				penaltyMethod->setIteration(
+						*toleranceIteration);
+				timeStepper->setInnerIteration(
+						*toleranceIteration);
+
+				root = penaltyMethod;
 			} else {
-				root = &bdf;
+				// European case
+				root = &timeDiscretization;
 			}
 
 			// Linear system solver
 			BiCGSTABSolver solver;
 
 			// Compute solution
-			Vector solutionVector = stepper->iterateUntilDone(
+			Vector solutionVector = timeStepper->iterateUntilDone(
 				grid.image(payoff),
 				*root,
 				solver
 			);
 
 			// Number of steps taken (outermost iteration)
-			realizedSteps = stepper->iterations()[0];
+			realizedSteps = timeStepper->iterations()[0];
 
-			// Count average number of inner iterations
+			// Average number of inner iterations
 			if(american) {
-				averageInnerIterations =
-						tolerance->meanIterations();
+				averageInnerIterations = toleranceIteration
+						->meanIterations();
 			}
 
 			// Solution at S = 100.
 			value = grid.accessor(solutionVector)(stock);
 
-			delete penalty;
-			delete tolerance;
-			delete stepper;
+			delete penaltyMethod;
+			delete toleranceIteration;
+			delete timeStepper;
 		}
 
 		///////////////////////////////////////////////////////////////
