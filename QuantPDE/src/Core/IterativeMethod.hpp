@@ -124,8 +124,6 @@ class IterandHistory final {
 			int position = (history->tail - 1 + history->lookback
 					+ index) % history->lookback;
 
-			//std::cout << position << " " << history->size << " " << history->lookback << std::endl;
-
 			assert(position < history->size);
 
 			return std::get<Index>( history->data[position] );
@@ -302,7 +300,7 @@ public:
 	virtual Vector b() = 0;
 
 	// TODO: Document
-	void setIteration(Iteration &iteration);
+	virtual void setIteration(Iteration &iteration);
 
 	friend Iteration;
 

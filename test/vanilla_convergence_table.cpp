@@ -206,23 +206,19 @@ endl <<
 			);
 
 			// Timestepping method
-			unique_ptr<Iteration> stepper;
+			Iteration *stepper;
 			if(!variable) {
-				stepper = unique_ptr<Iteration>(
-					new ReverseConstantStepper(
-						0., // Initial time
-						expiry,
-						steps
-					)
+				stepper = new ReverseConstantStepper(
+					0., // Initial time
+					expiry,
+					steps
 				);
 			} else {
-				stepper = unique_ptr<Iteration>(
-					new ReverseVariableStepper(
-						0., // Initial time
-						expiry,
-						expiry / steps,
-						target
-					)
+				stepper = new ReverseVariableStepper(
+					0., // Initial time
+					expiry,
+					expiry / steps,
+					target
 				);
 				target /= 2;
 			}
@@ -233,23 +229,22 @@ endl <<
 
 			// American-specific components; penalty method or not?
 			Linearizer *root;
-			unique_ptr<ToleranceIteration> tolerance;
-			unique_ptr<SimplePenaltyMethod1> penalty;
+			ToleranceIteration *tolerance = nullptr;
+			PenaltyMethodDifference1 *penalty = nullptr;
 			if(american) {
-				penalty = unique_ptr<SimplePenaltyMethod1>(
-					new SimplePenaltyMethod1(
-						grid,
-						bdf,
-						payoff // Penalty function
-					)
+				penalty = new PenaltyMethodDifference1(
+					grid,
+					bdf,
+					[&payoff] (Real, Real x) {
+						return payoff(x);
+					}
 				);
 
-				tolerance = unique_ptr<ToleranceIteration>(
-						new ToleranceIteration());
+				tolerance = new ToleranceIteration();
 
 				penalty->setIteration(*tolerance);
 				stepper->setInnerIteration(*tolerance);
-				root = penalty.get();
+				root = penalty;
 			} else {
 				root = &bdf;
 			}
@@ -275,6 +270,10 @@ endl <<
 
 			// Solution at S = 100.
 			value = grid.accessor(solutionVector)(stock);
+
+			delete penalty;
+			delete tolerance;
+			delete stepper;
 		}
 
 		///////////////////////////////////////////////////////////////
