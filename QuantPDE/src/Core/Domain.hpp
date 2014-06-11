@@ -780,28 +780,6 @@ class RectilinearGrid : public Domain<Dimension> {
 		}
 	}
 
-	// Used for the coordinates function
-	std::array<Index, Dimension> indices(Index index) const {
-		std::array<Index, Dimension> array;
-
-		Index m = 1;
-
-		// TODO: Explicit loop unroll
-		for(Index i = 0; i < Dimension - 1; i++) {
-			m *= axes[i].size();
-		}
-
-		// TODO: Explicit loop unroll
-		for(Index i = Dimension - 1; i > 0; i--) {
-			array[i] = index / m;
-			index -= array[i] * m;
-			m /= axes[i].size();
-		}
-		array[0] = index;
-
-		return array;
-	}
-
 	////////////////////////////////////////////////////////////////////////
 
 	virtual Real value(const Vector &vector,
@@ -1135,6 +1113,32 @@ public:
 		QUANT_PDE_REFINE_IN_PLACE(RectilinearGrid, refiner);
 	}
 
+	/**
+	 * @param index An index corresponding to a node on the grid.
+	 * @return An array of indices, each index corresponding to a tick on
+	 *         an axis affiliated with the grid.
+	 */
+	std::array<Index, Dimension> indices(Index index) const {
+		std::array<Index, Dimension> array;
+
+		Index m = 1;
+
+		// TODO: Explicit loop unroll
+		for(Index i = 0; i < Dimension - 1; i++) {
+			m *= axes[i].size();
+		}
+
+		// TODO: Explicit loop unroll
+		for(Index i = Dimension - 1; i > 0; i--) {
+			array[i] = index / m;
+			index -= array[i] * m;
+			m /= axes[i].size();
+		}
+		array[0] = index;
+
+		return array;
+	}
+
 	virtual std::array<Real, Dimension> coordinates(Index index) const {
 		std::array<Real, Dimension> array;
 
@@ -1352,6 +1356,82 @@ Real RectilinearGrid<Dimension>::value(const Vector &vector,
 	return packAndCall<Dimension>( PiecewiseLinear<Dimension>(*this,
 			vector), coordinates.data() );
 }
+
+/**
+ * Represents a mapping from a function on a domain (of particular dimension)
+ * to a vector.
+ * @see QuantPDE::Domain
+ */
+template <Index Dimension>
+class Map {
+
+public:
+
+	virtual ~Map() {
+	}
+
+	/**
+	 * Maps a function to a vector.
+	 * @param function The function.
+	 */
+	virtual Vector operator()(const Function<Dimension> &function) const
+			= 0;
+
+	/**
+	 * Maps a function to a vector.
+	 * @param function The function (rvalue reference).
+	 */
+	virtual Vector operator()(Function<Dimension> &&function) const = 0;
+
+};
+
+typedef Map<1> Map1;
+typedef Map<2> Map2;
+typedef Map<3> Map3;
+
+/**
+ * Maps a function to a domain pointwise.
+ */
+template <Index Dimension>
+class PlainMap : public Map<Dimension> {
+
+	const Domain<Dimension> *domain;
+
+public:
+
+	/**
+	 * Constructor.
+	 */
+	template <typename D>
+	PlainMap(D &domain) noexcept : domain(&domain) {
+	}
+
+	/**
+	 * Copy constructor.
+	 */
+	PlainMap(const PlainMap &that) noexcept : domain(that.domain) {
+	}
+
+	/**
+	 * Assignment operator.
+	 */
+	PlainMap &operator=(const PlainMap &that) & noexcept {
+		domain = that.domain;
+	}
+
+	virtual Vector operator()(const Function<Dimension> &function) const {
+		return domain->image(function);
+	}
+
+	virtual Vector operator()(Function<Dimension> &&function) const {
+		return domain->image( std::move(function) );
+	}
+
+};
+
+typedef PlainMap<1> PlainMap1;
+typedef PlainMap<2> PlainMap2;
+typedef PlainMap<3> PlainMap3;
 
 }
 

@@ -1,6 +1,8 @@
 #ifndef QUANT_PDE_CORE_LINEAR_BDF
 #define QUANT_PDE_CORE_LINEAR_BDF
 
+// TODO: Cache if constant
+
 namespace QuantPDE {
 
 template <bool Forward, size_t Lookback>
@@ -304,10 +306,7 @@ public:
 	LinearBDFBase(D &domain, L &op) noexcept : domain(&domain), op(&op) {
 	}
 
-	virtual bool doesAChange() const {
-		// TODO: Implement this correctly
-		return true;
-	}
+	// TODO: Implement isAConstant correctly
 
 };
 
@@ -323,7 +322,7 @@ public:
 			: LinearBDFBase<Forward, 1>(domain, op) {
 	}
 
-	virtual bool doesAChange() const {
+	virtual bool isAConstant() const {
 		return this->op->isConstantInTime();
 	}
 
@@ -355,19 +354,19 @@ class LinearBDFTwo : public LinearBDFBase<Forward, 2> {
 
 	////////////////////////////////////////////////////////////////////////
 
-	void _end1() {
+	void end1() {
 		AA  = &LinearBDFTwo::A2;
 		bb  = &LinearBDFTwo::b2;
-		end = &LinearBDFTwo::_end2;
+		end = &LinearBDFTwo::end2;
 	}
 
-	void _end2() {
+	void end2() {
 	}
 
 	virtual void clear() {
 		AA  = &LinearBDFTwo::A1;
 		bb  = &LinearBDFTwo::b1;
-		end = &LinearBDFTwo::_end1;
+		end = &LinearBDFTwo::end1;
 	}
 
 	virtual void onIterationEnd() {
@@ -405,25 +404,25 @@ class LinearBDFThree : public LinearBDFBase<Forward, 3> {
 
 	////////////////////////////////////////////////////////////////////////
 
-	void _end1() {
+	void end1() {
 		AA  = &LinearBDFThree::A2;
 		bb  = &LinearBDFThree::b2;
-		end = &LinearBDFThree::_end2;
+		end = &LinearBDFThree::end2;
 	}
 
-	void _end2() {
+	void end2() {
 		AA  = &LinearBDFThree::A3;
 		bb  = &LinearBDFThree::b3;
-		end = &LinearBDFThree::_end3;
+		end = &LinearBDFThree::end3;
 	}
 
-	void _end3() {
+	void end3() {
 	}
 
 	virtual void clear() {
 		AA  = &LinearBDFThree::A1;
 		bb  = &LinearBDFThree::b1;
-		end = &LinearBDFThree::_end1;
+		end = &LinearBDFThree::end1;
 	}
 
 	virtual void onIterationEnd() {
@@ -461,31 +460,31 @@ class LinearBDFFour : public LinearBDFBase<Forward, 4> {
 
 	////////////////////////////////////////////////////////////////////////
 
-	void _end1() {
+	void end1() {
 		AA  = &LinearBDFFour::A2;
 		bb  = &LinearBDFFour::b2;
-		end = &LinearBDFFour::_end2;
+		end = &LinearBDFFour::end2;
 	}
 
-	void _end2() {
+	void end2() {
 		AA  = &LinearBDFFour::A3;
 		bb  = &LinearBDFFour::b3;
-		end = &LinearBDFFour::_end3;
+		end = &LinearBDFFour::end3;
 	}
 
-	void _end3() {
+	void end3() {
 		AA  = &LinearBDFFour::A4;
 		bb  = &LinearBDFFour::b4;
-		end = &LinearBDFFour::_end4;
+		end = &LinearBDFFour::end4;
 	}
 
-	void _end4() {
+	void end4() {
 	}
 
 	virtual void clear() {
 		AA  = &LinearBDFFour::A1;
 		bb  = &LinearBDFFour::b1;
-		end = &LinearBDFFour::_end1;
+		end = &LinearBDFFour::end1;
 	}
 
 	virtual void onIterationEnd() {
@@ -523,37 +522,37 @@ class LinearBDFFive : public LinearBDFBase<Forward, 5> {
 
 	////////////////////////////////////////////////////////////////////////
 
-	void _end1() {
+	void end1() {
 		AA  = &LinearBDFFive::A2;
 		bb  = &LinearBDFFive::b2;
-		end = &LinearBDFFive::_end2;
+		end = &LinearBDFFive::end2;
 	}
 
-	void _end2() {
+	void end2() {
 		AA  = &LinearBDFFive::A3;
 		bb  = &LinearBDFFive::b3;
-		end = &LinearBDFFive::_end3;
+		end = &LinearBDFFive::end3;
 	}
 
-	void _end3() {
+	void end3() {
 		AA  = &LinearBDFFive::A4;
 		bb  = &LinearBDFFive::b4;
-		end = &LinearBDFFive::_end4;
+		end = &LinearBDFFive::end4;
 	}
 
-	void _end4() {
+	void end4() {
 		AA  = &LinearBDFFive::A5;
 		bb  = &LinearBDFFive::b5;
-		end = &LinearBDFFive::_end5;
+		end = &LinearBDFFive::end5;
 	}
 
-	void _end5() {
+	void end5() {
 	}
 
 	virtual void clear() {
 		AA  = &LinearBDFFive::A1;
 		bb  = &LinearBDFFive::b1;
-		end = &LinearBDFFive::_end1;
+		end = &LinearBDFFive::end1;
 	}
 
 	virtual void onIterationEnd() {
@@ -591,43 +590,43 @@ class LinearBDFSix : public LinearBDFBase<Forward, 6> {
 
 	////////////////////////////////////////////////////////////////////////
 
-	void _end1() {
+	void end1() {
 		AA  = &LinearBDFSix::A2;
 		bb  = &LinearBDFSix::b2;
-		end = &LinearBDFSix::_end2;
+		end = &LinearBDFSix::end2;
 	}
 
-	void _end2() {
+	void end2() {
 		AA  = &LinearBDFSix::A3;
 		bb  = &LinearBDFSix::b3;
-		end = &LinearBDFSix::_end3;
+		end = &LinearBDFSix::end3;
 	}
 
-	void _end3() {
+	void end3() {
 		AA  = &LinearBDFSix::A4;
 		bb  = &LinearBDFSix::b4;
-		end = &LinearBDFSix::_end4;
+		end = &LinearBDFSix::end4;
 	}
 
-	void _end4() {
+	void end4() {
 		AA  = &LinearBDFSix::A5;
 		bb  = &LinearBDFSix::b5;
-		end = &LinearBDFSix::_end5;
+		end = &LinearBDFSix::end5;
 	}
 
-	void _end5() {
+	void end5() {
 		AA  = &LinearBDFSix::A6;
 		bb  = &LinearBDFSix::b6;
-		end = &LinearBDFSix::_end6;
+		end = &LinearBDFSix::end6;
 	}
 
-	void _end6() {
+	void end6() {
 	}
 
 	virtual void clear() {
 		AA  = &LinearBDFSix::A1;
 		bb  = &LinearBDFSix::b1;
-		end = &LinearBDFSix::_end1;
+		end = &LinearBDFSix::end1;
 	}
 
 	virtual void onIterationEnd() {

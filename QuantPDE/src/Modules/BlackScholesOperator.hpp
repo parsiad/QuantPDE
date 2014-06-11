@@ -85,6 +85,38 @@ public:
 
 };
 
+/**
+ * Represents the operator
+ * \f$LV\equiv - 1/2 v^2 S^2 V_SS - (r - q) S V_S + r V\f$
+ * where \f$r\f$, \f$v\f$, and \f$q\f$ are constant.
+ */
+class BlackScholesOperatorConstantCoefficients : public LinearOperator {
+
+	BlackScholesOperator op;
+
+public:
+
+	template <typename G>
+	BlackScholesOperatorConstantCoefficients(G &grid, Real interest,
+			Real volatility, Real dividends) noexcept :
+			op(
+				grid,
+				[interest]   (Real, Real) { return interest; },
+				[volatility] (Real, Real) { return volatility; },
+				[dividends]  (Real, Real) { return dividends; }
+			) {
+	}
+
+	virtual bool isConstantInTime() const {
+		return true;
+	}
+
+	virtual Matrix discretize(Real time) const {
+		return op.discretize(time);
+	}
+
+};
+
 } // Modules
 
 } // QuantPDE

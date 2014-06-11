@@ -34,6 +34,7 @@ int main(int argc, char **argv) {
 	bool call           = true;
 	bool variable       = false;
 	bool american       = false;
+	bool smooth         = false;
 
 	// Setting options with getopt
 	{ char c;
@@ -200,13 +201,21 @@ endl <<
 			// How to discretize time
 			//typedef ReverseImplicitEuler TimeDiscretization;
 			typedef ReverseLinearBDFTwo TimeDiscretization;
+			//typedef ReverseCrankNicolson TimeDiscretization;
+			//typedef ReverseRannacher TimeDiscretization;
 
 			// Black-Scholes operator (L in V_t = LV)
+			/*
 			BlackScholesOperator bsOperator(
 				grid,
 				[interest]   (Real, Real) {return interest;  },
 				[volatility] (Real, Real) {return volatility;},
 				[dividends]  (Real, Real) {return dividends; }
+			);
+			*/
+			BlackScholesOperatorConstantCoefficients bsOperator(
+				grid,
+				interest, volatility, dividends
 			);
 
 			// Timestepping method
@@ -261,9 +270,20 @@ endl <<
 			// Linear system solver
 			BiCGSTABSolver solver;
 
+			// Transfer the payoff function to the grid
+			Map1 *map = nullptr;
+			if(smooth) {
+				// Smooth the payoff
+				// TODO
+			} else {
+				map = new PlainMap1(grid);
+			}
+			Vector initial = (*map)(payoff);
+			delete map;
+
 			// Compute solution
 			Vector solutionVector = timeStepper->iterateUntilDone(
-				grid.image(payoff),
+				initial,
 				*root,
 				solver
 			);

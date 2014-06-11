@@ -12,6 +12,9 @@
 
 namespace QuantPDE {
 
+const int DEFAULT_STEPPER_LOOKBACK = 6;
+const int DEFAULT_TOLERANCE_ITERATION_LOOKBACK = 6;
+
 /**
  * A pure virtual class representing a solver for equations of type \f$Ax=b\f$.
  */
@@ -281,12 +284,12 @@ public:
 	Linearizer &operator=(const Linearizer &) = delete;
 
 	/**
-	 * @return True if and only if the left-hand-side matrix (A) changes
-	 *         from iteration to iteration.
+	 * @return False if and only if the left-hand-side matrix (A) has
+	 *         changed since the previous iteration.
 	 */
-	virtual bool doesAChange() const {
+	virtual bool isAConstant() const {
 		// Default: assume A changes
-		return true;
+		return false;
 	}
 
 	/**
@@ -410,7 +413,7 @@ class Iteration {
 				// Base case (solve linear system)
 
 				// Only compute A if necessary
-				if(!initialized || root.doesAChange()) {
+				if(!initialized || !root.isAConstant()) {
 					solver.initialize(root.A());
 				}
 
@@ -458,8 +461,7 @@ public:
 	/**
 	 * Constructor.
 	 */
-	Iteration(int lookback = 2) noexcept : child(nullptr),
-			history(lookback) {
+	Iteration(int lookback) noexcept : child(nullptr), history(lookback) {
 	}
 
 	virtual ~Iteration() {
@@ -594,7 +596,7 @@ public:
 		Real startTime,
 		Real endTime,
 		unsigned steps,
-		int lookback = 2
+		int lookback = DEFAULT_STEPPER_LOOKBACK
 	) noexcept :
 		Iteration(lookback),
 		startTime(startTime),
@@ -691,7 +693,7 @@ public:
 		Real dt,
 		Real target,
 		Real scale = 1,
-		int lookback = 2
+		int lookback = DEFAULT_STEPPER_LOOKBACK
 	) noexcept :
 		Iteration(lookback),
 		startTime(startTime),
@@ -705,6 +707,8 @@ public:
 		assert(dt > 0);
 		assert(target > 0);
 		assert(scale > 0);
+		assert(lookback >= 2); // Need at least two iterands to
+		                       // variable step
 	}
 
 };
@@ -737,8 +741,9 @@ class ToleranceIteration : public Iteration {
 public:
 
 	ToleranceIteration(Real tolerance = 1e-6, Real scale = 1,
-			int lookback = 2) noexcept : Iteration(lookback),
-			tolerance(tolerance), scale(scale) {
+			int lookback = DEFAULT_TOLERANCE_ITERATION_LOOKBACK)
+			noexcept : Iteration(lookback), tolerance(tolerance),
+			scale(scale) {
 		assert(tolerance > 0);
 		assert(scale > 0);
 	}
