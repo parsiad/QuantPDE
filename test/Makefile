@@ -5,8 +5,11 @@ BINARIES:=$(addprefix $(BINARIES_DIRECTORY)/, $(SOURCES:.cpp=))
 
 EIGEN:=/usr/local/include/eigen3
 
-#DIRECTIVES:=-O2 -DNDEBUG
+ifdef DEBUG
 DIRECTIVES:=-g
+else
+DIRECTIVES:=-O2 -DNDEBUG
+endif
 
 all: $(BINARIES)
 
