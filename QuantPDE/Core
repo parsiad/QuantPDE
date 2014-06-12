@@ -12,6 +12,7 @@
 #include "src/Core/Function.hpp"
 #include "src/Core/Axis.hpp"
 #include "src/Core/Domain.hpp"
+#include "src/Core/Map.hpp"
 #include "src/Core/Problem.hpp"
 #include "src/Core/Stepper.hpp"
 #include "src/Core/IterativeMethod.hpp"
