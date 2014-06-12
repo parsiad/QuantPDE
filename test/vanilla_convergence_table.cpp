@@ -230,18 +230,18 @@ endl <<
 
 			// Timestepping method
 			Iteration *timeStepper;
-			if(!variable) {
-				timeStepper = new ReverseConstantStepper(
-					0., // Initial time
-					expiry,
-					steps
-				);
-			} else {
+			if(variable) {
 				timeStepper = new ReverseVariableStepper(
 					0., // Initial time
 					expiry,
 					expiry / steps,
 					expiry / steps * 10. / pow2l
+				);
+			} else {
+				timeStepper = new ReverseConstantStepper(
+					0., // Initial time
+					expiry,
+					steps
 				);
 			}
 
@@ -265,7 +265,7 @@ endl <<
 				penaltyMethod = new PenaltyMethodDifference1(
 					grid,
 					*timeDiscretization,
-					[&payoff] (Real, Real x) {
+					[&payoff] (Real t, Real x) {
 						return payoff(x);
 					}
 				);
@@ -287,7 +287,7 @@ endl <<
 			BiCGSTABSolver solver;
 
 			// Transfer the payoff function to the grid
-			Map1 *map = nullptr;
+			Map1 *map;
 			if(smooth) {
 				// Smooth the payoff
 				map = new DiracConvolution1(grid, 10. / pow2l);
@@ -313,7 +313,7 @@ endl <<
 						->meanIterations();
 			}
 
-			// Solution at S = 100.
+			// Solution at S = stock (default is 100.)
 			value = grid.accessor(solutionVector)(stock);
 
 			delete penaltyMethod;

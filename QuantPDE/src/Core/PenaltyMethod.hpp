@@ -85,11 +85,11 @@ class PenaltyMethodDifference : public PenaltyMethod {
 		> Predicate;
 		*/
 
-		typedef Function<Dimension + 1> Difference;
+		typedef Function<Dimension + 1> F;
 
 		template <int ...Indices>
 		static inline Real packAndCall(
-			const Difference &predicate,
+			const F &V_0,
 			//const Domain<Dimension> &domain,
 			//const Vector &iterand,
 			Real time,
@@ -97,24 +97,24 @@ class PenaltyMethodDifference : public PenaltyMethod {
 			Metafunctions::GenerateSequenceHelpers::Sequence<
 					Indices...>
 		) {
-			return predicate( time, array[Indices]... );
+			return V_0( time, array[Indices]... );
 		}
 
 		template <int N>
 		static inline Real packAndCall(
-			const Difference &predicate,
+			const F &V_0,
 			//const Domain<Dimension> &domain,
 			//const Vector &iterand,
 			Real time,
 			const Real *array
 		) {
-			return DifferenceSystem::packAndCall( predicate,
+			return DifferenceSystem::packAndCall( V_0,
 					time, array, GenerateSequence<N>() );
 		}
 
 		const PenaltyMethodDifference *parent;
 		const Domain<Dimension> *domain;
-		Difference function;
+		F function;
 
 	public:
 

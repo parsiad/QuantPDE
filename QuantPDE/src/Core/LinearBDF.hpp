@@ -2,7 +2,6 @@
 #define QUANT_PDE_CORE_LINEAR_BDF
 
 // TODO: Cache A if constant
-// TODO: Implement isATheSame correctly
 
 namespace QuantPDE {
 
