@@ -2,8 +2,10 @@
 
 #define QUANT_PDE_BOUND
 
-#include <eigen3/Eigen/SparseCore>
-#include <eigen3/Eigen/IterativeLinearSolvers>
+#include <Eigen/SparseCore>
+#include <Eigen/IterativeLinearSolvers>
+
+#include <unsupported/Eigen/FFT>
 
 namespace QuantPDE {
 

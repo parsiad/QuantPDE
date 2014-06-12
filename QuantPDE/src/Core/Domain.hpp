@@ -1179,7 +1179,7 @@ class PiecewiseLinear {
 	static_assert(Dimension > 0, "Dimension must be positive");
 
 	const RectilinearGrid<Dimension> *grid;
-	const Vector *vector;
+	Vector vector;
 
 	/*
 	Real interpolate(Index *indices, const Real *weights, Index shift,
@@ -1204,9 +1204,9 @@ public:
 	/**
 	 * Constructor.
 	 */
-	template <typename R, typename V>
-	PiecewiseLinear(R &grid, V &vector) noexcept : grid(&grid),
-			vector(&vector) {
+	template <typename G, typename V>
+	PiecewiseLinear(G &grid, V &vector) noexcept : grid(&grid),
+			vector(vector) {
 	}
 
 	/**
@@ -1217,11 +1217,27 @@ public:
 	}
 
 	/**
-	 * Assignment operator.
+	 * Move constructor.
+	 */
+	PiecewiseLinear(PiecewiseLinear &&that) noexcept : grid(that.grid),
+			vector( std::move(that.vector) ) {
+	}
+
+	/**
+	 * Copy assignment operator.
 	 */
 	PiecewiseLinear &operator=(const PiecewiseLinear &that) & noexcept {
 		grid = that.grid;
 		vector = that.vector;
+		return *this;
+	}
+
+	/**
+	 * Move assignment operator.
+	 */
+	PiecewiseLinear &operator=(PiecewiseLinear &&that) & noexcept {
+		grid = that.grid;
+		vector = std::move(that.vector);
 		return *this;
 	}
 
@@ -1338,7 +1354,7 @@ public:
 					&RectilinearGrid<Dimension>::index;
 			Index k = packAndCall<Dimension>(*grid, tmp, idxs);
 
-			interpolated += factor * (*vector)(k);
+			interpolated += factor * vector(k);
 		};
 
 		return interpolated;
@@ -1356,82 +1372,6 @@ Real RectilinearGrid<Dimension>::value(const Vector &vector,
 	return packAndCall<Dimension>( PiecewiseLinear<Dimension>(*this,
 			vector), coordinates.data() );
 }
-
-/**
- * Represents a mapping from a function on a domain (of particular dimension)
- * to a vector.
- * @see QuantPDE::Domain
- */
-template <Index Dimension>
-class Map {
-
-public:
-
-	virtual ~Map() {
-	}
-
-	/**
-	 * Maps a function to a vector.
-	 * @param function The function.
-	 */
-	virtual Vector operator()(const Function<Dimension> &function) const
-			= 0;
-
-	/**
-	 * Maps a function to a vector.
-	 * @param function The function (rvalue reference).
-	 */
-	virtual Vector operator()(Function<Dimension> &&function) const = 0;
-
-};
-
-typedef Map<1> Map1;
-typedef Map<2> Map2;
-typedef Map<3> Map3;
-
-/**
- * Maps a function to a domain pointwise.
- */
-template <Index Dimension>
-class PlainMap : public Map<Dimension> {
-
-	const Domain<Dimension> *domain;
-
-public:
-
-	/**
-	 * Constructor.
-	 */
-	template <typename D>
-	PlainMap(D &domain) noexcept : domain(&domain) {
-	}
-
-	/**
-	 * Copy constructor.
-	 */
-	PlainMap(const PlainMap &that) noexcept : domain(that.domain) {
-	}
-
-	/**
-	 * Assignment operator.
-	 */
-	PlainMap &operator=(const PlainMap &that) & noexcept {
-		domain = that.domain;
-	}
-
-	virtual Vector operator()(const Function<Dimension> &function) const {
-		return domain->image(function);
-	}
-
-	virtual Vector operator()(Function<Dimension> &&function) const {
-		return domain->image( std::move(function) );
-	}
-
-};
-
-typedef PlainMap<1> PlainMap1;
-typedef PlainMap<2> PlainMap2;
-typedef PlainMap<3> PlainMap3;
 
 }
 

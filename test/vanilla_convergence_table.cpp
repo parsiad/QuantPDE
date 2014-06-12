@@ -38,10 +38,13 @@ int main(int argc, char **argv) {
 
 	// Setting options with getopt
 	{ char c;
-	while((c = getopt(argc, argv, "Ad:hK:pr:R:s:S:T:v:V")) != -1) {
+	while((c = getopt(argc, argv, "Acd:hK:pr:R:s:S:T:v:V")) != -1) {
 		switch(c) {
 			case 'A':
 				american = true;
+				break;
+			case 'c':
+				smooth = true;
 				break;
 			case 'd':
 				dividends = atof(optarg);
@@ -55,6 +58,10 @@ endl <<
 "-A" << endl <<
 endl <<
 "    American option (default is European)" << endl <<
+endl <<
+"-c" << endl <<
+"    Convolve the payoff with a smooth function to smoothen the initial " << endl <<
+"    condition." << endl <<
 endl <<
 "-d REAL" << endl <<
 endl <<
@@ -180,7 +187,7 @@ endl <<
 	//auto payoff = QUANT_PDE_MODULES_CALL_PAYOFF_FIXED_STRIKE(strike);
 	//auto payoff = QUANT_PDE_MODULES_PUT_PAYOFF_FIXED_STRIKE(strike);
 
-	Real target = expiry / steps * 10.;
+	Real pow2l  = 1.; // 2^l
 	for(unsigned l = 0; l < refinement; l++, steps *= variable ? 4 : 2) {
 
 		///////////////////////////////////////////////////////////////
@@ -200,11 +207,13 @@ endl <<
 		{
 			// How to discretize time
 			//typedef ReverseImplicitEuler TimeDiscretization;
-			typedef ReverseLinearBDFTwo TimeDiscretization;
+			//typedef ReverseLinearBDFTwo TimeDiscretization;
 			//typedef ReverseCrankNicolson TimeDiscretization;
-			//typedef ReverseRannacher TimeDiscretization;
+			typedef ReverseRannacher TimeDiscretization;
 
 			// Black-Scholes operator (L in V_t = LV)
+			// Using the constant coefficient version of this
+			// operator is faster!
 			/*
 			BlackScholesOperator bsOperator(
 				grid,
@@ -231,9 +240,8 @@ endl <<
 					0., // Initial time
 					expiry,
 					expiry / steps,
-					target
+					expiry / steps * 10. / pow2l
 				);
-				target /= 2;
 			}
 
 			// Time discretization method
@@ -274,9 +282,9 @@ endl <<
 			Map1 *map = nullptr;
 			if(smooth) {
 				// Smooth the payoff
-				// TODO
+				map = new DiracConvolution1(grid, 10. / pow2l);
 			} else {
-				map = new PlainMap1(grid);
+				map = new PointwiseMap1(grid);
 			}
 			Vector initial = (*map)(payoff);
 			delete map;
@@ -330,6 +338,7 @@ endl <<
 		previousChange = change;
 		previousValue = value;
 
+		pow2l *= 2.;
 	}
 
 	return 0;

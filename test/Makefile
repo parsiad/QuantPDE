@@ -3,8 +3,10 @@ BINARIES_DIRECTORY:=build
 SOURCES:=$(wildcard *.cpp)
 BINARIES:=$(addprefix $(BINARIES_DIRECTORY)/, $(SOURCES:.cpp=))
 
-#DIRECTIVES:=-O2 -DNDEBUG
-DIRECTIVES:=-g
+EIGEN:=/usr/local/include/eigen3
+
+DIRECTIVES:=-O2 -DNDEBUG
+#DIRECTIVES:=-g
 
 all: $(BINARIES)
 
@@ -15,7 +17,7 @@ $(BINARIES_DIRECTORY)/% : %.cpp $(HEADERS)
 			-msse2                           \
 			-std=c++11                       \
 			-I ../                           \
-			$(DIRECTIVES) -o $@ $<
+			-I $(EIGEN) $(DIRECTIVES) -o $@ $<
 
 clean:
 	$(RM) -r $(BINARIES_DIRECTORY)

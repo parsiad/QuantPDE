@@ -52,6 +52,17 @@ public:
 	}
 
 	/**
+	 * Constructor.
+	 * @param ticks Ticks (as an array).
+	 * @param length The number of ticks.
+	 */
+	Axis(const Real *ticks, Index length) : length(length),
+			n(new Real[length]) {
+		assert(length > 0);
+		std::memcpy(n, ticks, sizeof(Real) * length);
+	}
+
+	/**
 	 * Initialize the axis from a vector.
 	 * @param vector The vector.
 	 */
