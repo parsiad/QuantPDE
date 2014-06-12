@@ -209,7 +209,7 @@ endl <<
 			//typedef ReverseImplicitEuler TimeDiscretization;
 			//typedef ReverseLinearBDFTwo TimeDiscretization;
 			//typedef ReverseCrankNicolson TimeDiscretization;
-			typedef ReverseRannacher TimeDiscretization;
+			//typedef ReverseRannacher TimeDiscretization;
 
 			// Black-Scholes operator (L in V_t = LV)
 			// Using the constant coefficient version of this
@@ -245,8 +245,15 @@ endl <<
 			}
 
 			// Time discretization method
-			TimeDiscretization timeDiscretization(grid, bsOperator);
-			timeDiscretization.setIteration(*timeStepper);
+			Linearizer *timeDiscretization;
+			if(smooth) {
+				timeDiscretization = new ReverseRannacher(
+						grid, bsOperator);
+			} else {
+				timeDiscretization = new ReverseLinearBDFTwo(
+						grid, bsOperator);
+			}
+			timeDiscretization->setIteration(*timeStepper);
 
 			// American-specific components; penalty method or not?
 			Linearizer *root;
@@ -256,7 +263,7 @@ endl <<
 				// American case
 				penaltyMethod = new PenaltyMethodDifference1(
 					grid,
-					timeDiscretization,
+					*timeDiscretization,
 					[&payoff] (Real, Real x) {
 						return payoff(x);
 					}
@@ -272,7 +279,7 @@ endl <<
 				root = penaltyMethod;
 			} else {
 				// European case
-				root = &timeDiscretization;
+				root = timeDiscretization;
 			}
 
 			// Linear system solver
@@ -310,6 +317,7 @@ endl <<
 
 			delete penaltyMethod;
 			delete toleranceIteration;
+			delete timeDiscretization;
 			delete timeStepper;
 		}
 
