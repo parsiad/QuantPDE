@@ -10,10 +10,12 @@
 #include <utility>      // std::forward, std::move
 #include <vector>       // std::vector
 
+// TODO: Iteration also determines whether A is constant
+
 namespace QuantPDE {
 
 const int DEFAULT_STEPPER_LOOKBACK = 6;
-const int DEFAULT_TOLERANCE_ITERATION_LOOKBACK = 6;
+const int DEFAULT_TOLERANCE_ITERATION_LOOKBACK = 2;
 
 /**
  * A pure virtual class representing a solver for equations of type \f$Ax=b\f$.
@@ -218,12 +220,53 @@ public:
 
 class Iteration;
 
+class LinearSystem {
+
+public:
+
+	/**
+	 * Constructor.
+	 */
+	LinearSystem() noexcept {
+	}
+
+	/**
+	 * Destructor.
+	 */
+	virtual ~LinearSystem() {
+	}
+
+	// Disable copy constructor and assignment operator.
+	LinearSystem(const LinearSystem &) = delete;
+	LinearSystem &operator=(const LinearSystem &) = delete;
+
+	/**
+	 * @return False if and only if the left-hand-side matrix (A) has
+	 *         changed since the previous call to A.
+	 * @see QuantPDE::LinearSystem::A
+	 */
+	virtual bool isATheSame() const {
+		// Default: assume A changes
+		return false;
+	}
+
+	/**
+	 * @return The left-hand-side matrix (A).
+	 */
+	virtual Matrix A(Real time) = 0;
+
+	/**
+	 * @return The right-hand-side vector (b).
+	 */
+	virtual Vector b(Real time) = 0;
+
+};
+
 /**
  * Used to generate the left and right-hand sides of the linear system at each
  * iteration.
- * @see QuantPDE::Linearizer
  */
-class Linearizer {
+class LinearSystemIteration : public LinearSystem {
 
 	Iteration *iteration;
 
@@ -265,31 +308,23 @@ protected:
 	 */
 	Real nextTime() const;
 
+	/**
+	 * @return False if and only if the timestep size was different on the
+	 *         previous iteration.
+	 */
+	bool isTimestepTheSame() const {
+		Real t2 = nextTime();
+		Real t1 = times()[0];
+		Real t0 = times()[-1];
+		return (t2 - t1) == (t1 - t0);
+	}
+
 public:
 
 	/**
 	 * Constructor.
 	 */
-	Linearizer() : iteration(nullptr) {
-	}
-
-	/**
-	 * Destructor.
-	 */
-	virtual ~Linearizer() {
-	}
-
-	// Disable copy constructor and assignment operator.
-	Linearizer(const Linearizer &) = delete;
-	Linearizer &operator=(const Linearizer &) = delete;
-
-	/**
-	 * @return False if and only if the left-hand-side matrix (A) has
-	 *         changed since the previous iteration.
-	 */
-	virtual bool isAConstant() const {
-		// Default: assume A changes
-		return false;
+	LinearSystemIteration() noexcept : LinearSystem(), iteration(nullptr) {
 	}
 
 	/**
@@ -302,8 +337,16 @@ public:
 	 */
 	virtual Vector b() = 0;
 
+	virtual Matrix A(Real) {
+		return A();
+	}
+
+	virtual Vector b(Real) {
+		return b();
+	}
+
 	// TODO: Document
-	virtual void setIteration(Iteration &iteration);
+	void setIteration(Iteration &iteration);
 
 	friend Iteration;
 
@@ -317,7 +360,7 @@ class Iteration {
 	Iteration *child;
 
 	// Nonownership
-	std::forward_list<Linearizer *> linearizers;
+	std::forward_list<LinearSystemIteration *> linearizers;
 
 	IterandHistory history;
 	Real implicitTime;
@@ -342,7 +385,7 @@ class Iteration {
 	 * @return A step taken in time (positive or negative). Zero if none is
 	 *         taken.
 	 */
-	virtual Real step() {
+	virtual Real timestep() {
 		return 0.;
 	}
 
@@ -360,7 +403,7 @@ class Iteration {
 
 	virtual Vector iterateUntilDone(
 		const Vector &initialIterand,
-		Linearizer &root,
+		LinearSystemIteration &root,
 		LinearSolver &solver,
 		Real time,
 		bool initialized
@@ -381,22 +424,39 @@ class Iteration {
 
 		// Iterate until done
 		implicitTime = time;
-		do {
-			// Iterating at least once allows us to make assumptions
-			// about how many iterands we have available to us for
-			// processing when implementing the done() method (at
-			// least two)
 
-			// Importing that this occurs before onIterationStart()
-			// calls
-			implicitTime += step();
+		// Use macros to prevent branching inside iteration loop
 
-			for(auto linearizer : linearizers) {
-				linearizer->onIterationStart();
-			}
+		// Important that time is advanced before onIterationStart()
+		// calls
+		#define QUANT_PDE_TMP_HEAD                                     \
+				do {                                           \
+					implicitTime += timestep();            \
+					for(auto linearizer : linearizers) {   \
+						linearizer->onIterationStart();\
+					}                                      \
+				} while(0)
 
-			if(child) {
-				// Inductive case (perform inner iteration)
+		// Must be initialized after the first iteration
+		#define QUANT_PDE_TMP_TAIL                                     \
+				do {                                           \
+					initialized = true;                    \
+					its.back()++;                          \
+					for(auto linearizer : linearizers) {   \
+						linearizer->onIterationEnd();  \
+					}                                      \
+				} while(0)
+
+		// Iterating at least once allows us to make assumptions
+		// about how many iterands we have available to us for
+		// processing when implementing the done() method
+
+		if(child) {
+
+			// Inductive case (perform inner iteration)
+
+			do {
+				QUANT_PDE_TMP_HEAD;
 
 				// Add a new iterand
 				history.push(
@@ -409,11 +469,19 @@ class Iteration {
 						initialized
 					)
 				);
-			} else {
-				// Base case (solve linear system)
+
+				QUANT_PDE_TMP_TAIL;
+			} while( !done() );
+
+		} else {
+
+			// Base case (solve linear system)
+
+			do {
+				QUANT_PDE_TMP_HEAD;
 
 				// Only compute A if necessary
-				if(!initialized || !root.isAConstant()) {
+				if(!initialized || !root.isATheSame()) {
 					solver.initialize(root.A());
 				}
 
@@ -424,18 +492,14 @@ class Iteration {
 						iterands()[0]
 					)
 				);
-			}
 
-			// Must be initialized after the first iteration
-			initialized = true;
+				QUANT_PDE_TMP_TAIL;
+			} while( !done() );
 
-			// Increase iteration count
-			its.back()++;
+		}
 
-			for(auto linearizer : linearizers) {
-				linearizer->onIterationEnd();
-			}
-		} while( !done() );
+		#undef QUANT_PDE_TMP_HEAD
+		#undef QUANT_PDE_TMP_TAIL
 
 		return iterands()[0];
 	}
@@ -462,6 +526,8 @@ public:
 	 * Constructor.
 	 */
 	Iteration(int lookback) noexcept : child(nullptr), history(lookback) {
+		assert(lookback >= 2); // Guarantee at least two iterands are
+		                       // saved
 	}
 
 	virtual ~Iteration() {
@@ -479,7 +545,7 @@ public:
 	// TODO: Document
 	Vector iterateUntilDone(
 		const Vector &initialIterand,
-		Linearizer &root,
+		LinearSystemIteration &root,
 		LinearSolver &solver
 	) {
 		clearIterations();
@@ -511,10 +577,10 @@ public:
 		return mean;
 	}
 
-	friend Linearizer;
+	friend LinearSystemIteration;
 };
 
-void Linearizer::setIteration(Iteration &iteration) {
+void LinearSystemIteration::setIteration(Iteration &iteration) {
 	if(this->iteration) {
 		this->iteration->linearizers.remove(this);
 	}
@@ -523,47 +589,17 @@ void Linearizer::setIteration(Iteration &iteration) {
 	iteration.linearizers.push_front(this);
 }
 
-const IterandHistory::Iterands &Linearizer::iterands() const {
+const IterandHistory::Iterands &LinearSystemIteration::iterands() const {
 	return iteration->history.iterands();
 }
 
-const IterandHistory::Times &Linearizer::times() const {
+const IterandHistory::Times &LinearSystemIteration::times() const {
 	return iteration->history.times();
 }
 
-Real Linearizer::nextTime() const {
+Real LinearSystemIteration::nextTime() const {
 	return iteration->implicitTime;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-class LinearOperator {
-
-public:
-
-	LinearOperator() noexcept {
-	}
-
-	virtual ~LinearOperator() {
-	}
-
-	// Disable copy constructor and assignment operator.
-	LinearOperator(const LinearOperator &) = delete;
-	LinearOperator &operator=(const LinearOperator &) & = delete;
-
-	virtual bool isConstantInTime() const {
-		// Default: nonconstant
-		return false;
-	}
-
-	virtual Matrix discretize(Real time) const = 0;
-
-};
-
-template <size_t Controls>
-class ControlledLinearOperator : public LinearOperator {
-	// TODO
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -581,7 +617,7 @@ class ConstantStepper : public Iteration {
 		return Forward ? startTime : endTime; // TODO: Optimize
 	}
 
-	virtual Real step() {
+	virtual Real timestep() {
 		n++;
 		return Forward ? dt : -dt; // TODO: Optimize
 	}
@@ -620,10 +656,10 @@ template <bool Forward>
 class VariableStepper : public Iteration {
 
 	Real startTime, endTime, dt, target, scale, time;
-	Real (VariableStepper<Forward>::*stepMethod)();
+	Real (VariableStepper<Forward>::*_step)();
 
 	Real _step0() {
-		stepMethod = &VariableStepper::_step1;
+		_step = &VariableStepper::_step1;
 		return Forward ? dt : -dt; // TODO: Optimize
 	}
 
@@ -665,7 +701,7 @@ class VariableStepper : public Iteration {
 	}
 
 	virtual void clear() {
-		stepMethod = &VariableStepper::_step0;
+		_step = &VariableStepper::_step0;
 		time = Forward ? startTime : endTime; // TODO: Optimize
 	}
 
@@ -673,8 +709,8 @@ class VariableStepper : public Iteration {
 		return endTime;
 	}
 
-	virtual Real step() {
-		return (this->*stepMethod)();
+	virtual Real timestep() {
+		return (this->*_step)();
 	}
 
 	virtual bool done() const {

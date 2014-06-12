@@ -7,10 +7,10 @@ namespace QuantPDE {
  * Used to solve a problem of the form
  * \f$\min( LV, L^\prime V \right)=0\f$.
  */
-class PenaltyMethod : public Linearizer {
+class PenaltyMethod : public LinearSystemIteration {
 
 	DomainBase *domain;
-	Linearizer *left, *right;
+	LinearSystem *left, *right;
 	Real large;
 	Matrix P;
 
@@ -19,8 +19,8 @@ class PenaltyMethod : public Linearizer {
 
 	virtual void onIterationStart() {
 		// Only need to do this once
-		rA = right->A();
-		rb = right->b();
+		rA = right->A( this->nextTime() );
+		rb = right->b( this->nextTime() );
 
 		// Evaluate the predicate using the previous iterand
 		Vector predicate = rA * this->iterands()[0] - rb;
@@ -39,7 +39,7 @@ public:
 	template <typename D>
 	PenaltyMethod(
 		D &domain,
-		Linearizer &constraint, Linearizer &penalizedConstraint,
+		LinearSystem &constraint, LinearSystem &penalizedConstraint,
 		Real tolerance = 1e-6
 	) noexcept :
 		domain(&domain),
@@ -50,18 +50,12 @@ public:
 		assert(tolerance > 0);
 	}
 
-	virtual bool doesAChange() const {
-		// Presumably, yes, since the penalty matrix will most likely
-		// change (otherwise, why are we using a penalty method?)
-		return true;
-	}
-
 	virtual Matrix A() {
-		return left->A() + P * rA;
+		return left->A( nextTime() ) + P * rA;
 	}
 
 	virtual Vector b() {
-		return left->b() + P * rb;
+		return left->b( nextTime() ) + P * rb;
 	}
 
 };
@@ -75,7 +69,7 @@ public:
 template <Index Dimension>
 class PenaltyMethodDifference : public PenaltyMethod {
 
-	class DifferenceLinearizer : public Linearizer {
+	class DifferenceSystem : public LinearSystem {
 
 		/*
 		template <typename R, typename ...Ts>
@@ -114,34 +108,33 @@ class PenaltyMethodDifference : public PenaltyMethod {
 			Real time,
 			const Real *array
 		) {
-			return DifferenceLinearizer::packAndCall( predicate,
+			return DifferenceSystem::packAndCall( predicate,
 					time, array, GenerateSequence<N>() );
 		}
 
+		const PenaltyMethodDifference *parent;
 		const Domain<Dimension> *domain;
 		Difference function;
 
 	public:
 
-		template <typename D, typename F>
-		DifferenceLinearizer(D &domain, F &&function) noexcept
-				: domain(&domain),
+		template <typename P, typename D, typename F>
+		DifferenceSystem(P &parent, D &domain, F &&function) noexcept
+				: parent(&parent), domain(&domain),
 				function( std::forward<F>(function) ) {
 		}
 
-		virtual Matrix A() {
+		virtual Matrix A(Real) {
 			return domain->identity();
 		}
 
-		virtual Vector b() {
+		virtual Vector b(Real) {
 			Vector v = domain->vector();
 			for(auto node : domain->accessor(v)) {
-				*node = DifferenceLinearizer::packAndCall<
+				*node = DifferenceSystem::packAndCall<
 						Dimension>(
 					function,
-					//*domain,
-					//this->iterands()[0],
-					this->nextTime(),
+					parent->nextTime(),
 					(&node).data()
 				);
 			}
@@ -150,23 +143,18 @@ class PenaltyMethodDifference : public PenaltyMethod {
 
 	};
 
-	DifferenceLinearizer linearizer;
+	DifferenceSystem penalty;
 
 public:
 
 	template <typename D, typename F>
 	PenaltyMethodDifference(
 		D &domain,
-		Linearizer &constraint, F &&function,
+		LinearSystem &constraint, F &&function,
 		Real tolerance = 1e-6
 	) noexcept :
-		PenaltyMethod( domain, constraint, linearizer, tolerance ),
-		linearizer( domain, std::forward<F>(function) ) {
-	}
-
-	virtual void setIteration(Iteration &iteration) {
-		PenaltyMethod::setIteration(iteration);
-		linearizer.setIteration(iteration);
+		PenaltyMethod( domain, constraint, penalty, tolerance ),
+		penalty( *this, domain, std::forward<F>(function) ) {
 	}
 
 };

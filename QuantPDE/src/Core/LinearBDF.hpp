@@ -1,17 +1,19 @@
 #ifndef QUANT_PDE_CORE_LINEAR_BDF
 #define QUANT_PDE_CORE_LINEAR_BDF
 
-// TODO: Cache if constant
+// TODO: Cache A if constant
+// TODO: Implement isATheSame correctly
 
 namespace QuantPDE {
 
 template <bool Forward, size_t Lookback>
-class LinearBDFBase : public Linearizer {
+class LinearBDFBase : public LinearSystemIteration {
 
 	const DomainBase *domain;
 
 	Real t[Lookback + 1];
 	Real h[Lookback];
+	Real hh;
 
 	inline Real difference(Real t1, Real t0) {
 		return Forward ? t1 - t0 : t0 - t1;
@@ -19,9 +21,17 @@ class LinearBDFBase : public Linearizer {
 
 protected:
 
-	const LinearOperator *op;
+	LinearSystem *op;
 
-	inline Matrix A1() {
+	inline bool _isATheSame1() const {
+		return false;
+	}
+
+	inline bool _isATheSame2() const {
+		return this->isTimestepTheSame() && op->isATheSame();
+	}
+
+	inline Matrix _A1() {
 		t[1] = this->nextTime();
 		t[0] = this->times()[0];
 
@@ -29,15 +39,15 @@ protected:
 
 		return
 			domain->identity()
-			+ op->discretize(t[1]) * h[0];
+			- op->A(t[1]) * h[0];
 	}
 
-	inline Vector b1() {
+	inline Vector _b1() {
 		const Vector &v0 = this->iterands()[0];
-		return v0;
+		return v0 + h[0] * op->b(t[1]);
 	}
 
-	inline Matrix A2() {
+	inline Matrix _A2() {
 		t[2] = this->nextTime();
 		t[1] = this->times()[ 0];
 		t[0] = this->times()[-1];
@@ -45,30 +55,35 @@ protected:
 		h[1] = difference(t[2], t[1]);
 		h[0] = difference(t[2], t[0]);
 
+		hh = (h[0] * h[1]) / (h[0] + h[1]);
+
 		return
 			domain->identity()
-			+ (h[0] * h[1]) / (h[0] + h[1]) * op->discretize(t[2])
+			- hh * op->A(t[2])
 		;
 
 		// Constant timestep case:
 		/*
 		return
 			domain->identity()
-			+ 2. / 3. * op->discretize(t[2]) * dt()
+			- 2. / 3. * op->A(t[2]) * dt()
 		;
 		*/
 	}
 
-	inline Vector b2() {
+	inline Vector _b2() {
 		const Vector
 			&v1 = this->iterands()[ 0],
 			&v0 = this->iterands()[-1]
 		;
 
-		return (
-			  h[0]*h[0] * v1
-			- h[1]*h[1] * v0
-		) / ( (h[0] + h[1]) * (h[0] - h[1]) );
+		return
+			(
+				  h[0]*h[0] * v1
+				- h[1]*h[1] * v0
+			) / ( (h[0] + h[1]) * (h[0] - h[1]) )
+			+ hh * op->b(t[2])
+		;
 
 		// Constant timestep case:
 		/*
@@ -79,7 +94,7 @@ protected:
 		*/
 	}
 
-	inline Matrix A3() {
+	inline Matrix _A3() {
 		t[3] = this->nextTime();
 		t[2] = this->times()[ 0];
 		t[1] = this->times()[-1];
@@ -89,33 +104,37 @@ protected:
 		h[1] = difference(t[3], t[1]);
 		h[0] = difference(t[3], t[0]);
 
+		hh = ( h[0] * h[1] * h[2] ) / ( h[0] * h[1] + h[0] * h[2] + h[1] * h[2] );
+
 		return
 			domain->identity()
-			+ ( h[0] * h[1] * h[2] ) / ( h[0] * h[1] + h[0] * h[2] + h[1] * h[2] )
-					* op->discretize(t[3])
+			- hh * op->A(t[3])
 		;
 
 		// Constant timestep case:
 		/*
 		return
 			domain->identity()
-			+ 6. / 11. * op->discretize(t[3]) * dt()
+			- 6. / 11. * op->A(t[3]) * dt()
 		;
 		*/
 	}
 
-	inline Vector b3() {
+	inline Vector _b3() {
 		const Vector
 			&v2 = this->iterands()[ 0],
 			&v1 = this->iterands()[-1],
 			&v0 = this->iterands()[-2]
 		;
 
-		return (
-			  (h[0]*h[0] * h[1]*h[1]) / ((h[0] - h[2]) * (h[1] - h[2])) * v2
-			- (h[0]*h[0] * h[2]*h[2]) / ((h[0] - h[1]) * (h[1] - h[2])) * v1
-			+ (h[1]*h[1] * h[2]*h[2]) / ((h[0] - h[1]) * (h[0] - h[2])) * v0
-		) / (h[0] * h[1] + h[0] * h[2] + h[1] * h[2]);
+		return
+			(
+				  (h[0]*h[0] * h[1]*h[1]) / ((h[0] - h[2]) * (h[1] - h[2])) * v2
+				- (h[0]*h[0] * h[2]*h[2]) / ((h[0] - h[1]) * (h[1] - h[2])) * v1
+				+ (h[1]*h[1] * h[2]*h[2]) / ((h[0] - h[1]) * (h[0] - h[2])) * v0
+			) / (h[0] * h[1] + h[0] * h[2] + h[1] * h[2])
+			+ hh * op->b(t[3])
+		;
 
 		// Constant timestep case:
 		/*
@@ -127,7 +146,7 @@ protected:
 		*/
 	}
 
-	inline Matrix A4() {
+	inline Matrix _A4() {
 
 		t[4] = this->nextTime();
 		t[3] = this->times()[ 0];
@@ -140,20 +159,23 @@ protected:
 		h[1] = difference(t[4], t[1]);
 		h[0] = difference(t[4], t[0]);
 
-		return domain->identity()
-			+ (h[0]*h[1]*h[2]*h[3]) / (h[0]*h[1]*h[2] + h[0]*h[1]*h[3] + h[0]*h[2]*h[3] + h[1]*h[2]*h[3])
-					* op->discretize(t[4]);
+		hh = (h[0]*h[1]*h[2]*h[3]) / (h[0]*h[1]*h[2] + h[0]*h[1]*h[3] + h[0]*h[2]*h[3] + h[1]*h[2]*h[3]);
+
+		return
+			domain->identity()
+			- hh * op->A(t[4])
+		;
 
 
 		// Constant timestep case:
 		/*
 		return
 			domain->identity()
-			+ 12. / 25. * op->discretize(t[4]) * dt();
+			- 12. / 25. * op->A(t[4]) * dt();
 		*/
 	}
 
-	inline Vector b4() {
+	inline Vector _b4() {
 		const Vector
 			&v3 = this->iterands()[ 0],
 			&v2 = this->iterands()[-1],
@@ -161,12 +183,15 @@ protected:
 			&v0 = this->iterands()[-3]
 		;
 
-		return (
-			  (h[0]*h[0] * h[1]*h[1] * h[2]*h[2]) / ((h[0] - h[3])*(h[1] - h[3])*(h[2] - h[3])) * v3
-			- (h[0]*h[0] * h[1]*h[1] * h[3]*h[3]) / ((h[0] - h[2])*(h[1] - h[2])*(h[2] - h[3])) * v2
-			+ (h[0]*h[0] * h[2]*h[2] * h[3]*h[3]) / ((h[0] - h[1])*(h[1] - h[2])*(h[1] - h[3])) * v1
-			- (h[1]*h[1] * h[2]*h[2] * h[3]*h[3]) / ((h[0] - h[1])*(h[0] - h[2])*(h[0] - h[3])) * v0
-		) / (h[0]*h[1]*h[2] + h[0]*h[1]*h[3] + h[0]*h[2]*h[3] + h[1]*h[2]*h[3]);
+		return
+			(
+				  (h[0]*h[0] * h[1]*h[1] * h[2]*h[2]) / ((h[0] - h[3])*(h[1] - h[3])*(h[2] - h[3])) * v3
+				- (h[0]*h[0] * h[1]*h[1] * h[3]*h[3]) / ((h[0] - h[2])*(h[1] - h[2])*(h[2] - h[3])) * v2
+				+ (h[0]*h[0] * h[2]*h[2] * h[3]*h[3]) / ((h[0] - h[1])*(h[1] - h[2])*(h[1] - h[3])) * v1
+				- (h[1]*h[1] * h[2]*h[2] * h[3]*h[3]) / ((h[0] - h[1])*(h[0] - h[2])*(h[0] - h[3])) * v0
+			) / (h[0]*h[1]*h[2] + h[0]*h[1]*h[3] + h[0]*h[2]*h[3] + h[1]*h[2]*h[3])
+			+ hh * op->b(t[4])
+		;
 
 		// Constant timestep case:
 		/*
@@ -179,7 +204,7 @@ protected:
 		*/
 	}
 
-	inline Matrix A5() {
+	inline Matrix _A5() {
 		t[5] = this->nextTime();
 		t[4] = this->times()[ 0];
 		t[3] = this->times()[-1];
@@ -193,22 +218,23 @@ protected:
 		h[1] = difference(t[5], t[1]);
 		h[0] = difference(t[5], t[0]);
 
+		hh = (h[0]*h[1]*h[2]*h[3]*h[4]) / (h[0]*h[1]*h[2]*h[3] + h[0]*h[1]*h[2]*h[4] + h[0]*h[1]*h[3]*h[4] + h[0]*h[2]*h[3]*h[4] + h[1]*h[2]*h[3]*h[4]);
+
 		return
 			domain->identity()
-			+ (h[0]*h[1]*h[2]*h[3]*h[4]) / (h[0]*h[1]*h[2]*h[3] + h[0]*h[1]*h[2]*h[4] + h[0]*h[1]*h[3]*h[4] + h[0]*h[2]*h[3]*h[4] + h[1]*h[2]*h[3]*h[4])
-					* op->discretize(t[5])
+			- hh * op->A(t[5])
 		;
 
 		// Constant timestep case:
 		/*
 		return
 			domain->identity()
-			+ 60. / 137. * op->discretize(t[5]) * dt()
+			- 60. / 137. * op->A(t[5]) * dt()
 		;
 		*/
 	}
 
-	inline Vector b5() {
+	inline Vector _b5() {
 		const Vector
 			&v4 = this->iterands()[ 0],
 			&v3 = this->iterands()[-1],
@@ -217,13 +243,16 @@ protected:
 			&v0 = this->iterands()[-4]
 		;
 
-		return (
-			  (h[0]*h[0] * h[1]*h[1] * h[2]*h[2] * h[3]*h[3]) / ((h[0] - h[4])*(h[1] - h[4])*(h[2] - h[4])*(h[3] - h[4])) * v4
-			- (h[0]*h[0] * h[1]*h[1] * h[2]*h[2] * h[4]*h[4]) / ((h[0] - h[3])*(h[1] - h[3])*(h[2] - h[3])*(h[3] - h[4])) * v3
-			+ (h[0]*h[0] * h[1]*h[1] * h[3]*h[3] * h[4]*h[4]) / ((h[0] - h[2])*(h[1] - h[2])*(h[2] - h[3])*(h[2] - h[4])) * v2
-			- (h[0]*h[0] * h[2]*h[2] * h[3]*h[3] * h[4]*h[4]) / ((h[0] - h[1])*(h[1] - h[2])*(h[1] - h[3])*(h[1] - h[4])) * v1
-			+ (h[1]*h[1] * h[2]*h[2] * h[3]*h[3] * h[4]*h[4]) / ((h[0] - h[1])*(h[0] - h[2])*(h[0] - h[3])*(h[0] - h[4])) * v0
-		) / (h[0]*h[1]*h[2]*h[3] + h[0]*h[1]*h[2]*h[4] + h[0]*h[1]*h[3]*h[4] + h[0]*h[2]*h[3]*h[4] + h[1]*h[2]*h[3]*h[4]);
+		return
+			(
+				  (h[0]*h[0] * h[1]*h[1] * h[2]*h[2] * h[3]*h[3]) / ((h[0] - h[4])*(h[1] - h[4])*(h[2] - h[4])*(h[3] - h[4])) * v4
+				- (h[0]*h[0] * h[1]*h[1] * h[2]*h[2] * h[4]*h[4]) / ((h[0] - h[3])*(h[1] - h[3])*(h[2] - h[3])*(h[3] - h[4])) * v3
+				+ (h[0]*h[0] * h[1]*h[1] * h[3]*h[3] * h[4]*h[4]) / ((h[0] - h[2])*(h[1] - h[2])*(h[2] - h[3])*(h[2] - h[4])) * v2
+				- (h[0]*h[0] * h[2]*h[2] * h[3]*h[3] * h[4]*h[4]) / ((h[0] - h[1])*(h[1] - h[2])*(h[1] - h[3])*(h[1] - h[4])) * v1
+				+ (h[1]*h[1] * h[2]*h[2] * h[3]*h[3] * h[4]*h[4]) / ((h[0] - h[1])*(h[0] - h[2])*(h[0] - h[3])*(h[0] - h[4])) * v0
+			) / (h[0]*h[1]*h[2]*h[3] + h[0]*h[1]*h[2]*h[4] + h[0]*h[1]*h[3]*h[4] + h[0]*h[2]*h[3]*h[4] + h[1]*h[2]*h[3]*h[4])
+			+ hh * op->b(t[5])
+		;
 
 		// Constant timestep case:
 		/*
@@ -237,7 +266,7 @@ protected:
 		*/
 	}
 
-	inline Matrix A6() {
+	inline Matrix _A6() {
 		t[6] = this->nextTime();
 		t[5] = this->times()[ 0];
 		t[4] = this->times()[-1];
@@ -253,22 +282,23 @@ protected:
 		h[1] = difference(t[6], t[1]);
 		h[0] = difference(t[6], t[0]);
 
+		hh = (h[0]*h[1]*h[2]*h[3]*h[4]*h[5]) / (h[0]*h[1]*h[2]*h[3]*h[4] + h[0]*h[1]*h[2]*h[3]*h[5] + h[0]*h[1]*h[2]*h[4]*h[5] + h[0]*h[1]*h[3]*h[4]*h[5] + h[0]*h[2]*h[3]*h[4]*h[5] + h[1]*h[2]*h[3]*h[4]*h[5]);
+
 		return
 			domain->identity()
-			+ (h[0]*h[1]*h[2]*h[3]*h[4]*h[5]) / (h[0]*h[1]*h[2]*h[3]*h[4] + h[0]*h[1]*h[2]*h[3]*h[5] + h[0]*h[1]*h[2]*h[4]*h[5] + h[0]*h[1]*h[3]*h[4]*h[5] + h[0]*h[2]*h[3]*h[4]*h[5] + h[1]*h[2]*h[3]*h[4]*h[5])
-					* op->discretize(t[6])
+			- hh * op->A(t[6])
 		;
 
 		// Constant timestep case:
 		/*
 		return
 			domain->identity()
-			+ 60. / 147. * op->discretize(t) * dt()
+			- 60. / 147. * op->A(t) * dt()
 		;
 		*/
 	}
 
-	inline Vector b6() {
+	inline Vector _b6() {
 		const Vector
 			&v5 = this->iterands()[ 0],
 			&v4 = this->iterands()[-1],
@@ -278,14 +308,17 @@ protected:
 			&v0 = this->iterands()[-5]
 		;
 
-		return (
-			  (h[0]*h[0] * h[1]*h[1] * h[2]*h[2] * h[3]*h[3] * h[4]*h[4]) / ((h[0] - h[5])*(h[1] - h[5])*(h[2] - h[5])*(h[3] - h[5])*(h[4] - h[5])) * v5
-			- (h[0]*h[0] * h[1]*h[1] * h[2]*h[2] * h[3]*h[3] * h[5]*h[5]) / ((h[0] - h[4])*(h[1] - h[4])*(h[2] - h[4])*(h[3] - h[4])*(h[4] - h[5])) * v4
-			+ (h[0]*h[0] * h[1]*h[1] * h[2]*h[2] * h[4]*h[4] * h[5]*h[5]) / ((h[0] - h[3])*(h[1] - h[3])*(h[2] - h[3])*(h[3] - h[4])*(h[3] - h[5])) * v3
-			- (h[0]*h[0] * h[1]*h[1] * h[3]*h[3] * h[4]*h[4] * h[5]*h[5]) / ((h[0] - h[2])*(h[1] - h[2])*(h[2] - h[3])*(h[2] - h[4])*(h[2] - h[5])) * v2
-			+ (h[0]*h[0] * h[2]*h[2] * h[3]*h[3] * h[4]*h[4] * h[5]*h[5]) / ((h[0] - h[1])*(h[1] - h[2])*(h[1] - h[3])*(h[1] - h[4])*(h[1] - h[5])) * v1
-			- (h[1]*h[1] * h[2]*h[2] * h[3]*h[3] * h[4]*h[4] * h[5]*h[5]) / ((h[0] - h[1])*(h[0] - h[2])*(h[0] - h[3])*(h[0] - h[4])*(h[0] - h[5])) * v0
-		) / (h[0]*h[1]*h[2]*h[3]*h[4] + h[0]*h[1]*h[2]*h[3]*h[5] + h[0]*h[1]*h[2]*h[4]*h[5] + h[0]*h[1]*h[3]*h[4]*h[5] + h[0]*h[2]*h[3]*h[4]*h[5] + h[1]*h[2]*h[3]*h[4]*h[5]);
+		return
+			(
+				  (h[0]*h[0] * h[1]*h[1] * h[2]*h[2] * h[3]*h[3] * h[4]*h[4]) / ((h[0] - h[5])*(h[1] - h[5])*(h[2] - h[5])*(h[3] - h[5])*(h[4] - h[5])) * v5
+				- (h[0]*h[0] * h[1]*h[1] * h[2]*h[2] * h[3]*h[3] * h[5]*h[5]) / ((h[0] - h[4])*(h[1] - h[4])*(h[2] - h[4])*(h[3] - h[4])*(h[4] - h[5])) * v4
+				+ (h[0]*h[0] * h[1]*h[1] * h[2]*h[2] * h[4]*h[4] * h[5]*h[5]) / ((h[0] - h[3])*(h[1] - h[3])*(h[2] - h[3])*(h[3] - h[4])*(h[3] - h[5])) * v3
+				- (h[0]*h[0] * h[1]*h[1] * h[3]*h[3] * h[4]*h[4] * h[5]*h[5]) / ((h[0] - h[2])*(h[1] - h[2])*(h[2] - h[3])*(h[2] - h[4])*(h[2] - h[5])) * v2
+				+ (h[0]*h[0] * h[2]*h[2] * h[3]*h[3] * h[4]*h[4] * h[5]*h[5]) / ((h[0] - h[1])*(h[1] - h[2])*(h[1] - h[3])*(h[1] - h[4])*(h[1] - h[5])) * v1
+				- (h[1]*h[1] * h[2]*h[2] * h[3]*h[3] * h[4]*h[4] * h[5]*h[5]) / ((h[0] - h[1])*(h[0] - h[2])*(h[0] - h[3])*(h[0] - h[4])*(h[0] - h[5])) * v0
+			) / (h[0]*h[1]*h[2]*h[3]*h[4] + h[0]*h[1]*h[2]*h[3]*h[5] + h[0]*h[1]*h[2]*h[4]*h[5] + h[0]*h[1]*h[3]*h[4]*h[5] + h[0]*h[2]*h[3]*h[4]*h[5] + h[1]*h[2]*h[3]*h[4]*h[5])
+			+ hh * op->b(t[6])
+		;
 
 		// Constant timestep case:
 		/*
@@ -302,11 +335,10 @@ protected:
 
 public:
 
-	template <typename D, typename L>
-	LinearBDFBase(D &domain, L &op) noexcept : domain(&domain), op(&op) {
+	template <typename D>
+	LinearBDFBase(D &domain, LinearSystem &op) noexcept : domain(&domain),
+			op(&op) {
 	}
-
-	// TODO: Implement isAConstant correctly
 
 };
 
@@ -317,21 +349,21 @@ class LinearBDFOne : public LinearBDFBase<Forward, 1> {
 
 public:
 
-	template <typename D, typename L>
-	LinearBDFOne(D &domain, L &op) noexcept
+	template <typename D>
+	LinearBDFOne(D &domain, LinearSystem &op) noexcept
 			: LinearBDFBase<Forward, 1>(domain, op) {
 	}
 
-	virtual bool isAConstant() const {
-		return this->op->isConstantInTime();
+	virtual bool isATheSame() const {
+		return this->_isATheSame2();
 	}
 
 	virtual Matrix A() {
-		return this->A1();
+		return this->_A1();
 	}
 
 	virtual Vector b() {
-		return this->b1();
+		return this->_b1();
 	}
 
 };
@@ -348,44 +380,55 @@ typedef ForwardLinearBDFOne ForwardImplicitEuler;
 template <bool Forward>
 class LinearBDFTwo : public LinearBDFBase<Forward, 2> {
 
-	Matrix (LinearBDFTwo<Forward>::*AA )();
-	Vector (LinearBDFTwo<Forward>::*bb )();
-	void   (LinearBDFTwo<Forward>::*end)();
+	bool   (LinearBDFTwo<Forward>::*_isATheSame)() const;
+	Matrix (LinearBDFTwo<Forward>::*_A)();
+	Vector (LinearBDFTwo<Forward>::*_b)();
+	void   (LinearBDFTwo<Forward>::*_onIterationEnd)();
 
 	////////////////////////////////////////////////////////////////////////
 
-	void end1() {
-		AA  = &LinearBDFTwo::A2;
-		bb  = &LinearBDFTwo::b2;
-		end = &LinearBDFTwo::end2;
+	void _onIterationEnd1() {
+		_A = &LinearBDFTwo::_A2;
+		_b = &LinearBDFTwo::_b2;
+		_onIterationEnd = &LinearBDFTwo::_onIterationEnd2;
 	}
 
-	void end2() {
+	void _onIterationEnd2() {
+		_isATheSame = &LinearBDFTwo::_isATheSame2;
+		_onIterationEnd = &LinearBDFTwo::_onIterationEnd3;
+	}
+
+	void _onIterationEnd3() {
 	}
 
 	virtual void clear() {
-		AA  = &LinearBDFTwo::A1;
-		bb  = &LinearBDFTwo::b1;
-		end = &LinearBDFTwo::end1;
+		_isATheSame = &LinearBDFTwo::_isATheSame1;
+		_A = &LinearBDFTwo::_A1;
+		_b = &LinearBDFTwo::_b1;
+		_onIterationEnd = &LinearBDFTwo::_onIterationEnd1;
 	}
 
 	virtual void onIterationEnd() {
-		(this->*end)();
+		(this->*_onIterationEnd)();
 	}
 
 public:
 
-	template <typename D, typename L>
-	LinearBDFTwo(D &domain, L &op) noexcept
+	template <typename D>
+	LinearBDFTwo(D &domain, LinearSystem &op) noexcept
 			: LinearBDFBase<Forward, 2>(domain, op) {
 	}
 
+	virtual bool isATheSame() const {
+		return (this->*_isATheSame)();
+	}
+
 	virtual Matrix A() {
-		return (this->*AA)();
+		return (this->*_A)();
 	}
 
 	virtual Vector b() {
-		return (this->*bb)();
+		return (this->*_b)();
 	}
 
 };
@@ -398,50 +441,61 @@ typedef LinearBDFTwo<true > ForwardLinearBDFTwo;
 template <bool Forward>
 class LinearBDFThree : public LinearBDFBase<Forward, 3> {
 
-	Matrix (LinearBDFThree<Forward>::*AA )();
-	Vector (LinearBDFThree<Forward>::*bb )();
-	void   (LinearBDFThree<Forward>::*end)();
+	bool   (LinearBDFThree<Forward>::*_isATheSame)();
+	Matrix (LinearBDFThree<Forward>::*_A)();
+	Vector (LinearBDFThree<Forward>::*_b)();
+	void   (LinearBDFThree<Forward>::*_onIterationEnd)();
 
 	////////////////////////////////////////////////////////////////////////
 
-	void end1() {
-		AA  = &LinearBDFThree::A2;
-		bb  = &LinearBDFThree::b2;
-		end = &LinearBDFThree::end2;
+	void _onIterationEnd1() {
+		_A = &LinearBDFThree::_A2;
+		_b = &LinearBDFThree::_b2;
+		_onIterationEnd = &LinearBDFThree::_onIterationEnd2;
 	}
 
-	void end2() {
-		AA  = &LinearBDFThree::A3;
-		bb  = &LinearBDFThree::b3;
-		end = &LinearBDFThree::end3;
+	void _onIterationEnd2() {
+		_A = &LinearBDFThree::_A3;
+		_b = &LinearBDFThree::_b3;
+		_onIterationEnd = &LinearBDFThree::_onIterationEnd3;
 	}
 
-	void end3() {
+	void _onIterationEnd3() {
+		_isATheSame = &LinearBDFThree::_isATheSame2;
+		_onIterationEnd = &LinearBDFThree::_onIterationEnd4;
+	}
+
+	void _onIterationEnd4() {
 	}
 
 	virtual void clear() {
-		AA  = &LinearBDFThree::A1;
-		bb  = &LinearBDFThree::b1;
-		end = &LinearBDFThree::end1;
+		_isATheSame = &LinearBDFThree::_isATheSame1;
+		_A = &LinearBDFThree::_A1;
+		_b = &LinearBDFThree::_b1;
+		_onIterationEnd = &LinearBDFThree::_onIterationEnd1;
 	}
 
 	virtual void onIterationEnd() {
-		(this->*end)();
+		(this->*_onIterationEnd)();
 	}
 
 public:
 
-	template <typename D, typename L>
-	LinearBDFThree(D &domain, L &op) noexcept
+	template <typename D>
+	LinearBDFThree(D &domain, LinearSystem &op) noexcept
 			: LinearBDFBase<Forward, 3>(domain, op) {
 	}
 
+	virtual bool isATheSame() {
+		return (this->*_isATheSame)();
+	}
+
 	virtual Matrix A() {
-		return (this->*AA)();
+		return (this->*_A)();
 	}
 
 	virtual Vector b() {
-		return (this->*bb)();
+		return (this->*_b)();
 	}
 
 };
@@ -454,56 +508,67 @@ typedef LinearBDFThree<true > ForwardLinearBDFThree;
 template <bool Forward>
 class LinearBDFFour : public LinearBDFBase<Forward, 4> {
 
-	Matrix (LinearBDFFour<Forward>::*AA )();
-	Vector (LinearBDFFour<Forward>::*bb )();
-	void   (LinearBDFFour<Forward>::*end)();
+	bool   (LinearBDFFour<Forward>::*_isATheSame)() const;
+	Matrix (LinearBDFFour<Forward>::*_A )();
+	Vector (LinearBDFFour<Forward>::*_b )();
+	void   (LinearBDFFour<Forward>::*_onIterationEnd)();
 
 	////////////////////////////////////////////////////////////////////////
 
-	void end1() {
-		AA  = &LinearBDFFour::A2;
-		bb  = &LinearBDFFour::b2;
-		end = &LinearBDFFour::end2;
+	void _onIterationEnd1() {
+		_A = &LinearBDFFour::_A2;
+		_b = &LinearBDFFour::_b2;
+		_onIterationEnd = &LinearBDFFour::_onIterationEnd2;
 	}
 
-	void end2() {
-		AA  = &LinearBDFFour::A3;
-		bb  = &LinearBDFFour::b3;
-		end = &LinearBDFFour::end3;
+	void _onIterationEnd2() {
+		_A = &LinearBDFFour::_A3;
+		_b = &LinearBDFFour::_b3;
+		_onIterationEnd = &LinearBDFFour::_onIterationEnd3;
 	}
 
-	void end3() {
-		AA  = &LinearBDFFour::A4;
-		bb  = &LinearBDFFour::b4;
-		end = &LinearBDFFour::end4;
+	void _onIterationEnd3() {
+		_A = &LinearBDFFour::_A4;
+		_b = &LinearBDFFour::_b4;
+		_onIterationEnd = &LinearBDFFour::_onIterationEnd4;
 	}
 
-	void end4() {
+	void _onIterationEnd4() {
+		_isATheSame = &LinearBDFFour::_isATheSame2;
+		_onIterationEnd = &LinearBDFFour::_onIterationEnd5;
+	}
+
+	void _onIterationEnd5() {
 	}
 
 	virtual void clear() {
-		AA  = &LinearBDFFour::A1;
-		bb  = &LinearBDFFour::b1;
-		end = &LinearBDFFour::end1;
+		_isATheSame = &LinearBDFFour::_isATheSame1;
+		_A = &LinearBDFFour::_A1;
+		_b = &LinearBDFFour::_b1;
+		_onIterationEnd = &LinearBDFFour::_onIterationEnd1;
 	}
 
 	virtual void onIterationEnd() {
-		(this->*end)();
+		(this->*_onIterationEnd)();
 	}
 
 public:
 
-	template <typename D, typename L>
-	LinearBDFFour(D &domain, L &op) noexcept
+	template <typename D>
+	LinearBDFFour(D &domain, LinearSystem &op) noexcept
 			: LinearBDFBase<Forward, 4>(domain, op) {
 	}
 
+	virtual bool isATheSame() {
+		return (this->*_isATheSame)();
+	}
+
 	virtual Matrix A() {
-		return (this->*AA)();
+		return (this->*_A)();
 	}
 
 	virtual Vector b() {
-		return (this->*bb)();
+		return (this->*_b)();
 	}
 
 };
@@ -516,62 +581,73 @@ typedef LinearBDFFour<true > ForwardLinearBDFFour;
 template <bool Forward>
 class LinearBDFFive : public LinearBDFBase<Forward, 5> {
 
-	Matrix (LinearBDFFive<Forward>::*AA )();
-	Vector (LinearBDFFive<Forward>::*bb )();
-	void   (LinearBDFFive<Forward>::*end)();
+	bool   (LinearBDFFive<Forward>::*_isATheSame)() const;
+	Matrix (LinearBDFFive<Forward>::*_A )();
+	Vector (LinearBDFFive<Forward>::*_b )();
+	void   (LinearBDFFive<Forward>::*_onIterationEnd)();
 
 	////////////////////////////////////////////////////////////////////////
 
-	void end1() {
-		AA  = &LinearBDFFive::A2;
-		bb  = &LinearBDFFive::b2;
-		end = &LinearBDFFive::end2;
+	void _onIterationEnd1() {
+		_A = &LinearBDFFive::_A2;
+		_b = &LinearBDFFive::_b2;
+		_onIterationEnd = &LinearBDFFive::_onIterationEnd2;
 	}
 
-	void end2() {
-		AA  = &LinearBDFFive::A3;
-		bb  = &LinearBDFFive::b3;
-		end = &LinearBDFFive::end3;
+	void _onIterationEnd2() {
+		_A = &LinearBDFFive::_A3;
+		_b = &LinearBDFFive::_b3;
+		_onIterationEnd = &LinearBDFFive::_onIterationEnd3;
 	}
 
-	void end3() {
-		AA  = &LinearBDFFive::A4;
-		bb  = &LinearBDFFive::b4;
-		end = &LinearBDFFive::end4;
+	void _onIterationEnd3() {
+		_A = &LinearBDFFive::_A4;
+		_b = &LinearBDFFive::_b4;
+		_onIterationEnd = &LinearBDFFive::_onIterationEnd4;
 	}
 
-	void end4() {
-		AA  = &LinearBDFFive::A5;
-		bb  = &LinearBDFFive::b5;
-		end = &LinearBDFFive::end5;
+	void _onIterationEnd4() {
+		_A = &LinearBDFFive::_A5;
+		_b = &LinearBDFFive::_b5;
+		_onIterationEnd = &LinearBDFFive::_onIterationEnd5;
 	}
 
-	void end5() {
+	void _onIterationEnd5() {
+		_isATheSame = &LinearBDFFive::_isATheSame2;
+		_onIterationEnd = &LinearBDFFive::_onIterationEnd6;
+	}
+
+	void _onIterationEnd6() {
 	}
 
 	virtual void clear() {
-		AA  = &LinearBDFFive::A1;
-		bb  = &LinearBDFFive::b1;
-		end = &LinearBDFFive::end1;
+		_isATheSame = &LinearBDFFive::_isATheSame1;
+		_A = &LinearBDFFive::_A1;
+		_b = &LinearBDFFive::_b1;
+		_onIterationEnd = &LinearBDFFive::_onIterationEnd1;
 	}
 
 	virtual void onIterationEnd() {
-		(this->*end)();
+		(this->*_onIterationEnd)();
 	}
 
 public:
 
-	template <typename D, typename L>
-	LinearBDFFive(D &domain, L &op) noexcept
+	template <typename D>
+	LinearBDFFive(D &domain, LinearSystem &op) noexcept
 			: LinearBDFBase<Forward, 5>(domain, op) {
 	}
 
+	virtual bool isATheSame() {
+		return (this->*_isATheSame)();
+	}
+
 	virtual Matrix A() {
-		return (this->*AA)();
+		return (this->*_A)();
 	}
 
 	virtual Vector b() {
-		return (this->*bb)();
+		return (this->*_b)();
 	}
 
 };
@@ -584,68 +660,79 @@ typedef LinearBDFFive<true > ForwardLinearBDFFive;
 template <bool Forward>
 class LinearBDFSix : public LinearBDFBase<Forward, 6> {
 
-	Matrix (LinearBDFSix<Forward>::*AA )();
-	Vector (LinearBDFSix<Forward>::*bb )();
-	void   (LinearBDFSix<Forward>::*end)();
+	bool   (LinearBDFFive<Forward>::*_isATheSame)() const;
+	Matrix (LinearBDFSix<Forward>::*_A)();
+	Vector (LinearBDFSix<Forward>::*_b)();
+	void   (LinearBDFSix<Forward>::*_onIterationEnd)();
 
 	////////////////////////////////////////////////////////////////////////
 
-	void end1() {
-		AA  = &LinearBDFSix::A2;
-		bb  = &LinearBDFSix::b2;
-		end = &LinearBDFSix::end2;
+	void _onIterationEnd1() {
+		_A = &LinearBDFSix::_A2;
+		_b = &LinearBDFSix::_b2;
+		_onIterationEnd = &LinearBDFSix::_onIterationEnd2;
 	}
 
-	void end2() {
-		AA  = &LinearBDFSix::A3;
-		bb  = &LinearBDFSix::b3;
-		end = &LinearBDFSix::end3;
+	void _onIterationEnd2() {
+		_A = &LinearBDFSix::_A3;
+		_b = &LinearBDFSix::_b3;
+		_onIterationEnd = &LinearBDFSix::_onIterationEnd3;
 	}
 
-	void end3() {
-		AA  = &LinearBDFSix::A4;
-		bb  = &LinearBDFSix::b4;
-		end = &LinearBDFSix::end4;
+	void _onIterationEnd3() {
+		_A = &LinearBDFSix::_A4;
+		_b = &LinearBDFSix::_b4;
+		_onIterationEnd = &LinearBDFSix::_onIterationEnd4;
 	}
 
-	void end4() {
-		AA  = &LinearBDFSix::A5;
-		bb  = &LinearBDFSix::b5;
-		end = &LinearBDFSix::end5;
+	void _onIterationEnd4() {
+		_A = &LinearBDFSix::_A5;
+		_b = &LinearBDFSix::_b5;
+		_onIterationEnd = &LinearBDFSix::_onIterationEnd5;
 	}
 
-	void end5() {
-		AA  = &LinearBDFSix::A6;
-		bb  = &LinearBDFSix::b6;
-		end = &LinearBDFSix::end6;
+	void _onIterationEnd5() {
+		_A = &LinearBDFSix::_A6;
+		_b = &LinearBDFSix::_b6;
+		_onIterationEnd = &LinearBDFSix::_onIterationEnd6;
 	}
 
-	void end6() {
+	void _onIterationEnd6() {
+		_isATheSame = &LinearBDFSix::_isATheSame2;
+		_onIterationEnd = &LinearBDFSix::_onIterationEnd7;
+	}
+
+	void _onIterationEnd7() {
 	}
 
 	virtual void clear() {
-		AA  = &LinearBDFSix::A1;
-		bb  = &LinearBDFSix::b1;
-		end = &LinearBDFSix::end1;
+		_isATheSame = &LinearBDFSix::_isATheSame1;
+		_A = &LinearBDFSix::_A1;
+		_b = &LinearBDFSix::_b1;
+		_onIterationEnd = &LinearBDFSix::_onIterationEnd1;
 	}
 
 	virtual void onIterationEnd() {
-		(this->*end)();
+		(this->*_onIterationEnd)();
 	}
 
 public:
 
-	template <typename D, typename L>
-	LinearBDFSix(D &domain, L &op) noexcept
+	template <typename D>
+	LinearBDFSix(D &domain, LinearSystem &op) noexcept
 			: LinearBDFBase<Forward, 6>(domain, op) {
 	}
 
+	virtual bool isATheSame() {
+		return (this->*_isATheSame)();
+	}
+
 	virtual Matrix A() {
-		return (this->*AA)();
+		return (this->*_A)();
 	}
 
 	virtual Vector b() {
-		return (this->*bb)();
+		return (this->*_b)();
 	}
 
 };

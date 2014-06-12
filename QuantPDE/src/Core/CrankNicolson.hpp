@@ -1,13 +1,15 @@
 #ifndef QUANT_PDE_CORE_CRANK_NICOLSON
 #define QUANT_PDE_CORE_CRANK_NICOLSON
 
+// TODO: Cache A if constant
+
 namespace QuantPDE {
 
 template <bool Forward>
-class CrankNicolson : public Linearizer {
+class CrankNicolson : public LinearSystemIteration {
 
 	const DomainBase *domain;
-	const LinearOperator *op;
+	LinearSystem *op;
 
 	inline Real dt() {
 		const Real
@@ -20,8 +22,8 @@ class CrankNicolson : public Linearizer {
 
 public:
 
-	virtual bool isAConstant() const {
-		return op->isConstantInTime();
+	virtual bool isATheSame() const {
+		return this->isTimestepTheSame && op->isATheSame();
 	}
 
 	virtual Matrix A() {
@@ -29,22 +31,24 @@ public:
 
 		return
 			domain->identity()
-			+ op->discretize(t1) * dt() / 2.
+			- op->A(t1) * dt() / 2.
 		;
 	}
 
 	virtual Vector b() {
+		const Real    t1 = this->nextTime();
 		const Real    t0 = this->times()[0];
 		const Vector &v0 = this->iterands()[0];
 
 		return (
 			domain->identity()
-			- op->discretize(t0) * dt() / 2.
-		) * v0;
+			+ op->A(t0) * dt() / 2.
+		) * v0 + ( op->b(t1) + op->b(t0) ) / 2.;
 	}
 
-	template <typename D, typename L>
-	CrankNicolson(D &domain, L &op) noexcept : domain(&domain), op(&op) {
+	template <typename D>
+	CrankNicolson(D &domain, LinearSystem &op) noexcept : domain(&domain),
+			op(&op) {
 	}
 
 };
@@ -53,14 +57,14 @@ typedef CrankNicolson<false> ReverseCrankNicolson;
 typedef CrankNicolson<true > ForwardCrankNicolson;
 
 template <bool Forward>
-class Rannacher : public Linearizer {
+class Rannacher : public LinearSystemIteration {
 
 	const DomainBase *domain;
-	const LinearOperator *op;
+	LinearSystem *op;
 
-	bool   (Rannacher::*_isAConstant)() const;
-	Matrix (Rannacher::*_A )();
-	Vector (Rannacher::*_b )();
+	bool   (Rannacher::*_isATheSame)() const;
+	Matrix (Rannacher::*_A)();
+	Vector (Rannacher::*_b)();
 	void   (Rannacher::*_onIterationEnd)();
 
 	Real t1, t0, h0;
@@ -69,12 +73,13 @@ class Rannacher : public Linearizer {
 		return Forward ? t1 - t0 : t0 - t1;
 	}
 
-	bool _isAConstant1() const {
-		return op->isConstantInTime();
+	bool _isATheSame1() const {
+		return this->isTimestepTheSame() && op->isATheSame();
 	}
 
-	bool _isAConstant2() const {
-		return true;
+	bool _isATheSame2() const {
+		// Switching from fully-implicit to Crank-Nicolson
+		return false;
 	}
 
 	Matrix _A1() {
@@ -85,12 +90,12 @@ class Rannacher : public Linearizer {
 
 		return
 			domain->identity()
-			+ op->discretize(t1) * h0;
+			- op->A(t1) * h0;
 	}
 
 	Vector _b1() {
 		const Vector &v0 = this->iterands()[0];
-		return v0;
+		return v0 + op->b(t1) * h0;
 	}
 
 	Matrix _A2() {
@@ -99,7 +104,7 @@ class Rannacher : public Linearizer {
 
 		return
 			domain->identity()
-			+ op->discretize(t1) * h0 / 2.
+			- op->A(t1) * h0 / 2.
 		;
 	}
 
@@ -108,29 +113,33 @@ class Rannacher : public Linearizer {
 
 		return (
 			domain->identity()
-			- op->discretize(t0) * h0 / 2.
-		) * v0;
+			+ op->A(t0) * h0 / 2.
+		) * v0 + ( op->b(t1) + op->b(t0) ) / 2.;
 	}
 
 	void _onIterationEnd1() {
-		_isAConstant = &Rannacher::_isAConstant2;
 		_onIterationEnd = &Rannacher::_onIterationEnd2;
 	}
 
 	void _onIterationEnd2() {
-		_isAConstant = &Rannacher::_isAConstant1;
+		_isATheSame = &Rannacher::_isATheSame2;
 		_A = &Rannacher::_A2;
 		_b = &Rannacher::_b2;
 		_onIterationEnd = &Rannacher::_onIterationEnd3;
 	}
 
 	void _onIterationEnd3() {
+		_isATheSame = &Rannacher::_isATheSame1;
+		_onIterationEnd = &Rannacher::_onIterationEnd4;
+	}
+
+	void _onIterationEnd4() {
 	}
 
 public:
 
-	virtual bool isAConstant() const {
-		return (this->*_isAConstant)();
+	virtual bool isATheSame() const {
+		return (this->*_isATheSame)();
 	}
 
 	virtual Matrix A() {
@@ -142,7 +151,7 @@ public:
 	}
 
 	virtual void clear() {
-		_isAConstant = &Rannacher::_isAConstant1;
+		_isATheSame = &Rannacher::_isATheSame1;
 		_A = &Rannacher::_A1;
 		_b = &Rannacher::_b1;
 		_onIterationEnd = &Rannacher::_onIterationEnd3;
@@ -152,8 +161,9 @@ public:
 		(this->*_onIterationEnd)();
 	}
 
-	template <typename D, typename L>
-	Rannacher(D &domain, L &op) noexcept : domain(&domain), op(&op) {
+	template <typename D>
+	Rannacher(D &domain, LinearSystem &op) noexcept : domain(&domain),
+			op(&op) {
 	}
 
 };

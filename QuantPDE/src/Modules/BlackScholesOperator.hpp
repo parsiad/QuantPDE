@@ -10,7 +10,7 @@ namespace Modules {
  * \f$LV\equiv - 1/2 v^2 S^2 V_SS - (r - q) S V_S + r V\f$
  * where \f$r\f$, \f$v\f$, and \f$q\f$ are not necessarily constant.
  */
-class BlackScholesOperator : public LinearOperator {
+class DiscreteBlackScholes : public LinearSystem {
 
 	const RectilinearGrid1 *G;
 	Function2 r, v, q;
@@ -18,14 +18,19 @@ class BlackScholesOperator : public LinearOperator {
 public:
 
 	template <typename G, typename F1, typename F2, typename F3>
-	BlackScholesOperator(G &grid, F1 &&interest, F2 &&volatility,
-			F3 &&dividends) noexcept : G(&grid),
-			r( std::forward<F1>(interest) ),
-			v( std::forward<F2>(volatility) ),
-			q( std::forward<F3>(dividends) ) {
+	DiscreteBlackScholes(
+		G &grid,
+		F1 &&interest,
+		F2 &&volatility,
+		F3 &&dividends
+	) noexcept :
+		G(&grid),
+		r( std::forward<F1>(interest) ),
+		v( std::forward<F2>(volatility) ),
+		q( std::forward<F3>(dividends) ) {
 	}
 
-	virtual Matrix discretize(Real time) const {
+	virtual Matrix A(Real time) {
 		auto M_G = G->builder( IntegerVector::Constant(G->size(), 3) );
 
 		const Axis &S = (*G)[0];
@@ -68,9 +73,9 @@ public:
 				beta_i  =  beta_common;
 			}
 
-			M_G(i, i - 1) = -alpha_i;
-			M_G(i, i)     =  alpha_i + beta_i + r_i;
-			M_G(i, i + 1) = -beta_i;
+			M_G(i, i - 1) = alpha_i;
+			M_G(i, i)     = -(alpha_i + beta_i + r_i);
+			M_G(i, i + 1) = beta_i;
 
 		}
 
@@ -78,9 +83,13 @@ public:
 		// Left:  (1 + r dt) V_i^{n+1} = V_i^n
 		// Right:            V_i^{n+1} = V_i^n (linearity assumption)
 
-		M_G(0, 0) = r( time, S[0] );
+		M_G(0, 0) = -r( time, S[0] );
 
 		return M_G.matrix();
+	}
+
+	virtual Vector b(Real time) {
+		return G->zero();
 	}
 
 };
@@ -90,29 +99,26 @@ public:
  * \f$LV\equiv - 1/2 v^2 S^2 V_SS - (r - q) S V_S + r V\f$
  * where \f$r\f$, \f$v\f$, and \f$q\f$ are constant.
  */
-class BlackScholesOperatorConstantCoefficients : public LinearOperator {
-
-	BlackScholesOperator op;
+class DiscreteBlackScholesConstantCoefficients : public DiscreteBlackScholes {
 
 public:
 
 	template <typename G>
-	BlackScholesOperatorConstantCoefficients(G &grid, Real interest,
-			Real volatility, Real dividends) noexcept :
-			op(
-				grid,
-				[interest]   (Real, Real) { return interest; },
-				[volatility] (Real, Real) { return volatility; },
-				[dividends]  (Real, Real) { return dividends; }
-			) {
+	DiscreteBlackScholesConstantCoefficients(
+		G &grid,
+		Real interest,
+		Real volatility,
+		Real dividends
+	) noexcept : DiscreteBlackScholes(
+		grid,
+		[interest]   (Real, Real) { return interest; },
+		[volatility] (Real, Real) { return volatility; },
+		[dividends]  (Real, Real) { return dividends; }
+	) {
 	}
 
-	virtual bool isConstantInTime() const {
+	virtual bool isATheSame() const {
 		return true;
-	}
-
-	virtual Matrix discretize(Real time) const {
-		return op.discretize(time);
 	}
 
 };

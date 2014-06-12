@@ -146,7 +146,7 @@ public:
 	/**
 	 * @return The total number of ticks on this axis.
 	 */
-	const Index size() const {
+	Index size() const {
 		return length;
 	}
 

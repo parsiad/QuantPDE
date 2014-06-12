@@ -61,7 +61,8 @@ endl <<
 endl <<
 "-c" << endl <<
 "    Convolve the payoff with a smooth function to smoothen the initial " << endl <<
-"    condition." << endl <<
+"    condition. Rannacher timestepping is also used (default is no smoothing with" << endl <<
+"    BDF2." << endl <<
 endl <<
 "-d REAL" << endl <<
 endl <<
@@ -143,7 +144,7 @@ endl <<
 	} }
 
 	// Setting up the table
-	const int td = 20;
+	int const td = 20;
 	cout
 		<< setw(td) << "Nodes"                  << "\t"
 		<< setw(td) << "Steps"                  << "\t"
@@ -215,14 +216,14 @@ endl <<
 			// Using the constant coefficient version of this
 			// operator is faster!
 			/*
-			BlackScholesOperator bsOperator(
+			DiscreteBlackScholes blackScholes(
 				grid,
 				[interest]   (Real, Real) {return interest;  },
 				[volatility] (Real, Real) {return volatility;},
 				[dividends]  (Real, Real) {return dividends; }
 			);
 			*/
-			BlackScholesOperatorConstantCoefficients bsOperator(
+			DiscreteBlackScholesConstantCoefficients blackScholes(
 				grid,
 				interest, volatility, dividends
 			);
@@ -245,18 +246,18 @@ endl <<
 			}
 
 			// Time discretization method
-			Linearizer *timeDiscretization;
+			LinearSystemIteration *timeDiscretization;
 			if(smooth) {
 				timeDiscretization = new ReverseRannacher(
-						grid, bsOperator);
+						grid, blackScholes);
 			} else {
 				timeDiscretization = new ReverseLinearBDFTwo(
-						grid, bsOperator);
+						grid, blackScholes);
 			}
 			timeDiscretization->setIteration(*timeStepper);
 
 			// American-specific components; penalty method or not?
-			Linearizer *root;
+			LinearSystemIteration *root;
 			ToleranceIteration *toleranceIteration = nullptr;
 			PenaltyMethodDifference1 *penaltyMethod = nullptr;
 			if(american) {

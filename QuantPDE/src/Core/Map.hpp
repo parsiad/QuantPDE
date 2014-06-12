@@ -101,17 +101,19 @@ class MollifierConvolution1 : public Map1 {
 		// 3. Use linear interpolation to transfer the function to the
 		//    grid
 
-		// TODO: Fix this!
+		// TODO: Optimize this. Currently far too slow to use!
+		//       Idea... use an uneven grid?
 
 		////////////////////////////////////////////////////////////////
 		// Creating the temporary Grid
 		////////////////////////////////////////////////////////////////
 
-		// Left and right endpoints
+		// Left and right endpoints (add four nodes on the ends to
+		// increase accuracy)
 		const Axis &X = (*grid)[0];
 		Real
-			left  = X[0]           , // - 4 * a,
-			right = X[X.size() - 1]  // + 4 * a
+			left  = X[0]            - 2 * epsilon,
+			right = X[X.size() - 1] + 2 * epsilon
 		;
 		size_t n = (right - left) / epsilon + 1;
 
