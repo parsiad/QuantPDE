@@ -441,7 +441,7 @@ typedef LinearBDFTwo<true > ForwardLinearBDFTwo;
 template <bool Forward>
 class LinearBDFThree : public LinearBDFBase<Forward, 3> {
 
-	bool   (LinearBDFThree<Forward>::*_isATheSame)();
+	bool   (LinearBDFThree<Forward>::*_isATheSame)() const;
 	Matrix (LinearBDFThree<Forward>::*_A)();
 	Vector (LinearBDFThree<Forward>::*_b)();
 	void   (LinearBDFThree<Forward>::*_onIterationEnd)();
@@ -486,7 +486,7 @@ public:
 			: LinearBDFBase<Forward, 3>(domain, op) {
 	}
 
-	virtual bool isATheSame() {
+	virtual bool isATheSame() const {
 		return (this->*_isATheSame)();
 	}
 
@@ -559,7 +559,7 @@ public:
 			: LinearBDFBase<Forward, 4>(domain, op) {
 	}
 
-	virtual bool isATheSame() {
+	virtual bool isATheSame() const {
 		return (this->*_isATheSame)();
 	}
 
@@ -638,7 +638,7 @@ public:
 			: LinearBDFBase<Forward, 5>(domain, op) {
 	}
 
-	virtual bool isATheSame() {
+	virtual bool isATheSame() const {
 		return (this->*_isATheSame)();
 	}
 
@@ -660,7 +660,7 @@ typedef LinearBDFFive<true > ForwardLinearBDFFive;
 template <bool Forward>
 class LinearBDFSix : public LinearBDFBase<Forward, 6> {
 
-	bool   (LinearBDFFive<Forward>::*_isATheSame)() const;
+	bool   (LinearBDFSix<Forward>::*_isATheSame)() const;
 	Matrix (LinearBDFSix<Forward>::*_A)();
 	Vector (LinearBDFSix<Forward>::*_b)();
 	void   (LinearBDFSix<Forward>::*_onIterationEnd)();
@@ -723,7 +723,7 @@ public:
 			: LinearBDFBase<Forward, 6>(domain, op) {
 	}
 
-	virtual bool isATheSame() {
+	virtual bool isATheSame() const {
 		return (this->*_isATheSame)();
 	}
 

@@ -23,7 +23,7 @@ class CrankNicolson : public LinearSystemIteration {
 public:
 
 	virtual bool isATheSame() const {
-		return this->isTimestepTheSame && op->isATheSame();
+		return this->isTimestepTheSame() && op->isATheSame();
 	}
 
 	virtual Matrix A() {
