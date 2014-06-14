@@ -1,10 +1,10 @@
+#ifndef QUANT_PDE_CORE_MAP
+#define QUANT_PDE_CORE_MAP
+
 #include <cmath>       // exp, sqrt
 #include <complex>     // std::complex
 #include <utility>     // std::forward, std::move
 #include <vector>      // std::vector
-
-#ifndef QUANT_PDE_CORE_MAP
-#define QUANT_PDE_CORE_MAP
 
 namespace QuantPDE {
 

@@ -1,5 +1,5 @@
-#ifndef QUANT_CORE_PDE_DATETIME
-#define QUANT_CORE_PDE_DATETIME
+#ifndef QUANT_PDE_CORE_DATETIME
+#define QUANT_PDE_CORE_DATETIME
 
 #include <cstring> // strlen
 #include <ctime>   // time_t, tm, gmtime_r, timegm, asctime_r

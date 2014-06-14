@@ -1,6 +1,8 @@
 #ifndef QUANT_PDE_CORE_PENALTY_METHOD
 #define QUANT_PDE_CORE_PENALTY_METHOD
 
+// TODO: Cache A if constant
+
 namespace QuantPDE {
 
 /**

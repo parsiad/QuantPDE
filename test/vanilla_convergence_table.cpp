@@ -2,7 +2,7 @@
 
 // TODO: Change these includes; shouldn't include src directory explicitly
 #include <QuantPDE/src/Modules/Payoffs.hpp>
-#include <QuantPDE/src/Modules/BlackScholesOperator.hpp>
+#include <QuantPDE/src/Modules/BlackScholes.hpp>
 
 using namespace QuantPDE;
 using namespace QuantPDE::Modules;

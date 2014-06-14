@@ -1,13 +1,9 @@
 #ifndef QUANT_PDE_CORE_ITERATIVE_METHOD
 #define QUANT_PDE_CORE_ITERATIVE_METHOD
 
-#include <deque>        // std::deque
-#include <forward_list> // std::list
-#include <functional>   // std::function
-#include <memory>       // std::unique_ptr
+#include <forward_list> // std::forward_list
 #include <tuple>        // std::tuple
-#include <type_traits>  // std::conditional
-#include <utility>      // std::forward, std::move
+#include <utility>      // std::forward
 #include <vector>       // std::vector
 
 // TODO: Iteration also determines whether A is constant
