@@ -68,7 +68,6 @@ int main() {
 		grid,
 
 		// Interest rate (passed as a control)
-		//QUANT_PDE_CONTROL1(grid),
 		Control1::make(grid),
 
 		vol, // Volatility
