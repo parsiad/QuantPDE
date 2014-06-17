@@ -517,6 +517,15 @@ public:
 		base->setInput(input);
 	}
 
+	template <template <Index> class T = PiecewiseLinear, typename D>
+	static WrapperFunction make(D &domain) {
+		return WrapperFunction(
+			std::unique_ptr<InterpolantFactoryBase<Dimension>>(
+				new typename T<Dimension>::Factory(domain)
+			)
+		);
+	}
+
 };
 
 typedef WrapperFunction<1> WrapperFunction1;
@@ -529,19 +538,6 @@ using Control = WrapperFunction<Dimension>;
 typedef Control<1> Control1;
 typedef Control<2> Control2;
 typedef Control<3> Control3;
-
-#define QUANT_PDE_CONTROL_PIECEWISE_LINEAR_INTERPOLATION(DIMENSION, GRID)    \
-		Control<DIMENSION>(std::unique_ptr<InterpolantFactoryBase1>( \
-		new PiecewiseLinear<DIMENSION>::Factory(GRID)))
-
-#define QUANT_PDE_CONTROL1(GRID) \
-		QUANT_PDE_CONTROL_PIECEWISE_LINEAR_INTERPOLATION(1, GRID)
-
-#define QUANT_PDE_CONTROL2(GRID) \
-		QUANT_PDE_CONTROL_PIECEWISE_LINEAR_INTERPOLATION(2, GRID)
-
-#define QUANT_PDE_CONTROL3(GRID) \
-		QUANT_PDE_CONTROL_PIECEWISE_LINEAR_INTERPOLATION(3, GRID)
 
 ////////////////////////////////////////////////////////////////////////////////
 
