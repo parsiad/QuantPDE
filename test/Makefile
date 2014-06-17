@@ -13,7 +13,7 @@ endif
 
 all: $(BINARIES)
 
-$(BINARIES_DIRECTORY)/% : %.cpp $(HEADERS)
+$(BINARIES_DIRECTORY)/% : %.cpp
 	mkdir -p $(BINARIES_DIRECTORY)
 	$(CXX) \
 			-Wall -pedantic                  \

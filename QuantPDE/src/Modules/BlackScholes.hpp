@@ -10,15 +10,15 @@ namespace Modules {
  * \f$LV\equiv - 1/2 v^2 S^2 V_SS - (r - q) S V_S + r V\f$
  * where \f$r\f$, \f$v\f$, and \f$q\f$ are not necessarily constant.
  */
-class DiscreteBlackScholes : public LinearSystem {
+class BlackScholes : public SimpleControlledLinearSystem1 {
 
 	const RectilinearGrid1 *G;
-	Function2 r, v, q;
+	WrapperFunction1 r, v, q;
 
 public:
 
 	template <typename G, typename F1, typename F2, typename F3>
-	DiscreteBlackScholes(
+	BlackScholes(
 		G &grid,
 		F1 &&interest,
 		F2 &&volatility,
@@ -28,6 +28,14 @@ public:
 		r( std::forward<F1>(interest) ),
 		v( std::forward<F2>(volatility) ),
 		q( std::forward<F3>(dividends) ) {
+
+		registerControl(r);
+		registerControl(v);
+		registerControl(q);
+
+	}
+
+	virtual ~BlackScholes() {
 	}
 
 	virtual Matrix A(Real time) {
@@ -73,9 +81,9 @@ public:
 				beta_i  =  beta_common;
 			}
 
-			M_G(i, i - 1) = alpha_i;
-			M_G(i, i)     = -(alpha_i + beta_i + r_i);
-			M_G(i, i + 1) = beta_i;
+			M_G(i, i - 1) = -alpha_i;
+			M_G(i, i)     = alpha_i + beta_i + r_i;
+			M_G(i, i + 1) = -beta_i;
 
 		}
 
@@ -83,7 +91,7 @@ public:
 		// Left:  (1 + r dt) V_i^{n+1} = V_i^n
 		// Right:            V_i^{n+1} = V_i^n (linearity assumption)
 
-		M_G(0, 0) = -r( time, S[0] );
+		M_G(0, 0) = r( time, S[0] );
 
 		return M_G.matrix();
 	}
@@ -92,24 +100,25 @@ public:
 		return G->zero();
 	}
 
+	virtual bool isATheSame() const {
+		return r.isConstantInTime() && v.isConstantInTime()
+				&& q.isConstantInTime();
+	}
+
 };
 
-/**
- * Represents the operator
- * \f$LV\equiv - 1/2 v^2 S^2 V_SS - (r - q) S V_S + r V\f$
- * where \f$r\f$, \f$v\f$, and \f$q\f$ are constant.
- */
-class DiscreteBlackScholesConstantCoefficients : public DiscreteBlackScholes {
+/*
+class BlackScholesConstantCoefficients final : public BlackScholes {
 
 public:
 
 	template <typename G>
-	DiscreteBlackScholesConstantCoefficients(
+	BlackScholesConstantCoefficients(
 		G &grid,
 		Real interest,
 		Real volatility,
 		Real dividends
-	) noexcept : DiscreteBlackScholes(
+	) noexcept : BlackScholes(
 		grid,
 		[interest]   (Real, Real) { return interest; },
 		[volatility] (Real, Real) { return volatility; },
@@ -122,6 +131,7 @@ public:
 	}
 
 };
+*/
 
 } // Modules
 

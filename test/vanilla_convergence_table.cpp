@@ -1,7 +1,7 @@
 #include <QuantPDE/Core>
+#include <QuantPDE/Modules/Payoffs>
 
 // TODO: Change these includes; shouldn't include src directory explicitly
-#include <QuantPDE/src/Modules/Payoffs.hpp>
 #include <QuantPDE/src/Modules/BlackScholes.hpp>
 
 using namespace QuantPDE;
@@ -9,48 +9,19 @@ using namespace QuantPDE::Modules;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-#include <cstdlib>
-#include <iostream>
-#include <iomanip>
-#include <fstream>
-#include <sstream>
-#include <unistd.h>
+#include <iostream>  // cout, cerr
+#include <iomanip>   // setw
+#include <unistd.h>  // getopt
 
 using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-int main(int argc, char **argv) {
-
-	// Default options
-	Real expiry         = 1.;
-	Real interest       = 0.04;
-	Real volatility     = 0.2;
-	Real dividends      = 0.;
-	Real stock          = 100.;
-	Real strike         = 100.;
-	unsigned refinement = 5;
-	unsigned steps      = 25;
-	bool call           = true;
-	bool variable       = false;
-	bool american       = false;
-	bool smooth         = false;
-
-	// Setting options with getopt
-	{ char c;
-	while((c = getopt(argc, argv, "Acd:hK:pr:R:s:S:T:v:V")) != -1) {
-		switch(c) {
-			case 'A':
-				american = true;
-				break;
-			case 'c':
-				smooth = true;
-				break;
-			case 'd':
-				dividends = atof(optarg);
-				break;
-			case 'h':
-				cerr <<
+/**
+ * Prints help to stderr.
+ */
+void help() {
+	cerr <<
 "vanilla_convergence_table [OPTIONS]" << endl << endl <<
 "Outputs the rate of convergence for computing the price of a call or put using" << endl <<
 "a discretization of the Black-Scholes partial differential equation." << endl <<
@@ -103,6 +74,39 @@ endl <<
 endl <<
 "-V" << endl <<
 "    uses variable-size timestepping" << endl << endl;
+}
+
+int main(int argc, char **argv) {
+
+	// Default options
+	Real expiry         = 1.;
+	Real interest       = 0.04;
+	Real volatility     = 0.2;
+	Real dividends      = 0.;
+	Real asset          = 100.;
+	Real strike         = 100.;
+	unsigned refinement = 5;
+	unsigned steps      = 25;
+	bool call           = true;
+	bool variable       = false;
+	bool american       = false;
+	bool smooth         = false;
+
+	// Setting options with getopt
+	{ char c;
+	while((c = getopt(argc, argv, "Acd:hK:pr:R:s:S:T:v:V")) != -1) {
+		switch(c) {
+			case 'A':
+				american = true;
+				break;
+			case 'c':
+				smooth = true;
+				break;
+			case 'd':
+				dividends = atof(optarg);
+				break;
+			case 'h':
+				help();
 				return 0;
 			case 'K':
 				strike = atof(optarg);
@@ -125,7 +129,7 @@ endl <<
 				}
 				break;
 			case 'S':
-				stock = atof(optarg);
+				asset = atof(optarg);
 				break;
 			case 'T':
 				if((expiry = atof(optarg)) <= 0.) {
@@ -140,11 +144,16 @@ endl <<
 			case 'V':
 				variable = true;
 				break;
+			case ':':
+			case '?':
+				cerr << endl;
+				help();
+				return 1;
 		}
 	} }
 
 	// Setting up the table
-	int const td = 20;
+	const int td = 20;
 	cout
 		<< setw(td) << "Nodes"                  << "\t"
 		<< setw(td) << "Steps"                  << "\t"
@@ -179,14 +188,14 @@ endl <<
 
 	// Payoff function
 	Function1 payoff = bind(
-		call ? callPayoff : putPayoff,
+		call ? Payoffs::call : Payoffs::put,
 		placeholders::_1,
 		strike
 	);
 
 	// Alternatively, we could have used...
-	//auto payoff = QUANT_PDE_MODULES_CALL_PAYOFF_FIXED_STRIKE(strike);
-	//auto payoff = QUANT_PDE_MODULES_PUT_PAYOFF_FIXED_STRIKE(strike);
+	//auto payoff = QUANT_PDE_MODULES_PAYOFFS_CALL_FIXED_STRIKE(strike);
+	//auto payoff = QUANT_PDE_MODULES_PAYOFFS_PUT_FIXED_STRIKE(strike);
 
 	Real pow2l  = 1.; // 2^l
 	for(unsigned l = 0; l < refinement; l++, steps *= variable ? 4 : 2) {
@@ -202,8 +211,8 @@ endl <<
 		// Solve problem
 		///////////////////////////////////////////////////////////////
 
-		unsigned realizedSteps;
-		Real averageInnerIterations = nan("");
+		unsigned outer;
+		Real inner = nan("");
 		Real value;
 		{
 			// How to discretize time
@@ -213,113 +222,94 @@ endl <<
 			//typedef ReverseRannacher TimeDiscretization;
 
 			// Black-Scholes operator (L in V_t = LV)
-			// Using the constant coefficient version of this
-			// operator is faster!
-			/*
-			DiscreteBlackScholes blackScholes(
-				grid,
-				[interest]   (Real, Real) {return interest;  },
-				[volatility] (Real, Real) {return volatility;},
-				[dividends]  (Real, Real) {return dividends; }
-			);
-			*/
-			DiscreteBlackScholesConstantCoefficients blackScholes(
+			BlackScholes bs(
 				grid,
 				interest, volatility, dividends
 			);
 
 			// Timestepping method
-			Iteration *timeStepper;
-			if(variable) {
-				timeStepper = new ReverseVariableStepper(
+			Iteration *stepper = variable
+				? (Iteration *) new ReverseVariableStepper(
 					0., // Initial time
 					expiry,
 					expiry / steps,
 					expiry / steps * 10. / pow2l
-				);
-			} else {
-				timeStepper = new ReverseConstantStepper(
+				)
+				: (Iteration *) new ReverseConstantStepper(
 					0., // Initial time
 					expiry,
 					steps
-				);
-			}
+				)
+			;
 
 			// Time discretization method
-			LinearSystemIteration *timeDiscretization;
-			if(smooth) {
-				timeDiscretization = new ReverseRannacher(
-						grid, blackScholes);
-			} else {
-				timeDiscretization = new ReverseLinearBDFTwo(
-						grid, blackScholes);
-			}
-			timeDiscretization->setIteration(*timeStepper);
+			LinearSystemIteration *discretization = smooth
+				? (LinearSystemIteration *) new ReverseRannacher(grid, bs)
+				: (LinearSystemIteration *) new ReverseLinearBDFTwo(grid, bs)
+			;
+			discretization->setIteration(*stepper);
 
 			// American-specific components; penalty method or not?
 			LinearSystemIteration *root;
-			ToleranceIteration *toleranceIteration = nullptr;
-			PenaltyMethodDifference1 *penaltyMethod = nullptr;
+			ToleranceIteration *tolerance = nullptr;
+			PenaltyMethodDifference1 *penalty = nullptr;
 			if(american) {
 				// American case
-				penaltyMethod = new PenaltyMethodDifference1(
+				penalty = new PenaltyMethodDifference1(
 					grid,
-					*timeDiscretization,
+					*discretization,
 					[&payoff] (Real t, Real x) {
 						return payoff(x);
 					}
 				);
 
-				toleranceIteration = new ToleranceIteration();
+				tolerance = new ToleranceIteration();
 
-				penaltyMethod->setIteration(
-						*toleranceIteration);
-				timeStepper->setInnerIteration(
-						*toleranceIteration);
+				penalty->setIteration(*tolerance);
+				stepper->setInnerIteration(*tolerance);
 
-				root = penaltyMethod;
+				root = penalty;
 			} else {
 				// European case
-				root = timeDiscretization;
+				root = discretization;
 			}
 
 			// Linear system solver
 			BiCGSTABSolver solver;
 
 			// Transfer the payoff function to the grid
-			Map1 *map;
-			if(smooth) {
-				// Smooth the payoff
-				map = new DiracConvolution1(grid, 10. / pow2l);
-			} else {
-				map = new PointwiseMap1(grid);
-			}
+			Map1 *map = smooth
+				? (Map1 *) new DiracConvolution1(
+					grid,
+					10. / pow2l
+				)
+				: (Map1 *) new PointwiseMap1(grid)
+			;
 			Vector initial = (*map)(payoff);
 			delete map;
 
 			// Compute solution
-			Vector solutionVector = timeStepper->iterateUntilDone(
+			Vector solutionVector = stepper->iterateUntilDone(
 				initial,
 				*root,
 				solver
 			);
 
-			// Number of steps taken (outermost iteration)
-			realizedSteps = timeStepper->iterations()[0];
+			// Outer iterations
+			outer = stepper->iterations()[0];
 
 			// Average number of inner iterations
 			if(american) {
-				averageInnerIterations = toleranceIteration
-						->meanIterations();
+				inner = tolerance->meanIterations();
 			}
 
 			// Solution at S = stock (default is 100.)
-			value = grid.accessor(solutionVector)(stock);
+			value = grid.accessor(solutionVector)(asset);
 
-			delete penaltyMethod;
-			delete toleranceIteration;
-			delete timeDiscretization;
-			delete timeStepper;
+			delete penalty;
+			delete tolerance;
+			delete discretization;
+			delete stepper;
 		}
 
 		///////////////////////////////////////////////////////////////
@@ -335,11 +325,11 @@ endl <<
 		// Print out row of table
 		cout
 			<< scientific
-			<< setw(td) << grid.size()            << "\t"
-			<< setw(td) << realizedSteps          << "\t"
-			<< setw(td) << averageInnerIterations << "\t"
-			<< setw(td) << value                  << "\t"
-			<< setw(td) << change                 << "\t"
+			<< setw(td) << grid.size() << "\t"
+			<< setw(td) << outer       << "\t"
+			<< setw(td) << inner       << "\t"
+			<< setw(td) << value       << "\t"
+			<< setw(td) << change      << "\t"
 			<< setw(td) << ratio
 			<< endl
 		;

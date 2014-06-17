@@ -1,12 +1,16 @@
 #ifndef QUANT_PDE_CORE_ITERATIVE_METHOD
 #define QUANT_PDE_CORE_ITERATIVE_METHOD
 
+#include <array>        // std::array
+#include <cstdlib>      // size_t
 #include <forward_list> // std::forward_list
+#include <functional>   // std::functional
+#include <memory>       // std::unique_ptr
 #include <tuple>        // std::tuple
 #include <utility>      // std::forward
 #include <vector>       // std::vector
 
-// TODO: Iteration also determines whether A is constant
+// TODO: Documentation
 
 namespace QuantPDE {
 
@@ -95,8 +99,6 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// Forward declaration
 
 /**
  * Keeps track of the n most recent iterands in an iterative method.
@@ -258,6 +260,349 @@ public:
 
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO: Copy/move/assignment
+
+template <Index Dimension>
+class WrapperFunction final {
+
+	static_assert(Dimension > 0, "Dimension must be positive");
+
+	class Base {
+
+	public:
+
+		Base() noexcept {
+		}
+
+		virtual ~Base() {
+		}
+
+		// Disable copy constructor and assignment operator.
+		Base(const Base &) = delete;
+		Base &operator=(const Base &) = delete;
+
+		virtual Real value(std::array<Real, Dimension + 1> coordinates)
+				const = 0;
+
+		virtual bool isConstantInTime() const {
+			// Default: not constant w.r.t. time
+			return false;
+		}
+
+		virtual bool isControllable() const {
+			// Default: not controllable
+			return false;
+		}
+
+		virtual void setInput(const Vector &input) {
+			// Default: do nothing
+		}
+
+		virtual void setInput(Vector &&input) {
+			// Default: do nothing
+		}
+
+		virtual std::unique_ptr<Base> clone() const = 0;
+
+	};
+
+	class Constant final : public Base {
+
+		Real constant;
+
+	public:
+
+		Constant(Real constant) noexcept : Base(), constant(constant) {
+		}
+
+		virtual Real value(std::array<Real, Dimension + 1> coordinates)
+				const {
+			return constant;
+		}
+
+		virtual bool isConstantInTime() const {
+			return true;
+		}
+
+		virtual std::unique_ptr<Base> clone() const {
+			return std::unique_ptr<Base>(new Constant(constant));
+		}
+
+	};
+
+	class FunctionOfSpaceAndTime final : public Base {
+
+		Function<Dimension + 1> function;
+
+	public:
+
+		template <typename F>
+		FunctionOfSpaceAndTime(F &&function) noexcept : Base(),
+				function(function) {
+		}
+
+		virtual Real value(std::array<Real, Dimension + 1> coordinates)
+				const {
+			return packAndCall<Dimension + 1>(function,
+					coordinates.data());
+		}
+
+		virtual std::unique_ptr<Base> clone() const {
+			return std::unique_ptr<Base>(
+					new FunctionOfSpaceAndTime(function));
+		}
+
+	};
+
+	class FunctionOfSpace final : public Base {
+
+		Function<Dimension> function;
+
+	public:
+
+		template <typename F>
+		FunctionOfSpace(F &&function) noexcept : Base(),
+				function(function) {
+		}
+
+		virtual Real value(std::array<Real, Dimension + 1> coordinates)
+				const {
+			return packAndCall<Dimension>(function,
+					coordinates.data() + 1);
+		}
+
+		virtual bool isConstantInTime() const {
+			return true;
+		}
+
+		virtual std::unique_ptr<Base> clone() const {
+			return std::unique_ptr<Base>(
+					new FunctionOfSpace(function));
+		}
+
+	};
+
+	class Control final : public Base {
+
+		std::unique_ptr<InterpolantFactoryBase<Dimension>> factory;
+		std::unique_ptr<Interpolant<Dimension>> interpolant;
+
+	public:
+
+		Control(
+			std::unique_ptr<InterpolantFactoryBase<Dimension>> factory,
+			std::unique_ptr<Interpolant<Dimension>> interpolant = nullptr
+		) noexcept :
+			factory( std::move(factory) ),
+			interpolant( std::move(interpolant) ) {
+		}
+
+		virtual Real value(std::array<Real, Dimension + 1> coordinates)
+				const {
+			assert(interpolant != nullptr);
+
+			// Pack and call
+			NaryMethodConst<Real, Interpolant<Dimension>,
+					Dimension, Real> tmp =
+					&Interpolant<Dimension>::operator();
+			return packAndCall<Dimension>(*interpolant, tmp,
+					coordinates.data() + 1);
+		}
+
+		virtual bool isControllable() const {
+			return true;
+		}
+
+		virtual void setInput(const Vector &input) {
+			interpolant = std::move( factory->interpolant(input) );
+		}
+
+		virtual void setInput(Vector &&input) {
+			interpolant = std::move( factory->interpolant(
+					std::move(input) ) );
+		}
+
+		virtual std::unique_ptr<Base> clone() const {
+			return std::unique_ptr<Base>(
+				new Control(
+					factory->clone(),
+					interpolant->clone()
+				)
+			);
+		}
+
+	};
+
+	std::unique_ptr<Base> base;
+
+public:
+
+	WrapperFunction(Real constant) noexcept {
+		base = std::unique_ptr<Base>(new Constant(constant));
+	}
+
+	WrapperFunction(const Function<Dimension + 1> &function) noexcept {
+		base = std::unique_ptr<Base>(
+			new FunctionOfSpaceAndTime(
+				function
+			)
+		);
+	}
+
+	WrapperFunction(Function<Dimension + 1> &&function) noexcept {
+		base = std::unique_ptr<Base>(
+			new FunctionOfSpaceAndTime(
+				std::move(function)
+			)
+		);
+	}
+
+	WrapperFunction(const Function<Dimension> &function) noexcept {
+		base = std::unique_ptr<Base>(
+			new FunctionOfSpace(
+				function
+			)
+		);
+	}
+
+	WrapperFunction(Function<Dimension> &&function) noexcept {
+		base = std::unique_ptr<Base>(
+			new FunctionOfSpace(
+				std::move(function)
+			)
+		);
+	}
+
+	WrapperFunction(std::unique_ptr<InterpolantFactoryBase<Dimension>>
+			factory) noexcept {
+		base = std::unique_ptr<Base>(
+			new Control(
+				std::move(factory)
+			)
+		);
+	}
+
+	WrapperFunction(const WrapperFunction &that) noexcept
+			: base(that.base->clone()) {
+	}
+
+	WrapperFunction(WrapperFunction &&that) noexcept
+			: base( std::move(that.base) ) {
+	}
+
+	WrapperFunction &operator=(const WrapperFunction &that) & noexcept {
+		base = that.base->clone();
+	}
+
+	WrapperFunction &operator=(WrapperFunction &&that) & noexcept {
+		base = std::move(that.base);
+	}
+
+	template <typename ...Ts>
+	Real operator()(Ts ...coordinates) const {
+		return base->value( {{coordinates...}} );
+	}
+
+	bool isConstantInTime() const {
+		return base->isConstantInTime();
+	}
+
+	bool isControllable() const {
+		return base->isControllable();
+	}
+
+	void setInput(const Vector &input) {
+		base->setInput(input);
+	}
+
+};
+
+typedef WrapperFunction<1> WrapperFunction1;
+typedef WrapperFunction<2> WrapperFunction2;
+typedef WrapperFunction<3> WrapperFunction3;
+
+template <Index Dimension>
+using Control = WrapperFunction<Dimension>;
+
+typedef Control<1> Control1;
+typedef Control<2> Control2;
+typedef Control<3> Control3;
+
+#define QUANT_PDE_CONTROL1_PIECEWISE_LINEAR_INTERPOLATION(GRID)    \
+		Control1(std::unique_ptr<InterpolantFactoryBase1>( \
+		new PiecewiseLinear1::Factory(GRID)))
+
+////////////////////////////////////////////////////////////////////////////////
+
+class ControlledLinearSystem : public LinearSystem {
+
+	virtual void setInputs(Vector *inputs) = 0;
+
+	/**
+	 * @return The number of controls.
+	 */
+	virtual size_t controlDimension() const = 0;
+
+public:
+
+	ControlledLinearSystem() noexcept : LinearSystem() {
+	}
+
+	template <typename ...Ts>
+	void setInputs(Ts &&...inputs) {
+		assert(controlDimension() == sizeof...(Ts));
+
+		Vector in[] { std::forward<Ts>(inputs)... };
+		setInputs(in);
+	}
+
+	template <typename ...Ts>
+	void setInputsx(Ts ...inputs) {
+		Vector in[] {inputs...};
+		setInputs(in);
+	}
+
+};
+
+template <Index Dimension>
+class SimpleControlledLinearSystem : public ControlledLinearSystem {
+
+	std::vector<WrapperFunction<Dimension> *> controls;
+
+	virtual void setInputs(Vector *inputs) {
+		for(auto control : controls) {
+			control->setInput( std::move(*(inputs++)) );
+		}
+	}
+
+	virtual size_t controlDimension() const {
+		return controls.size();
+	}
+
+protected:
+
+	void registerControl(WrapperFunction<Dimension> &wrapper) {
+		if(wrapper.isControllable()) {
+			controls.push_back(&wrapper);
+		}
+	}
+
+public:
+
+	template <typename ...Ts>
+	SimpleControlledLinearSystem() noexcept : ControlledLinearSystem() {
+	}
+
+};
+
+typedef SimpleControlledLinearSystem<1> SimpleControlledLinearSystem1;
+typedef SimpleControlledLinearSystem<2> SimpleControlledLinearSystem2;
+typedef SimpleControlledLinearSystem<3> SimpleControlledLinearSystem3;
+
+////////////////////////////////////////////////////////////////////////////////
+
 /**
  * Used to generate the left and right-hand sides of the linear system at each
  * iteration.
@@ -356,7 +701,7 @@ class Iteration {
 	Iteration *child;
 
 	// Nonownership
-	std::forward_list<LinearSystemIteration *> linearizers;
+	std::forward_list<LinearSystemIteration *> systems;
 
 	IterandHistory history;
 	Real implicitTime;
@@ -397,7 +742,7 @@ class Iteration {
 	 */
 	virtual bool done() const = 0;
 
-	virtual Vector iterateUntilDone(
+	Vector iterateUntilDone(
 		const Vector &initialIterand,
 		LinearSystemIteration &root,
 		LinearSolver &solver,
@@ -408,8 +753,8 @@ class Iteration {
 
 		clear();
 
-		for(auto linearizer : linearizers) {
-			linearizer->clear();
+		for(auto system : systems) {
+			system->clear();
 		}
 
 		time = initialTime(time);
@@ -428,8 +773,8 @@ class Iteration {
 		#define QUANT_PDE_TMP_HEAD                                     \
 				do {                                           \
 					implicitTime += timestep();            \
-					for(auto linearizer : linearizers) {   \
-						linearizer->onIterationStart();\
+					for(auto system : systems) {           \
+						system->onIterationStart();    \
 					}                                      \
 				} while(0)
 
@@ -438,8 +783,8 @@ class Iteration {
 				do {                                           \
 					initialized = true;                    \
 					its.back()++;                          \
-					for(auto linearizer : linearizers) {   \
-						linearizer->onIterationEnd();  \
+					for(auto system : systems) {           \
+						system->onIterationEnd();      \
 					}                                      \
 				} while(0)
 
@@ -578,11 +923,11 @@ public:
 
 void LinearSystemIteration::setIteration(Iteration &iteration) {
 	if(this->iteration) {
-		this->iteration->linearizers.remove(this);
+		this->iteration->systems.remove(this);
 	}
 
 	this->iteration = &iteration;
-	iteration.linearizers.push_front(this);
+	iteration.systems.push_front(this);
 }
 
 const IterandHistory::Iterands &LinearSystemIteration::iterands() const {
@@ -661,8 +1006,8 @@ class VariableStepper : public Iteration {
 
 	Real _step1() {
 		const Vector
-			&v1 = this->iterands()[ 0],
-			&v0 = this->iterands()[-1]
+			&v1 = iterands()[ 0],
+			&v0 = iterands()[-1]
 		;
 
 		// Tested 2014-06-08
@@ -757,8 +1102,8 @@ class ToleranceIteration : public Iteration {
 
 	virtual bool done() const {
 		const Vector
-			&v1 = this->iterands()[ 0],
-			&v0 = this->iterands()[-1]
+			&v1 = iterands()[ 0],
+			&v0 = iterands()[-1]
 		;
 
 		// Tested 2014-06-07

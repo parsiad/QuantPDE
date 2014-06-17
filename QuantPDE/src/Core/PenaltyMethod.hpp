@@ -21,11 +21,11 @@ class PenaltyMethod : public LinearSystemIteration {
 
 	virtual void onIterationStart() {
 		// Only need to do this once
-		rA = right->A( this->nextTime() );
-		rb = right->b( this->nextTime() );
+		rA = right->A( nextTime() );
+		rb = right->b( nextTime() );
 
 		// Evaluate the predicate using the previous iterand
-		Vector predicate = rA * this->iterands()[0] - rb;
+		Vector predicate = rA * iterands()[0] - rb;
 
 		// Build penalty matrix
 		P.setZero();
@@ -60,6 +60,8 @@ public:
 		return left->b( nextTime() ) + P * rb;
 	}
 
+	// TODO: Explicit discretizations
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,6 +72,8 @@ public:
  */
 template <Index Dimension>
 class PenaltyMethodDifference : public PenaltyMethod {
+
+	// TODO: Allow passing in a function of just space alone
 
 	class DifferenceSystem : public LinearSystem {
 

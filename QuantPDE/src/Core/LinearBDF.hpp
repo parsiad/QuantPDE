@@ -27,29 +27,29 @@ protected:
 	}
 
 	inline bool _isATheSame2() const {
-		return this->isTimestepTheSame() && op->isATheSame();
+		return isTimestepTheSame() && op->isATheSame();
 	}
 
 	inline Matrix _A1() {
-		t[1] = this->nextTime();
-		t[0] = this->times()[0];
+		t[1] = nextTime();
+		t[0] = times()[0];
 
 		h[0] = difference(t[1], t[0]);
 
 		return
 			domain->identity()
-			- op->A(t[1]) * h[0];
+			+ op->A(t[1]) * h[0];
 	}
 
 	inline Vector _b1() {
-		const Vector &v0 = this->iterands()[0];
+		const Vector &v0 = iterands()[0];
 		return v0 + h[0] * op->b(t[1]);
 	}
 
 	inline Matrix _A2() {
-		t[2] = this->nextTime();
-		t[1] = this->times()[ 0];
-		t[0] = this->times()[-1];
+		t[2] = nextTime();
+		t[1] = times()[ 0];
+		t[0] = times()[-1];
 
 		h[1] = difference(t[2], t[1]);
 		h[0] = difference(t[2], t[0]);
@@ -58,7 +58,7 @@ protected:
 
 		return
 			domain->identity()
-			- hh * op->A(t[2])
+			+ hh * op->A(t[2])
 		;
 
 		// Constant timestep case:
@@ -72,8 +72,8 @@ protected:
 
 	inline Vector _b2() {
 		const Vector
-			&v1 = this->iterands()[ 0],
-			&v0 = this->iterands()[-1]
+			&v1 = iterands()[ 0],
+			&v0 = iterands()[-1]
 		;
 
 		return
@@ -94,10 +94,10 @@ protected:
 	}
 
 	inline Matrix _A3() {
-		t[3] = this->nextTime();
-		t[2] = this->times()[ 0];
-		t[1] = this->times()[-1];
-		t[0] = this->times()[-2];
+		t[3] = nextTime();
+		t[2] = times()[ 0];
+		t[1] = times()[-1];
+		t[0] = times()[-2];
 
 		h[2] = difference(t[3], t[2]);
 		h[1] = difference(t[3], t[1]);
@@ -107,7 +107,7 @@ protected:
 
 		return
 			domain->identity()
-			- hh * op->A(t[3])
+			+ hh * op->A(t[3])
 		;
 
 		// Constant timestep case:
@@ -121,9 +121,9 @@ protected:
 
 	inline Vector _b3() {
 		const Vector
-			&v2 = this->iterands()[ 0],
-			&v1 = this->iterands()[-1],
-			&v0 = this->iterands()[-2]
+			&v2 = iterands()[ 0],
+			&v1 = iterands()[-1],
+			&v0 = iterands()[-2]
 		;
 
 		return
@@ -147,11 +147,11 @@ protected:
 
 	inline Matrix _A4() {
 
-		t[4] = this->nextTime();
-		t[3] = this->times()[ 0];
-		t[2] = this->times()[-1];
-		t[1] = this->times()[-2];
-		t[0] = this->times()[-3];
+		t[4] = nextTime();
+		t[3] = times()[ 0];
+		t[2] = times()[-1];
+		t[1] = times()[-2];
+		t[0] = times()[-3];
 
 		h[3] = difference(t[4], t[3]);
 		h[2] = difference(t[4], t[2]);
@@ -162,7 +162,7 @@ protected:
 
 		return
 			domain->identity()
-			- hh * op->A(t[4])
+			+ hh * op->A(t[4])
 		;
 
 
@@ -176,10 +176,10 @@ protected:
 
 	inline Vector _b4() {
 		const Vector
-			&v3 = this->iterands()[ 0],
-			&v2 = this->iterands()[-1],
-			&v1 = this->iterands()[-2],
-			&v0 = this->iterands()[-3]
+			&v3 = iterands()[ 0],
+			&v2 = iterands()[-1],
+			&v1 = iterands()[-2],
+			&v0 = iterands()[-3]
 		;
 
 		return
@@ -204,12 +204,12 @@ protected:
 	}
 
 	inline Matrix _A5() {
-		t[5] = this->nextTime();
-		t[4] = this->times()[ 0];
-		t[3] = this->times()[-1];
-		t[2] = this->times()[-2];
-		t[1] = this->times()[-3];
-		t[0] = this->times()[-4];
+		t[5] = nextTime();
+		t[4] = times()[ 0];
+		t[3] = times()[-1];
+		t[2] = times()[-2];
+		t[1] = times()[-3];
+		t[0] = times()[-4];
 
 		h[4] = difference(t[5], t[4]);
 		h[3] = difference(t[5], t[3]);
@@ -221,7 +221,7 @@ protected:
 
 		return
 			domain->identity()
-			- hh * op->A(t[5])
+			+ hh * op->A(t[5])
 		;
 
 		// Constant timestep case:
@@ -235,11 +235,11 @@ protected:
 
 	inline Vector _b5() {
 		const Vector
-			&v4 = this->iterands()[ 0],
-			&v3 = this->iterands()[-1],
-			&v2 = this->iterands()[-2],
-			&v1 = this->iterands()[-3],
-			&v0 = this->iterands()[-4]
+			&v4 = iterands()[ 0],
+			&v3 = iterands()[-1],
+			&v2 = iterands()[-2],
+			&v1 = iterands()[-3],
+			&v0 = iterands()[-4]
 		;
 
 		return
@@ -266,13 +266,13 @@ protected:
 	}
 
 	inline Matrix _A6() {
-		t[6] = this->nextTime();
-		t[5] = this->times()[ 0];
-		t[4] = this->times()[-1];
-		t[3] = this->times()[-2];
-		t[2] = this->times()[-3];
-		t[1] = this->times()[-4];
-		t[0] = this->times()[-5];
+		t[6] = nextTime();
+		t[5] = times()[ 0];
+		t[4] = times()[-1];
+		t[3] = times()[-2];
+		t[2] = times()[-3];
+		t[1] = times()[-4];
+		t[0] = times()[-5];
 
 		h[5] = difference(t[6], t[5]);
 		h[4] = difference(t[6], t[4]);
@@ -285,7 +285,7 @@ protected:
 
 		return
 			domain->identity()
-			- hh * op->A(t[6])
+			+ hh * op->A(t[6])
 		;
 
 		// Constant timestep case:
@@ -299,12 +299,12 @@ protected:
 
 	inline Vector _b6() {
 		const Vector
-			&v5 = this->iterands()[ 0],
-			&v4 = this->iterands()[-1],
-			&v3 = this->iterands()[-2],
-			&v2 = this->iterands()[-3],
-			&v1 = this->iterands()[-4],
-			&v0 = this->iterands()[-5]
+			&v5 = iterands()[ 0],
+			&v4 = iterands()[-1],
+			&v3 = iterands()[-2],
+			&v2 = iterands()[-3],
+			&v1 = iterands()[-4],
+			&v0 = iterands()[-5]
 		;
 
 		return

@@ -13,8 +13,8 @@ class CrankNicolson : public LinearSystemIteration {
 
 	inline Real dt() {
 		const Real
-			t1 = this->nextTime(),
-			t0 = this->times()[0]
+			t1 = nextTime(),
+			t0 = times()[0]
 		;
 
 		return Forward ? t1 - t0 : t0 - t1;
@@ -23,26 +23,26 @@ class CrankNicolson : public LinearSystemIteration {
 public:
 
 	virtual bool isATheSame() const {
-		return this->isTimestepTheSame() && op->isATheSame();
+		return isTimestepTheSame() && op->isATheSame();
 	}
 
 	virtual Matrix A() {
-		const Real t1 = this->nextTime();
+		const Real t1 = nextTime();
 
 		return
 			domain->identity()
-			- op->A(t1) * dt() / 2.
+			+ op->A(t1) * dt() / 2.
 		;
 	}
 
 	virtual Vector b() {
-		const Real    t1 = this->nextTime();
-		const Real    t0 = this->times()[0];
-		const Vector &v0 = this->iterands()[0];
+		const Real    t1 = nextTime();
+		const Real    t0 = times()[0];
+		const Vector &v0 = iterands()[0];
 
 		return (
 			domain->identity()
-			+ op->A(t0) * dt() / 2.
+			- op->A(t0) * dt() / 2.
 		) * v0 + ( op->b(t1) + op->b(t0) ) / 2.;
 	}
 
@@ -74,7 +74,7 @@ class Rannacher : public LinearSystemIteration {
 	}
 
 	bool _isATheSame1() const {
-		return this->isTimestepTheSame() && op->isATheSame();
+		return isTimestepTheSame() && op->isATheSame();
 	}
 
 	bool _isATheSame2() const {
@@ -83,37 +83,37 @@ class Rannacher : public LinearSystemIteration {
 	}
 
 	Matrix _A1() {
-		t1 = this->nextTime();
-		t0 = this->times()[0];
+		t1 = nextTime();
+		t0 = times()[0];
 
 		h0 = difference(t1, t0);
 
 		return
 			domain->identity()
-			- op->A(t1) * h0;
+			+ op->A(t1) * h0;
 	}
 
 	Vector _b1() {
-		const Vector &v0 = this->iterands()[0];
+		const Vector &v0 = iterands()[0];
 		return v0 + op->b(t1) * h0;
 	}
 
 	Matrix _A2() {
-		t1 = this->nextTime();
-		t0 = this->times()[0];
+		t1 = nextTime();
+		t0 = times()[0];
 
 		return
 			domain->identity()
-			- op->A(t1) * h0 / 2.
+			+ op->A(t1) * h0 / 2.
 		;
 	}
 
 	Vector _b2() {
-		const Vector &v0 = this->iterands()[0];
+		const Vector &v0 = iterands()[0];
 
 		return (
 			domain->identity()
-			+ op->A(t0) * h0 / 2.
+			- op->A(t0) * h0 / 2.
 		) * v0 + ( op->b(t1) + op->b(t0) ) / 2.;
 	}
 

@@ -11,6 +11,9 @@
 
 // TODO: Allow for different interpolation methods to query the value of a
 //       vector off the domain nodes
+// TODO: Currently, the domain is responsible for handing the accessor an
+//       interpolant factory. Change this.
+// TODO: Specialize Refiner?
 
 namespace QuantPDE {
 
@@ -51,6 +54,11 @@ public:
 		return interpolate( {{coordinates...}} );
 	}
 
+	/**
+	 * @return A clone of this interpolant.
+	 */
+	virtual std::unique_ptr<Interpolant> clone() const = 0;
+
 };
 
 typedef Interpolant<1> Interpolant1;
@@ -76,7 +84,16 @@ public:
 	virtual std::unique_ptr<Interpolant<Dimension>> interpolant(
 			const Vector &vector) const = 0;
 
+	virtual std::unique_ptr<Interpolant<Dimension>> interpolant(
+			Vector &&vector) const = 0;
+
+	virtual std::unique_ptr<InterpolantFactoryBase> clone() const = 0;
+
 };
+
+typedef InterpolantFactoryBase<1> InterpolantFactoryBase1;
+typedef InterpolantFactoryBase<2> InterpolantFactoryBase2;
+typedef InterpolantFactoryBase<3> InterpolantFactoryBase3;
 
 template <template <Index> class T, Index Dimension>
 class InterpolantFactory : public InterpolantFactoryBase<Dimension> {
@@ -84,11 +101,11 @@ class InterpolantFactory : public InterpolantFactoryBase<Dimension> {
 public:
 
 	/**
-	 * Creates a clone of this factory.
+	 * Creates a clone of this factory and assigns it to a new domain.
 	 * @param domain The new owner of this factory.
 	 * @return An interpolant factory.
 	 */
-	virtual std::unique_ptr<InterpolantFactory> clone(
+	virtual std::unique_ptr<InterpolantFactory> cloneAndReassign(
 			const T<Dimension> &domain) const = 0;
 
 };
@@ -169,6 +186,65 @@ class Domain : public DomainBase {
 	static_assert(Dimension > 0, "Dimension must be positive");
 
 	////////////////////////////////////////////////////////////////////////
+
+	class Iterator final {
+
+		const Domain *domain;
+		Index index;
+
+	public:
+
+		template <typename D>
+		Iterator(D &domain, Index index = 0) noexcept : domain(&domain),
+				index(index) {
+		}
+
+		Iterator(const Iterator &that) noexcept : domain(that.domain),
+				index(that.index) {
+		}
+
+		Iterator(const Iterator &&that) noexcept : domain(that.domain),
+				index(that.index) {
+		}
+
+		Iterator &operator=(const Iterator &that) & noexcept {
+			domain = that.domain;
+			index = that.index;
+			return *this;
+		}
+
+		Iterator &operator=(Iterator &&that) & noexcept {
+			domain = that.domain;
+			index = that.index;
+			return *this;
+		}
+
+		////////////////////////////////////////////////////////////////
+
+		bool operator==(const Iterator &that) const {
+			return domain == that.domain && index == that.index;
+		}
+
+		bool operator!=(const Iterator &that) const {
+			return !(*this == that);
+		}
+
+		std::array<Real, Dimension> operator*() const {
+			return domain->coordinates(index);
+		}
+
+		Iterator &operator++() {
+			index++;
+			return *this;
+		}
+
+		Iterator operator++(int) {
+			const Iterator old(*this);
+			++(*this);
+			return old;
+		}
+
+	};
 
 	enum class Ownership { CONST, NON_CONST, SHARED };
 
@@ -392,6 +468,42 @@ class Domain : public DomainBase {
 			const = 0;
 
 public:
+
+	/**
+	 * Returns an iterator pointing to the first node in the domain.
+	 *
+	 * Consider the following example printing out all of the nodes (by
+	 * their coordinates) on a two-dimensional domain:
+	 * \code{.cpp}
+	 * // Initialize a domain (assume My2DDomain is a subtype of Domain2)
+	 * My2DDomain D;
+	 *
+	 * for(auto node : D) {
+	 * 	Real x = node[0], y = node[1];
+	 * 	cout << "(" << x << ", " << y << ")" << endl;
+	 * }
+	 * \endcode
+	 * @return An iterator.
+	 */
+	Iterator cbegin() const {
+		return Iterator(*this);
+	}
+
+	Iterator begin() const {
+		return Iterator(*this);
+	}
+
+	/**
+	 * Returns an iterator pointing to the last node in the domain.
+	 * @return An iterator.
+	 */
+	Iterator cend() const {
+		return Iterator(*this, size());
+	}
+
+	Iterator end() const {
+		return Iterator(*this, size());
+	}
 
 	/**
 	 * Accessors can be used to iterate over vectors with respect to an
@@ -941,7 +1053,8 @@ public:
 	 * Copy constructor.
 	 */
 	RectilinearGrid(const RectilinearGrid &that) noexcept
-			: vsize(that.vsize), factory( factory->clone(*this) ) {
+			: vsize(that.vsize),
+			factory( factory->cloneAndReassign(*this) ) {
 		// TODO: Optimize (loop unroll)
 		for(Index i = 0; i < Dimension; i++) {
 			axes[i] = that.axes[i];
@@ -951,7 +1064,7 @@ public:
 	 * Move constructor.
 	 */
 	RectilinearGrid(RectilinearGrid &&that) noexcept : vsize(that.vsize),
-			factory( factory->clone(*this) ) {
+			factory( factory->cloneAndReassign(*this) ) {
 		// TODO: Optimize (loop unroll)
 		for(Index i = 0; i < Dimension; i++) {
 			axes[i] = std::move(that.axis[i]);
@@ -962,7 +1075,7 @@ public:
 	 * Copy assignment operator.
 	 */
 	RectilinearGrid &operator=(const RectilinearGrid &that) & noexcept {
-		factory = factory->clone(*this);
+		factory = factory->cloneAndReassign(*this);
 
 		vsize = that.vsize;
 
@@ -978,7 +1091,7 @@ public:
 	 * Move assignment operator.
 	 */
 	RectilinearGrid &operator=(RectilinearGrid &&that) & noexcept {
-		factory = factory->clone(*this);
+		factory = factory->cloneAndReassign(*this);
 
 		vsize = that.vsize;
 
@@ -1429,19 +1542,27 @@ public:
 					new PiecewiseLinear(*grid, vector));
 		}
 
-		virtual std::unique_ptr< InterpolantFactory<RectilinearGrid,
-				Dimension> > clone(
-				const RectilinearGrid<Dimension> &domain) const
-				{
-			return std::unique_ptr<InterpolantFactory<
-					RectilinearGrid, Dimension>>(
-				new Factory(
-					dynamic_cast<const RectilinearGrid<
-							Dimension> &>(domain)
-				)
-			);
+		virtual std::unique_ptr< Interpolant<Dimension> > interpolant(
+				Vector &&vector) const {
+			return std::unique_ptr<Interpolant<Dimension>>(
+					new PiecewiseLinear(*grid,
+					std::move(vector)));
 		}
 
+		virtual std::unique_ptr<InterpolantFactoryBase<Dimension>>
+				clone() const {
+			return std::unique_ptr<InterpolantFactoryBase<
+					Dimension>>( new Factory(*this) );
+		}
+
+		virtual std::unique_ptr< InterpolantFactory<RectilinearGrid,
+				Dimension> > cloneAndReassign(
+				const RectilinearGrid<Dimension> &domain) const
+				{
+			return std::unique_ptr< InterpolantFactory<
+					RectilinearGrid, Dimension> >(
+					new Factory(domain) );
+		}
 
 	};
 
@@ -1449,8 +1570,8 @@ public:
 	 * Constructor.
 	 */
 	template <typename G, typename V>
-	PiecewiseLinear(G &grid, V &vector) noexcept : grid(&grid),
-			vector(vector) {
+	PiecewiseLinear(G &grid, V &&vector) noexcept : grid(&grid),
+			vector( std::forward<V>(vector) ) {
 	}
 
 	/**
@@ -1483,6 +1604,11 @@ public:
 		grid = that.grid;
 		vector = std::move(that.vector);
 		return *this;
+	}
+
+	virtual std::unique_ptr<Interpolant<Dimension>> clone() const {
+		return std::unique_ptr<Interpolant<Dimension>>(
+				new PiecewiseLinear( *this ) );
 	}
 
 };
