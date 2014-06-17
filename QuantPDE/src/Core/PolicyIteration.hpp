@@ -43,8 +43,8 @@ class PolicyIteration : public LinearSystemIteration {
 
 	virtual void onIterationStart() {
 		NaryMethodNonConst<void, ControlledLinearSystem,
-				ControlDimension, Vector> setInputs =
-				&ControlledLinearSystem::setInputsx;
+				ControlDimension, Vector &&> setInputs =
+				&ControlledLinearSystem::setInputs;
 
 		// Optimal controls
 		Vector optimal[ControlDimension];
@@ -64,17 +64,16 @@ class PolicyIteration : public LinearSystemIteration {
 			best *= -1;
 		}
 
-		Vector inputs[ControlDimension];
 		for(auto node : *controlDomain) {
+			Vector inputs[ControlDimension];
 			for(Index i = 0; i < ControlDimension; i++) {
 				inputs[i] = domain->ones() * node[i];
 			}
-
-			packAndCall<Dimension>(*system, setInputs, inputs);
+			packMoveAndCall<Dimension>(*system, setInputs, inputs);
 
 			// Compute A(q)x - b(q)
 			Vector candidate = system->A( nextTime() )
-					* iterands()[0]
+					* iterand(0)
 					- system->b( nextTime() );
 
 			for(Index i = 0; i < domain->size(); i++) {
@@ -88,7 +87,7 @@ class PolicyIteration : public LinearSystemIteration {
 			}
 		}
 
-		packAndCall<Dimension>(*system, setInputs, optimal);
+		packMoveAndCall<Dimension>(*system, setInputs, optimal);
 	}
 
 public:

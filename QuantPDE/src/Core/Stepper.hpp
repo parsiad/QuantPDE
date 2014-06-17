@@ -1,222 +1,180 @@
 #ifndef QUANT_PDE_CORE_STEPPER
 #define QUANT_PDE_CORE_STEPPER
 
-#include <functional>    // std::function
-#include <string>        // std::string
-#include <unordered_map> // std::unordered_map
-
 namespace QuantPDE {
 
 /**
- * Used as a wrapper around solution routines to allow for caching.
+ * Steps through time at constant intervals.
  */
-template <typename S>
-class Cache {
+template <bool Forward>
+class ConstantStepper : public Iteration {
 
-	bool solved;
-	S s;
+	Real startTime, endTime, dt;
+	unsigned n, steps;
 
-	virtual S solve() = 0;
-
-public:
-
-	Cache() : solved(false) {
+	virtual void clear() {
+		n = 0;
 	}
 
-	Cache(const Cache &) = delete;
-	Cache &operator=(const Cache &) & = delete;
-
-	const S &solution() {
-		if(solved) {
-			return s;
-		}
-
-		s = solve();
-		solved = true;
-		return s;
+	virtual Real initialTime(Real) const {
+		return Forward ? startTime : endTime; // TODO: Optimize
 	}
 
-};
+	virtual Real timestep() {
+		n++;
+		return Forward ? dt : -dt; // TODO: Optimize
+	}
 
-// TODO: Document
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace Metafunctions {
-
-namespace NaryFunctionSignatureHelpers {
-
-template <typename R, typename... Ts>
-using RoutineTarget = R (const Constraint &, Real, Ts...);
-
-template<unsigned N>
-using RoutineSignature = Type<RoutineTarget, Matrix, N, Vector>;
-
-} // NaryFunctionSignatureHelpers
-
-} // Metafunctions
-
-template <Index N>
-using Routine = std::function< Metafunctions::NaryFunctionSignatureHelpers
-		::RoutineSignature<N> >;
-
-typedef Routine<0> Routine0;
-typedef Routine<1> Routine1;
-typedef Routine<2> Routine2;
-typedef Routine<3> Routine3;
-
-/**
- * Delegates to each constraint a routine to handle it.
- * @see QuantPDE::Constraint
- */
-template <Index Controls = 0>
-class Discretizer {
-
-	static_assert(Controls >= 0, "Number of controls must be nonnegative");
-
-	std::unordered_map<std::string, Routine<Controls> > routines;
-
-protected:
-
-	/**
-	 * Associates a routine with a type of constraint.
-	 * @param identifier The identifier associated with the type of
-	 *                   constraint.
-	 * @param routine The routine.
-	 */
-	template <typename F>
-	void registerRoutine(const std::string &identifier, F &&routine) {
-		routines[identifier] = routine;
+	virtual bool done() const {
+		return n >= steps;
 	}
 
 public:
 
 	/**
 	 * Constructor.
+	 * @param startTime The initial time.
+	 * @param endTime The expiry time (must be larger than the initial).
+	 * @param steps The number of steps to take.
+	 * @param lookback The number of iterands to keep track of.
 	 */
-	Discretizer() noexcept {
+	ConstantStepper(
+		Real startTime,
+		Real endTime,
+		unsigned steps,
+		int lookback = DEFAULT_STEPPER_LOOKBACK
+	) noexcept :
+		Iteration(lookback),
+		startTime(startTime),
+		endTime(endTime),
+		dt( (endTime - startTime) / steps ),
+		steps(steps)
+	{
+		assert(startTime >= 0.);
+		assert(startTime < endTime);
+		assert(steps > 0);
 	}
+
+};
+
+typedef ConstantStepper<false> ReverseConstantStepper;
+typedef ConstantStepper<true > ForwardConstantStepper;
+
+////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Steps through time at (self-adjusting) variable intervals.
+ */
+template <bool Forward>
+class VariableStepper : public Iteration {
+
+	Real startTime, endTime, dt, target, scale, time;
+	Real (VariableStepper<Forward>::*_step)();
+
+	Real _step0() {
+		_step = &VariableStepper::_step1;
+		return Forward ? dt : -dt; // TODO: Optimize
+	}
+
+	Real _step1() {
+		const Vector
+			&v1 = iterand(0),
+			&v0 = iterand(1)
+		;
+
+		// Tested 2014-06-08
+		dt *= target / ( v1 - v0 ).cwiseAbs().cwiseQuotient(
+			( scale * Vector::Ones( v1.size() ) ).cwiseMax(
+				v1.cwiseAbs().cwiseMax(
+					v0.cwiseAbs()
+				)
+			)
+		).maxCoeff();
+
+		// TODO: Optimize
+		if(Forward) {
+			if(time + dt > endTime) {
+				dt = endTime - time;
+				time = endTime;
+			} else {
+				time += dt;
+			}
+
+			return dt;
+		} else {
+			if(time - dt < startTime) {
+				dt = time - startTime;
+				time = startTime;
+			} else {
+				time -= dt;
+			}
+
+			return -dt;
+		}
+	}
+
+	virtual void clear() {
+		_step = &VariableStepper::_step0;
+		time = Forward ? startTime : endTime; // TODO: Optimize
+	}
+
+	virtual Real initialTime(Real) const {
+		return endTime;
+	}
+
+	virtual Real timestep() {
+		return (this->*_step)();
+	}
+
+	virtual bool done() const {
+		if(Forward) {
+			return time <= startTime;
+		} else {
+			return time >= endTime;
+		}
+	}
+
+public:
 
 	/**
-	 * Destructor.
+	 * Constructor.
+	 * @param startTime The initial time.
+	 * @param endTime The expiry time (must be larger than the initial).
+	 * @param dt The initial time step size.
+	 * @param target The target time step size.
+	 * @param scale The scale of the error (e.g. 1 for dollars).
+	 * @param lookback The number of iterands to keep track of.
 	 */
-	virtual ~Discretizer() {
-	}
-
-	// Disable copy constructor and assignment operator
-	Discretizer(const Discretizer &that) = delete;
-	Discretizer &operator=(const Discretizer &that) & = delete;
-
-	template <typename ...Args>
-	Matrix handle(const Constraint &constraint, Real time, Args ...controls)
-			{
-		return routines[constraint.identifier()](constraint, time,
-				controls...);
-	}
-
-};
-
-typedef Discretizer<0> Discretizer0;
-typedef Discretizer<1> Discretizer1;
-typedef Discretizer<2> Discretizer2;
-typedef Discretizer<3> Discretizer3;
-
-#define QUANT_PDE_REGISTER_ROUTINE(class)                      \
-	registerRoutine(                                       \
-		QUANT_PDE_IDENTIFIER(class),                   \
-		[this] (const Constraint &a, Real b, Real c) { \
-			_##class(a, b, c);                     \
-		}                                              \
-	)
-
-////////////////////////////////////////////////////////////////////////////////
-
-////////////////////////////////////////////////////////////////////////////////
-
-/*
-template <typename E>
-class ConstantStepper : public Stepper<E> {
-
-	unsigned N, n;
-	double start, dt;
-
-	virtual E next() {
-		E e = next( start + dt * n, start + dt * (n + 1) );
-		n++;
-		return e;
-	}
-
-	virtual E next(double previousTime, double nextTime) = 0;
-
-public:
-
-	// TODO: Document
-	ConstantStepper(const Grid &grid, Vector &initial, double start,
-			double end, unsigned steps)
-			: Stepper<E>(grid, initial, start), N(steps), n(0),
-			start(start), dt((end - start) / steps) {
-		assert(N > 0);
-	}
-
-	// TODO: Copy constructor
-
-	virtual bool done() const {
-		return n >= N;
+	VariableStepper(
+		Real startTime,
+		Real endTime,
+		Real dt,
+		Real target,
+		Real scale = 1,
+		int lookback = DEFAULT_STEPPER_LOOKBACK
+	) noexcept :
+		Iteration(lookback),
+		startTime(startTime),
+		endTime(endTime),
+		dt(dt),
+		target(target),
+		scale(scale)
+	{
+		assert(startTime >= 0.);
+		assert(startTime < endTime);
+		assert(dt > 0);
+		assert(target > 0);
+		assert(scale > 0);
+		assert(lookback >= 2); // Need at least two iterands to
+		                       // variable step
 	}
 
 };
 
-// TODO: Document
-template <typename E>
-class VariableStepper : public Stepper<E> {
+typedef VariableStepper<false> ReverseVariableStepper;
+typedef VariableStepper<true > ForwardVariableStepper;
 
-	double end, dt, dnorm, scale;
-
-	virtual E next() {
-		double nextTime = this->currentTime() + dt;
-		if(nextTime > end) {
-			nextTime = end;
-		}
-		return next(this->currentTime(), nextTime);
-	}
-
-	virtual void postProcess(double previousTime, double nextTime,
-			const Vector &previousSolution,
-			const Vector &nextSolution) {
-		Vector divisor = (scale * this->grid.ones()).cwiseMax(
-				nextSolution.cwiseAbs().cwiseMax(
-				previousSolution.cwiseAbs()));
-
-		Vector relative = (previousSolution - nextSolution)
-				.cwiseAbs().cwiseQuotient(divisor);
-
-		dt *= dnorm / relative.maxCoeff();
-
-		// TODO: Not sure if this currently works. Fix it.
-	}
-
-
-	virtual E next(double previousTime, double nextTime) = 0;
-
-public:
-
-	// TODO: Document
-	VariableStepper(const Grid &grid, Vector &initial, double start,
-			double end, double dt, double dnorm, double scale = 1)
-			: Stepper<E>(grid, initial, start),
-			end(end), dt(dt), dnorm(dnorm), scale(scale) {
-	}
-
-	// TODO: Copy constructor
-
-	virtual bool done() const {
-		return this->currentTime() >= end;
-	}
-
-};
-*/
-
-}
+} // QuantPDE
 
 #endif
 

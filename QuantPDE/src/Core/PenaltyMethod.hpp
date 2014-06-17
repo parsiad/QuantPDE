@@ -25,7 +25,7 @@ class PenaltyMethod : public LinearSystemIteration {
 		rb = right->b( nextTime() );
 
 		// Evaluate the predicate using the previous iterand
-		Vector predicate = rA * iterands()[0] - rb;
+		Vector predicate = rA * iterand(0) - rb;
 
 		// Build penalty matrix
 		P.setZero();

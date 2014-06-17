@@ -14,7 +14,7 @@ class CrankNicolson : public LinearSystemIteration {
 	inline Real dt() {
 		const Real
 			t1 = nextTime(),
-			t0 = times()[0]
+			t0 = time(0)
 		;
 
 		return Forward ? t1 - t0 : t0 - t1;
@@ -37,8 +37,8 @@ public:
 
 	virtual Vector b() {
 		const Real    t1 = nextTime();
-		const Real    t0 = times()[0];
-		const Vector &v0 = iterands()[0];
+		const Real    t0 = time(0);
+		const Vector &v0 = iterand(0);
 
 		return (
 			domain->identity()
@@ -84,7 +84,7 @@ class Rannacher : public LinearSystemIteration {
 
 	Matrix _A1() {
 		t1 = nextTime();
-		t0 = times()[0];
+		t0 = time(0);
 
 		h0 = difference(t1, t0);
 
@@ -94,13 +94,13 @@ class Rannacher : public LinearSystemIteration {
 	}
 
 	Vector _b1() {
-		const Vector &v0 = iterands()[0];
+		const Vector &v0 = iterand(0);
 		return v0 + op->b(t1) * h0;
 	}
 
 	Matrix _A2() {
 		t1 = nextTime();
-		t0 = times()[0];
+		t0 = time(0);
 
 		return
 			domain->identity()
@@ -109,7 +109,7 @@ class Rannacher : public LinearSystemIteration {
 	}
 
 	Vector _b2() {
-		const Vector &v0 = iterands()[0];
+		const Vector &v0 = iterand(0);
 
 		return (
 			domain->identity()

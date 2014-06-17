@@ -157,7 +157,7 @@ int main(int argc, char **argv) {
 	cout
 		<< setw(td) << "Nodes"                  << "\t"
 		<< setw(td) << "Steps"                  << "\t"
-		<< setw(td) << "Mean Inner Iterations" << "\t"
+		<< setw(td) << "Mean Inner Iterations"  << "\t"
 		<< setw(td) << "Value"                  << "\t"
 		<< setw(td) << "Change"                 << "\t"
 		<< setw(td) << "Ratio"
@@ -215,12 +215,6 @@ int main(int argc, char **argv) {
 		Real inner = nan("");
 		Real value;
 		{
-			// How to discretize time
-			//typedef ReverseImplicitEuler TimeDiscretization;
-			//typedef ReverseLinearBDFTwo TimeDiscretization;
-			//typedef ReverseCrankNicolson TimeDiscretization;
-			//typedef ReverseRannacher TimeDiscretization;
-
 			// Black-Scholes operator (L in V_t = LV)
 			BlackScholes bs(
 				grid,

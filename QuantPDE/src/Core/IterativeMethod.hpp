@@ -4,13 +4,10 @@
 #include <array>        // std::array
 #include <cstdlib>      // size_t
 #include <forward_list> // std::forward_list
-#include <functional>   // std::functional
 #include <memory>       // std::unique_ptr
 #include <tuple>        // std::tuple
-#include <utility>      // std::forward
+#include <utility>      // std::forward, std::move
 #include <vector>       // std::vector
-
-// TODO: Documentation
 
 namespace QuantPDE {
 
@@ -49,7 +46,7 @@ public:
 	/**
 	 * Initializes the linear solver with a matrix. If solving a linear
 	 * system with a constant left-hand-side multiple times, this call
-	 * should occur only once.
+	 * should occur only once so that the matrix is factored only once.
 	 * @param A The left-hand-side matrix.
 	 */
 	template <typename M>
@@ -101,54 +98,17 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Keeps track of the n most recent iterands in an iterative method.
+ * Circular buffer. When pushing occurs at capacity, the oldest element is
+ * removed.
  */
-class IterandHistory final {
+template <typename T>
+class CircularBuffer {
 
-	template <typename T, size_t Index>
-	class TupleSelector final {
+protected:
 
-		const IterandHistory *history;
-
-	public:
-
-		template <typename H>
-		TupleSelector(H &history) noexcept : history(&history) {
-		}
-
-		// Disable copy constructor and assignment operator
-		TupleSelector(const TupleSelector &) = delete;
-		TupleSelector &operator=(const TupleSelector &) = delete;
-
-		T operator[](int index) const {
-			assert(index >  -history->lookback);
-			assert(index <=  history->lookback);
-
-			int position = (history->tail - 1 + history->lookback
-					+ index) % history->lookback;
-
-			assert(position < history->size);
-
-			return std::get<Index>( history->data[position] );
-		}
-
-	};
-
-public:
-
-	typedef TupleSelector<Real, 0> Times;
-	typedef TupleSelector<const Vector &, 1> Iterands;
-
-private:
-
-	typedef std::tuple<Real, Vector> T;
 	T *data;
 
-	Times ts;
-	Iterands its;
-
-	size_t tail;
-	int lookback;
+	int tail, lookback;
 
 	#ifndef NDEBUG
 	size_t size;
@@ -160,8 +120,7 @@ public:
 	 * Constructor.
 	 * @param lookback How many iterands to keep track of.
 	 */
-	IterandHistory(int lookback) noexcept : ts(*this), its(*this),
-			lookback(lookback) {
+	CircularBuffer(int lookback) noexcept : lookback(lookback) {
 		assert(lookback > 0);
 		data = new T[lookback];
 		clear();
@@ -170,16 +129,16 @@ public:
 	/**
 	 * Destructor.
 	 */
-	virtual ~IterandHistory() {
+	virtual ~CircularBuffer() {
 		delete [] data;
 	}
 
 	// Disable copy constructor and assignment operator.
-	IterandHistory(const IterandHistory &) = delete;
-	IterandHistory &operator=(const IterandHistory &) = delete;
+	CircularBuffer(const CircularBuffer &) = delete;
+	CircularBuffer &operator=(const CircularBuffer &) = delete;
 
 	/**
-	 * Removes all stored iterands.
+	 * Removes everything from the data structure.
 	 */
 	void clear() {
 		tail = 0;
@@ -190,13 +149,12 @@ public:
 	}
 
 	/**
-	 * Adds an iterand. Automatically removes the oldest iterand if too many
-	 * iterands are being sotred.
-	 * @param element The iterand.
+	 * Pushes an element into the buffer.
+	 * @param element The element.
 	 */
-	template <typename V>
-	void push(Real time, V &&iterand) {
-		data[tail] = std::make_tuple(time, std::forward<V>(iterand));
+	template <typename E>
+	void push(E &&element) {
+		data[tail] = std::forward<E>(element);
 		tail = (tail + 1) % lookback;
 
 		#ifndef NDEBUG
@@ -206,12 +164,22 @@ public:
 		#endif
 	}
 
-	const Times &times() const {
-		return ts;
-	}
+	/**
+	 * Retrieves an element from the buffer given an index. The index 0
+	 * corresponds to the most recently pushed element (1 corresponds to the
+	 * element pushed in after that one, etc.).
+	 * @param index The index.
+	 * @return The element.
+	 */
+	const T &operator[](int index) const {
+		assert(index >= 0);
+		assert(index < lookback);
 
-	const Iterands &iterands() const {
-		return its;
+		int position = (tail - 1 + lookback - index) % lookback;
+
+		assert(position < size);
+
+		return data[position];
 	}
 
 };
@@ -262,8 +230,49 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: Copy/move/assignment
-
+/**
+ * A convenience class that takes as input (during construction) any one of a
+ * constant, a function, or an interpolant factory. It can be used to build
+ * robust discrete operators.
+ *
+ * Many Black-Scholes models assume constant coefficients. For example,
+ * \code{.cpp}
+ * RectilinearGrid1 grid(Axis { 0., 50., 100., 150., 200. } );
+ *
+ * BlackScholes blackScholes(
+ * 	grid,
+ * 	0.04, // Interest rate
+ * 	0.2,  // Volatility
+ * 	0.,   // Dividend rate
+ * );
+ * \endcode
+ *
+ * However, more exotic models are often used. For example,
+ * \code{.cpp}
+ * const Real alpha = 0.4;
+ *
+ * BlackScholes blackScholes(
+ * 	grid,
+ *
+ * 	// Controllable interest rate
+ * 	Control1::make(grid),
+ *
+ * 	// Local volatility
+ * 	[alpha] (Real t, Real S) { return alpha * t/S; },
+ *
+ * 	// Constant dividend rate
+ * 	0.   // Dividend rate
+ * );
+ * \endcode
+ * The above operator has a controllable interest rate and a local volatility
+ * model.
+ *
+ * This flexibility is made possible by the WrapperFunction class, a wrapper for
+ * constants, functions of space and time, functions of space, and controls.
+ *
+ * @tparam Dimension The dimension of the associated spatial domain (not the
+ *                   control domain)
+ */
 template <Index Dimension>
 class WrapperFunction final {
 
@@ -392,8 +401,10 @@ class WrapperFunction final {
 	public:
 
 		Control(
-			std::unique_ptr<InterpolantFactoryBase<Dimension>> factory,
-			std::unique_ptr<Interpolant<Dimension>> interpolant = nullptr
+			std::unique_ptr<InterpolantFactoryBase<Dimension>>
+					factory,
+			std::unique_ptr<Interpolant<Dimension>> interpolant
+					= nullptr
 		) noexcept :
 			factory( std::move(factory) ),
 			interpolant( std::move(interpolant) ) {
@@ -439,10 +450,16 @@ class WrapperFunction final {
 
 public:
 
+	/**
+	 * Constructor for a constant.
+	 */
 	WrapperFunction(Real constant) noexcept {
 		base = std::unique_ptr<Base>(new Constant(constant));
 	}
 
+	/**
+	 * Constructor for a function of space and time.
+	 */
 	WrapperFunction(const Function<Dimension + 1> &function) noexcept {
 		base = std::unique_ptr<Base>(
 			new FunctionOfSpaceAndTime(
@@ -451,6 +468,9 @@ public:
 		);
 	}
 
+	/**
+	 * Move constructor for a function of space and time.
+	 */
 	WrapperFunction(Function<Dimension + 1> &&function) noexcept {
 		base = std::unique_ptr<Base>(
 			new FunctionOfSpaceAndTime(
@@ -459,6 +479,9 @@ public:
 		);
 	}
 
+	/**
+	 * Constructor for a function of space.
+	 */
 	WrapperFunction(const Function<Dimension> &function) noexcept {
 		base = std::unique_ptr<Base>(
 			new FunctionOfSpace(
@@ -467,6 +490,9 @@ public:
 		);
 	}
 
+	/**
+	 * Move constructor for a function of space.
+	 */
 	WrapperFunction(Function<Dimension> &&function) noexcept {
 		base = std::unique_ptr<Base>(
 			new FunctionOfSpace(
@@ -475,6 +501,12 @@ public:
 		);
 	}
 
+	/**
+	 * Constructor for a control.
+	 * @param factory The interpolant factory used to create interpolants
+	 *                for this control on the spatial domain.
+	 * @see QuantPDE::InterpolantFactoryBase
+	 */
 	WrapperFunction(std::unique_ptr<InterpolantFactoryBase<Dimension>>
 			factory) noexcept {
 		base = std::unique_ptr<Base>(
@@ -484,39 +516,74 @@ public:
 		);
 	}
 
+	/**
+	 * Copy constructor.
+	 */
 	WrapperFunction(const WrapperFunction &that) noexcept
 			: base(that.base->clone()) {
 	}
 
+	/**
+	 * Move constructor.
+	 */
 	WrapperFunction(WrapperFunction &&that) noexcept
 			: base( std::move(that.base) ) {
 	}
 
+	/**
+	 * Copy assignment operator.
+	 */
 	WrapperFunction &operator=(const WrapperFunction &that) & noexcept {
 		base = that.base->clone();
 	}
 
+	/**
+	 * Move assignment operator.
+	 */
 	WrapperFunction &operator=(WrapperFunction &&that) & noexcept {
 		base = std::move(that.base);
 	}
 
+	/**
+	 * Query the value of this function at the specified time and
+	 * (spatial) coordinates.
+	 * @param time The time.
+	 * @param coordinates The (spatial) coordinates.
+	 * @return The function's value.
+	 */
 	template <typename ...Ts>
-	Real operator()(Ts ...coordinates) const {
-		return base->value( {{coordinates...}} );
+	Real operator()(Real time, Ts ...coordinates) const {
+		return base->value( {{time, coordinates...}} );
 	}
 
+	/**
+	 * @return True if and only if this is not a function of time.
+	 */
 	bool isConstantInTime() const {
 		return base->isConstantInTime();
 	}
 
+	/**
+	 * @return True if and only if this is a (wrapper for a) control.
+	 */
 	bool isControllable() const {
 		return base->isControllable();
 	}
 
+	/**
+	 * Sets the value of the control. If this is not a control, nothing is
+	 * done.
+	 * @param input The value to take on.
+	 */
 	void setInput(const Vector &input) {
 		base->setInput(input);
 	}
 
+	/**
+	 * Creates a control of particular dimension.
+	 * @tparam T The interpolant to use.
+	 * @param domain The domain to interpolate on.
+	 */
 	template <template <Index> class T = PiecewiseLinear, typename D>
 	static WrapperFunction make(D &domain) {
 		return WrapperFunction(
@@ -541,8 +608,17 @@ typedef Control<3> Control3;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/**
+ * A controllable linear system.
+ */
 class ControlledLinearSystem : public LinearSystem {
 
+	/**
+	 * Controls the system.
+	 * @param inputs An array of inputs. It can be assumed that the inputs
+	 *               will not be used again and hence invoking move
+	 *               semantics on each input is safe.
+	 */
 	virtual void setInputs(Vector *inputs) = 0;
 
 	/**
@@ -552,9 +628,16 @@ class ControlledLinearSystem : public LinearSystem {
 
 public:
 
+	/**
+	 * Constructor.
+	 */
 	ControlledLinearSystem() noexcept : LinearSystem() {
 	}
 
+	/**
+	 * Controls the system.
+	 * @param inputs The inputs.
+	 */
 	template <typename ...Ts>
 	void setInputs(Ts &&...inputs) {
 		assert(controlDimension() == sizeof...(Ts));
@@ -563,14 +646,12 @@ public:
 		setInputs(in);
 	}
 
-	template <typename ...Ts>
-	void setInputsx(Ts ...inputs) {
-		Vector in[] {inputs...};
-		setInputs(in);
-	}
-
 };
 
+/**
+ * A controllable linear system using wrappers as the controls.
+ * @see QuantPDE::WrapperFunction
+ */
 template <Index Dimension>
 class SimpleControlledLinearSystem : public ControlledLinearSystem {
 
@@ -588,6 +669,12 @@ class SimpleControlledLinearSystem : public ControlledLinearSystem {
 
 protected:
 
+	/**
+	 * Must be called to register a control. Once registered, a control can
+	 * be controlled using setInputs.
+	 * @param wrapper The control.
+	 * @see QuantPDE::ControlledLinearSystem::setInputs
+	 */
 	void registerControl(WrapperFunction<Dimension> &wrapper) {
 		if(wrapper.isControllable()) {
 			controls.push_back(&wrapper);
@@ -596,7 +683,9 @@ protected:
 
 public:
 
-	template <typename ...Ts>
+	/**
+	 * Constructor.
+	 */
 	SimpleControlledLinearSystem() noexcept : ControlledLinearSystem() {
 	}
 
@@ -640,14 +729,18 @@ class LinearSystemIteration : public LinearSystem {
 protected:
 
 	/**
-	 * @return The times associated with the most recent iterands.
+	 * @param index See CircularBuffer for indexing information.
+	 * @return Previously encountered time.
+	 * @see QuantPDE::CircularBuffer
 	 */
-	const IterandHistory::Times &times() const;
+	Real time(int index) const;
 
 	/**
-	 * @return The most recent iterands.
+	 * @param index See CircularBuffer for indexing information.
+	 * @return Previously encountered iterand.
+	 * @see QuantPDE::CircularBuffer
 	 */
-	const IterandHistory::Iterands &iterands() const;
+	const Vector &iterand(int index) const;
 
 	/**
 	 * @return The time with which the next solution is associated with.
@@ -660,8 +753,8 @@ protected:
 	 */
 	bool isTimestepTheSame() const {
 		Real t2 = nextTime();
-		Real t1 = times()[0];
-		Real t0 = times()[-1];
+		Real t1 = time(0);
+		Real t0 = time(1);
 		return (t2 - t1) == (t1 - t0);
 	}
 
@@ -691,7 +784,10 @@ public:
 		return b();
 	}
 
-	// TODO: Document
+	/**
+	 * Associates with this linear system an iterative method.
+	 * @param iteration The iterative method.
+	 */
 	void setIteration(Iteration &iteration);
 
 	friend Iteration;
@@ -699,7 +795,7 @@ public:
 };
 
 /**
- * Executes an iterative method.
+ * Represents an iterative method.
  */
 class Iteration {
 
@@ -708,7 +804,7 @@ class Iteration {
 	// Nonownership
 	std::forward_list<LinearSystemIteration *> systems;
 
-	IterandHistory history;
+	CircularBuffer< std::tuple<Real, Vector> > history;
 	Real implicitTime;
 
 	std::vector<size_t> its;
@@ -766,7 +862,7 @@ class Iteration {
 
 		// Keep track of the initial iterand
 		history.clear();
-		history.push(time, initialIterand);
+		history.push( std::make_tuple(time, initialIterand) );
 
 		// Iterate until done
 		implicitTime = time;
@@ -805,16 +901,16 @@ class Iteration {
 				QUANT_PDE_TMP_HEAD;
 
 				// Add a new iterand
-				history.push(
+				history.push( std::make_tuple(
 					implicitTime,
 					child->iterateUntilDone(
-						iterands()[0],
+						iterand(0),
 						root,
 						solver,
-						times()[0],
+						this->time(0),
 						initialized
 					)
-				);
+				) );
 
 				QUANT_PDE_TMP_TAIL;
 			} while( !done() );
@@ -831,13 +927,13 @@ class Iteration {
 					solver.initialize(root.A());
 				}
 
-				history.push(
+				history.push( std::make_tuple(
 					implicitTime,
 					solver.solve(
 						root.b(),
-						iterands()[0]
+						iterand(0)
 					)
-				);
+				) );
 
 				QUANT_PDE_TMP_TAIL;
 			} while( !done() );
@@ -847,23 +943,27 @@ class Iteration {
 		#undef QUANT_PDE_TMP_HEAD
 		#undef QUANT_PDE_TMP_TAIL
 
-		return iterands()[0];
+		return iterand(0);
 	}
 
 protected:
 
 	/**
-	 * @return The times associated with the most recent iterands.
+	 * @param index See CircularBuffer for indexing information.
+	 * @return Previously encountered time.
+	 * @see QuantPDE::CircularBuffer
 	 */
-	const IterandHistory::Times &times() const {
-		return history.times();
+	Real time(int index) const {
+		return std::get<0>(history[index]);
 	}
 
 	/**
-	 * @return The most recent iterands.
-	 */
-	const IterandHistory::Iterands &iterands() const {
-		return history.iterands();
+	* @param index See CircularBuffer for indexing information.
+	* @return Previously encountered iterand.
+	* @see QuantPDE::CircularBuffer
+	*/
+	const Vector &iterand(int index) const {
+		return std::get<1>(history[index]);
 	}
 
 public:
@@ -879,7 +979,11 @@ public:
 	virtual ~Iteration() {
 	}
 
-	// TODO: Document
+	/**
+	 * Associates with this iterative method an inner iterative method,
+	 * called on each iteration.
+	 * @param innerIteration The inner iterative method.
+	 */
 	void setInnerIteration(Iteration &innerIteration) {
 		child = &innerIteration;
 	}
@@ -888,7 +992,15 @@ public:
 	Iteration(const Iteration &) = delete;
 	Iteration &operator=(const Iteration &) = delete;
 
-	// TODO: Document
+	/**
+	 * Iterates until completion and returns the final iterand.
+	 * @param initialIterand The initial iterand.
+	 * @param root The linear system used to generate the left and right
+	 *             hand sides of the linear equation to be solved at each
+	 *             iteration.
+	 * @param solver A linear solver.
+	 * @return The final iterand.
+	 */
 	Vector iterateUntilDone(
 		const Vector &initialIterand,
 		LinearSystemIteration &root,
@@ -935,12 +1047,12 @@ void LinearSystemIteration::setIteration(Iteration &iteration) {
 	iteration.systems.push_front(this);
 }
 
-const IterandHistory::Iterands &LinearSystemIteration::iterands() const {
-	return iteration->history.iterands();
+Real LinearSystemIteration::time(int index) const {
+	return iteration->time(index);
 }
 
-const IterandHistory::Times &LinearSystemIteration::times() const {
-	return iteration->history.times();
+const Vector &LinearSystemIteration::iterand(int index) const {
+	return iteration->iterand(index);
 }
 
 Real LinearSystemIteration::nextTime() const {
@@ -949,157 +1061,11 @@ Real LinearSystemIteration::nextTime() const {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <bool Forward>
-class ConstantStepper : public Iteration {
-
-	Real startTime, endTime, dt;
-	unsigned n, steps;
-
-	virtual void clear() {
-		n = 0;
-	}
-
-	virtual Real initialTime(Real) const {
-		return Forward ? startTime : endTime; // TODO: Optimize
-	}
-
-	virtual Real timestep() {
-		n++;
-		return Forward ? dt : -dt; // TODO: Optimize
-	}
-
-	virtual bool done() const {
-		return n >= steps;
-	}
-
-public:
-
-	ConstantStepper(
-		Real startTime,
-		Real endTime,
-		unsigned steps,
-		int lookback = DEFAULT_STEPPER_LOOKBACK
-	) noexcept :
-		Iteration(lookback),
-		startTime(startTime),
-		endTime(endTime),
-		dt( (endTime - startTime) / steps ),
-		steps(steps)
-	{
-		assert(startTime >= 0.);
-		assert(startTime < endTime);
-		assert(steps > 0);
-	}
-
-};
-
-typedef ConstantStepper<false> ReverseConstantStepper;
-typedef ConstantStepper<true > ForwardConstantStepper;
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <bool Forward>
-class VariableStepper : public Iteration {
-
-	Real startTime, endTime, dt, target, scale, time;
-	Real (VariableStepper<Forward>::*_step)();
-
-	Real _step0() {
-		_step = &VariableStepper::_step1;
-		return Forward ? dt : -dt; // TODO: Optimize
-	}
-
-	Real _step1() {
-		const Vector
-			&v1 = iterands()[ 0],
-			&v0 = iterands()[-1]
-		;
-
-		// Tested 2014-06-08
-		dt *= target / ( v1 - v0 ).cwiseAbs().cwiseQuotient(
-			( scale * Vector::Ones( v1.size() ) ).cwiseMax(
-				v1.cwiseAbs().cwiseMax(
-					v0.cwiseAbs()
-				)
-			)
-		).maxCoeff();
-
-		// TODO: Optimize
-		if(Forward) {
-			if(time + dt > endTime) {
-				dt = endTime - time;
-				time = endTime;
-			} else {
-				time += dt;
-			}
-
-			return dt;
-		} else {
-			if(time - dt < startTime) {
-				dt = time - startTime;
-				time = startTime;
-			} else {
-				time -= dt;
-			}
-
-			return -dt;
-		}
-	}
-
-	virtual void clear() {
-		_step = &VariableStepper::_step0;
-		time = Forward ? startTime : endTime; // TODO: Optimize
-	}
-
-	virtual Real initialTime(Real) const {
-		return endTime;
-	}
-
-	virtual Real timestep() {
-		return (this->*_step)();
-	}
-
-	virtual bool done() const {
-		if(Forward) {
-			return time <= startTime;
-		} else {
-			return time >= endTime;
-		}
-	}
-
-public:
-
-	VariableStepper(
-		Real startTime,
-		Real endTime,
-		Real dt,
-		Real target,
-		Real scale = 1,
-		int lookback = DEFAULT_STEPPER_LOOKBACK
-	) noexcept :
-		Iteration(lookback),
-		startTime(startTime),
-		endTime(endTime),
-		dt(dt),
-		target(target),
-		scale(scale)
-	{
-		assert(startTime >= 0.);
-		assert(startTime < endTime);
-		assert(dt > 0);
-		assert(target > 0);
-		assert(scale > 0);
-		assert(lookback >= 2); // Need at least two iterands to
-		                       // variable step
-	}
-
-};
-
-typedef VariableStepper<false> ReverseVariableStepper;
-typedef VariableStepper<true > ForwardVariableStepper;
-
-////////////////////////////////////////////////////////////////////////////////
-
+/**
+ * Iterative method whose stopping condition is
+ * \f$ \max_{i}\frac{\left|x_{i}^{k+1}-x_{i}^{k}\right|}{\max\left(\text{scale},\left|x_{i}^{k+1}\right|\right)}<\text{tolerance} \f$
+ *
+ */
 class ToleranceIteration : public Iteration {
 
 	Real tolerance;
@@ -1107,8 +1073,8 @@ class ToleranceIteration : public Iteration {
 
 	virtual bool done() const {
 		const Vector
-			&v1 = iterands()[ 0],
-			&v0 = iterands()[-1]
+			&v1 = iterand(0),
+			&v0 = iterand(1)
 		;
 
 		// Tested 2014-06-07
@@ -1122,10 +1088,21 @@ class ToleranceIteration : public Iteration {
 
 public:
 
-	ToleranceIteration(Real tolerance = 1e-6, Real scale = 1,
-			int lookback = DEFAULT_TOLERANCE_ITERATION_LOOKBACK)
-			noexcept : Iteration(lookback), tolerance(tolerance),
-			scale(scale) {
+	/**
+	 * Constructor.
+	 * @param tolerance The stopping tolerance.
+	 * @param scale The scale parameter.
+	 * @param lookback The number of iterands to keep track of.
+	 */
+	ToleranceIteration(
+		Real tolerance = 1e-6,
+		Real scale = 1,
+		int lookback = DEFAULT_TOLERANCE_ITERATION_LOOKBACK
+	) noexcept :
+		Iteration(lookback),
+		tolerance(tolerance),
+		scale(scale)
+	{
 		assert(tolerance > 0);
 		assert(scale > 0);
 	}

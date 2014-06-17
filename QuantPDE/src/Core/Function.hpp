@@ -47,6 +47,34 @@ inline auto packAndCall(F &&function, const T *array)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define QUANT_PDE_TMP \
+		( std::forward<F>(function) )( std::move(array[Indices])... )
+template <typename F, typename T, int ...Indices>
+inline auto packMoveAndCall(F &&function, T *array,
+		Metafunctions::GenerateSequenceHelpers::Sequence<Indices...>)
+		-> decltype( QUANT_PDE_TMP ) {
+	return QUANT_PDE_TMP;
+}
+#undef QUANT_PDE_TMP
+
+/**
+ * Call a function with each element of an array as an argument, invoking move
+ * semantics on each element in the function call.
+ * @tparam N Number of input arguments.
+ * @param function The function.
+ * @param array The array.
+ */
+#define QUANT_PDE_TMP packMoveAndCall( std::forward<F>(function), array, \
+		GenerateSequence<N>() )
+template <int N, typename F, typename T>
+inline auto packMoveAndCall(F &&function, T *array)
+		-> decltype( QUANT_PDE_TMP ) {
+	return QUANT_PDE_TMP;
+}
+#undef QUANT_PDE_TMP
+
+////////////////////////////////////////////////////////////////////////////////
+
 #define QUANT_PDE_TMP ( std::forward<C>(caller).*method )( array[Indices]... )
 template <typename C, typename M, typename T, int ...Indices>
 inline auto packAndCall(C &&caller, M method, const T *array,
@@ -67,6 +95,34 @@ inline auto packAndCall(C &&caller, M method, const T *array,
 		GenerateSequence<N>() )
 template <int N, typename C, typename M, typename T>
 inline auto packAndCall(C &&caller, M method, const T *array)
+		-> decltype( QUANT_PDE_TMP ) {
+	return QUANT_PDE_TMP;
+}
+#undef QUANT_PDE_TMP
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define QUANT_PDE_TMP \
+		(std::forward<C>(caller).*method)(std::move(array[Indices])...)
+template <typename C, typename M, typename T, int ...Indices>
+inline auto packMoveAndCall(C &&caller, M method, T *array,
+		Metafunctions::GenerateSequenceHelpers::Sequence<Indices...>)
+		-> decltype( QUANT_PDE_TMP ) {
+	return QUANT_PDE_TMP;
+}
+#undef QUANT_PDE_TMP
+
+/**
+ * Call a method with each element of an array as an argument.
+ * @tparam N Number of input arguments.
+ * @param caller The object.
+ * @param method The function.
+ * @param array The array.
+ */
+#define QUANT_PDE_TMP packMoveAndCall( std::forward<C>(caller), method, array, \
+		GenerateSequence<N>() )
+template <int N, typename C, typename M, typename T>
+inline auto packMoveAndCall(C &&caller, M method, T *array)
 		-> decltype( QUANT_PDE_TMP ) {
 	return QUANT_PDE_TMP;
 }

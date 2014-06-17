@@ -32,7 +32,7 @@ protected:
 
 	inline Matrix _A1() {
 		t[1] = nextTime();
-		t[0] = times()[0];
+		t[0] = time(0);
 
 		h[0] = difference(t[1], t[0]);
 
@@ -42,14 +42,14 @@ protected:
 	}
 
 	inline Vector _b1() {
-		const Vector &v0 = iterands()[0];
+		const Vector &v0 = iterand(0);
 		return v0 + h[0] * op->b(t[1]);
 	}
 
 	inline Matrix _A2() {
 		t[2] = nextTime();
-		t[1] = times()[ 0];
-		t[0] = times()[-1];
+		t[1] = time(0);
+		t[0] = time(1);
 
 		h[1] = difference(t[2], t[1]);
 		h[0] = difference(t[2], t[0]);
@@ -72,8 +72,8 @@ protected:
 
 	inline Vector _b2() {
 		const Vector
-			&v1 = iterands()[ 0],
-			&v0 = iterands()[-1]
+			&v1 = iterand(0),
+			&v0 = iterand(1)
 		;
 
 		return
@@ -95,9 +95,9 @@ protected:
 
 	inline Matrix _A3() {
 		t[3] = nextTime();
-		t[2] = times()[ 0];
-		t[1] = times()[-1];
-		t[0] = times()[-2];
+		t[2] = time(0);
+		t[1] = time(1);
+		t[0] = time(2);
 
 		h[2] = difference(t[3], t[2]);
 		h[1] = difference(t[3], t[1]);
@@ -121,9 +121,9 @@ protected:
 
 	inline Vector _b3() {
 		const Vector
-			&v2 = iterands()[ 0],
-			&v1 = iterands()[-1],
-			&v0 = iterands()[-2]
+			&v2 = iterand(0),
+			&v1 = iterand(1),
+			&v0 = iterand(2)
 		;
 
 		return
@@ -148,10 +148,10 @@ protected:
 	inline Matrix _A4() {
 
 		t[4] = nextTime();
-		t[3] = times()[ 0];
-		t[2] = times()[-1];
-		t[1] = times()[-2];
-		t[0] = times()[-3];
+		t[3] = time(0);
+		t[2] = time(1);
+		t[1] = time(2);
+		t[0] = time(3);
 
 		h[3] = difference(t[4], t[3]);
 		h[2] = difference(t[4], t[2]);
@@ -176,10 +176,10 @@ protected:
 
 	inline Vector _b4() {
 		const Vector
-			&v3 = iterands()[ 0],
-			&v2 = iterands()[-1],
-			&v1 = iterands()[-2],
-			&v0 = iterands()[-3]
+			&v3 = iterand(0),
+			&v2 = iterand(1),
+			&v1 = iterand(2),
+			&v0 = iterand(3)
 		;
 
 		return
@@ -205,11 +205,11 @@ protected:
 
 	inline Matrix _A5() {
 		t[5] = nextTime();
-		t[4] = times()[ 0];
-		t[3] = times()[-1];
-		t[2] = times()[-2];
-		t[1] = times()[-3];
-		t[0] = times()[-4];
+		t[4] = time(0);
+		t[3] = time(1);
+		t[2] = time(2);
+		t[1] = time(3);
+		t[0] = time(4);
 
 		h[4] = difference(t[5], t[4]);
 		h[3] = difference(t[5], t[3]);
@@ -235,11 +235,11 @@ protected:
 
 	inline Vector _b5() {
 		const Vector
-			&v4 = iterands()[ 0],
-			&v3 = iterands()[-1],
-			&v2 = iterands()[-2],
-			&v1 = iterands()[-3],
-			&v0 = iterands()[-4]
+			&v4 = iterand(0),
+			&v3 = iterand(1),
+			&v2 = iterand(2),
+			&v1 = iterand(3),
+			&v0 = iterand(4)
 		;
 
 		return
@@ -267,12 +267,12 @@ protected:
 
 	inline Matrix _A6() {
 		t[6] = nextTime();
-		t[5] = times()[ 0];
-		t[4] = times()[-1];
-		t[3] = times()[-2];
-		t[2] = times()[-3];
-		t[1] = times()[-4];
-		t[0] = times()[-5];
+		t[5] = time(0);
+		t[4] = time(1);
+		t[3] = time(2);
+		t[2] = time(3);
+		t[1] = time(4);
+		t[0] = time(5);
 
 		h[5] = difference(t[6], t[5]);
 		h[4] = difference(t[6], t[4]);
@@ -299,12 +299,12 @@ protected:
 
 	inline Vector _b6() {
 		const Vector
-			&v5 = iterands()[ 0],
-			&v4 = iterands()[-1],
-			&v3 = iterands()[-2],
-			&v2 = iterands()[-3],
-			&v1 = iterands()[-4],
-			&v0 = iterands()[-5]
+			&v5 = iterand(0),
+			&v4 = iterand(1),
+			&v3 = iterand(2),
+			&v2 = iterand(3),
+			&v1 = iterand(4),
+			&v0 = iterand(5)
 		;
 
 		return
