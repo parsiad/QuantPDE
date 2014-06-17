@@ -15,7 +15,7 @@ using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-int main(int, char **) {
+int main() {
 
 	const Real
 		K = 100.,
@@ -66,7 +66,10 @@ int main(int, char **) {
 	// Linear system tree
 	BlackScholes bs(
 		grid,
-		QUANT_PDE_CONTROL1_PIECEWISE_LINEAR_INTERPOLATION(grid),
+
+		// Interest rate (passed as a control)
+		QUANT_PDE_CONTROL1(grid),
+
 		vol, // Volatility
 		0.   // Dividend rate
 	);
@@ -89,7 +92,7 @@ int main(int, char **) {
 	);
 
 	// Print solution
-	cout << grid.accessor(solutionVector) << endl;
+	cout << grid.accessor(solutionVector);
 
 	return 0;
 
