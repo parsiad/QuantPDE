@@ -346,6 +346,14 @@ public:
 template <bool Forward>
 class LinearBDFOne : public LinearBDFBase<Forward, 1> {
 
+	virtual Matrix A() {
+		return this->_A1();
+	}
+
+	virtual Vector b() {
+		return this->_b1();
+	}
+
 public:
 
 	template <typename D>
@@ -357,12 +365,8 @@ public:
 		return this->_isATheSame2();
 	}
 
-	virtual Matrix A() {
-		return this->_A1();
-	}
-
-	virtual Vector b() {
-		return this->_b1();
+	virtual int minimumLookback() const {
+		return 1;
 	}
 
 };
@@ -411,6 +415,18 @@ class LinearBDFTwo : public LinearBDFBase<Forward, 2> {
 		(this->*_onIterationEnd)();
 	}
 
+	virtual Matrix A() {
+		return (this->*_A)();
+	}
+
+	virtual Vector b() {
+		return (this->*_b)();
+	}
+
+	virtual int minimumLookback() const {
+		return 2;
+	}
+
 public:
 
 	template <typename D>
@@ -420,14 +436,6 @@ public:
 
 	virtual bool isATheSame() const {
 		return (this->*_isATheSame)();
-	}
-
-	virtual Matrix A() {
-		return (this->*_A)();
-	}
-
-	virtual Vector b() {
-		return (this->*_b)();
 	}
 
 };
@@ -478,6 +486,18 @@ class LinearBDFThree : public LinearBDFBase<Forward, 3> {
 		(this->*_onIterationEnd)();
 	}
 
+	virtual Matrix A() {
+		return (this->*_A)();
+	}
+
+	virtual Vector b() {
+		return (this->*_b)();
+	}
+
+	virtual int minimumLookback() const {
+		return 3;
+	}
+
 public:
 
 	template <typename D>
@@ -487,14 +507,6 @@ public:
 
 	virtual bool isATheSame() const {
 		return (this->*_isATheSame)();
-	}
-
-	virtual Matrix A() {
-		return (this->*_A)();
-	}
-
-	virtual Vector b() {
-		return (this->*_b)();
 	}
 
 };
@@ -551,6 +563,18 @@ class LinearBDFFour : public LinearBDFBase<Forward, 4> {
 		(this->*_onIterationEnd)();
 	}
 
+	virtual Matrix A() {
+		return (this->*_A)();
+	}
+
+	virtual Vector b() {
+		return (this->*_b)();
+	}
+
+	virtual int minimumLookback() const {
+		return 4;
+	}
+
 public:
 
 	template <typename D>
@@ -560,14 +584,6 @@ public:
 
 	virtual bool isATheSame() const {
 		return (this->*_isATheSame)();
-	}
-
-	virtual Matrix A() {
-		return (this->*_A)();
-	}
-
-	virtual Vector b() {
-		return (this->*_b)();
 	}
 
 };
@@ -630,6 +646,18 @@ class LinearBDFFive : public LinearBDFBase<Forward, 5> {
 		(this->*_onIterationEnd)();
 	}
 
+	virtual Matrix A() {
+		return (this->*_A)();
+	}
+
+	virtual Vector b() {
+		return (this->*_b)();
+	}
+
+	virtual int minimumLookback() const {
+		return 5;
+	}
+
 public:
 
 	template <typename D>
@@ -639,14 +667,6 @@ public:
 
 	virtual bool isATheSame() const {
 		return (this->*_isATheSame)();
-	}
-
-	virtual Matrix A() {
-		return (this->*_A)();
-	}
-
-	virtual Vector b() {
-		return (this->*_b)();
 	}
 
 };
@@ -715,6 +735,18 @@ class LinearBDFSix : public LinearBDFBase<Forward, 6> {
 		(this->*_onIterationEnd)();
 	}
 
+	virtual Matrix A() {
+		return (this->*_A)();
+	}
+
+	virtual Vector b() {
+		return (this->*_b)();
+	}
+
+	virtual int minimumLookback() const {
+		return 6;
+	}
+
 public:
 
 	template <typename D>
@@ -724,14 +756,6 @@ public:
 
 	virtual bool isATheSame() const {
 		return (this->*_isATheSame)();
-	}
-
-	virtual Matrix A() {
-		return (this->*_A)();
-	}
-
-	virtual Vector b() {
-		return (this->*_b)();
 	}
 
 };

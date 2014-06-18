@@ -75,7 +75,7 @@ int main() {
 	);
 	MaxPolicyIteration1_1 policy(grid, controls, bs);
 	policy.setIteration(tolerance);
-	ReverseLinearBDFTwo bdf2(grid, policy);
+	ReverseLinearBDFT bdf2(grid, policy);
 	bdf2.setIteration(stepper);
 
 	// Initial solution

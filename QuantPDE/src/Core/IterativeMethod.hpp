@@ -11,8 +11,7 @@
 
 namespace QuantPDE {
 
-const int DEFAULT_STEPPER_LOOKBACK = 6;
-const int DEFAULT_TOLERANCE_ITERATION_LOOKBACK = 2;
+const int DEFAULT_LOOKBACK = 6;
 
 /**
  * A pure virtual class representing a solver for equations of type \f$Ax=b\f$.
@@ -108,7 +107,7 @@ protected:
 
 	T *data;
 
-	int tail, lookback;
+	int tail, n;
 
 	#ifndef NDEBUG
 	size_t size;
@@ -120,7 +119,7 @@ public:
 	 * Constructor.
 	 * @param lookback How many iterands to keep track of.
 	 */
-	CircularBuffer(int lookback) noexcept : lookback(lookback) {
+	CircularBuffer(int lookback) noexcept : n(lookback) {
 		assert(lookback > 0);
 		data = new T[lookback];
 		clear();
@@ -155,10 +154,10 @@ public:
 	template <typename E>
 	void push(E &&element) {
 		data[tail] = std::forward<E>(element);
-		tail = (tail + 1) % lookback;
+		tail = (tail + 1) % n;
 
 		#ifndef NDEBUG
-		if(size < lookback) {
+		if(size < n) {
 			size++;
 		}
 		#endif
@@ -173,13 +172,20 @@ public:
 	 */
 	const T &operator[](int index) const {
 		assert(index >= 0);
-		assert(index < lookback);
+		assert(index < n);
 
-		int position = (tail - 1 + lookback - index) % lookback;
+		int position = (tail - 1 + n - index) % n;
 
 		assert(position < size);
 
 		return data[position];
+	}
+
+	/**
+	 * @return The maximum number of iterands one can store in this buffer.
+	 */
+	int lookback() {
+		return n;
 	}
 
 };
@@ -726,6 +732,23 @@ class LinearSystemIteration : public LinearSystem {
 		// Default: do nothing
 	}
 
+	/**
+	 * @return The left-hand-side matrix (A).
+	 */
+	virtual Matrix A() = 0;
+
+	/**
+	 * @return The right-hand-side vector (b).
+	 */
+	virtual Vector b() = 0;
+
+	/**
+	 * @return The minimum number of previous iterands required to function
+	 *         properly.
+	 * @see QuantPDE::CircularBuffer
+	 */
+	virtual int minimumLookback() const = 0;
+
 protected:
 
 	/**
@@ -766,22 +789,16 @@ public:
 	LinearSystemIteration() noexcept : LinearSystem(), iteration(nullptr) {
 	}
 
-	/**
-	 * @return The left-hand-side matrix (A).
-	 */
-	virtual Matrix A() = 0;
-
-	/**
-	 * @return The right-hand-side vector (b).
-	 */
-	virtual Vector b() = 0;
-
 	virtual Matrix A(Real) {
-		return A();
+		// TODO: Save A
+		Matrix _A = A();
+		return _A;
 	}
 
 	virtual Vector b(Real) {
-		return b();
+		// TODO: Save b
+		Vector _b = b();
+		return _b;
 	}
 
 	/**
@@ -1045,6 +1062,8 @@ void LinearSystemIteration::setIteration(Iteration &iteration) {
 
 	this->iteration = &iteration;
 	iteration.systems.push_front(this);
+
+	assert(minimumLookback() <= this->iteration->history.lookback());
 }
 
 Real LinearSystemIteration::time(int index) const {
@@ -1097,7 +1116,7 @@ public:
 	ToleranceIteration(
 		Real tolerance = 1e-6,
 		Real scale = 1,
-		int lookback = DEFAULT_TOLERANCE_ITERATION_LOOKBACK
+		int lookback = DEFAULT_LOOKBACK
 	) noexcept :
 		Iteration(lookback),
 		tolerance(tolerance),

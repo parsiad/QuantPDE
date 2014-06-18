@@ -60,6 +60,10 @@ public:
 		return left->b( nextTime() ) + P * rb;
 	}
 
+	virtual int minimumLookback() const {
+		return 1;
+	}
+
 	// TODO: Explicit discretizations
 
 };

@@ -107,6 +107,10 @@ public:
 		return system->b( nextTime() );
 	}
 
+	virtual int minimumLookback() const {
+		return 1;
+	}
+
 	// TODO: Explicit discretizations
 
 };

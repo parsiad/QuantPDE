@@ -7,7 +7,7 @@ namespace QuantPDE {
  * Steps through time at constant intervals.
  */
 template <bool Forward>
-class ConstantStepper : public Iteration {
+class ConstantStepper final : public Iteration {
 
 	Real startTime, endTime, dt;
 	unsigned n, steps;
@@ -42,7 +42,7 @@ public:
 		Real startTime,
 		Real endTime,
 		unsigned steps,
-		int lookback = DEFAULT_STEPPER_LOOKBACK
+		int lookback = DEFAULT_LOOKBACK
 	) noexcept :
 		Iteration(lookback),
 		startTime(startTime),
@@ -66,7 +66,7 @@ typedef ConstantStepper<true > ForwardConstantStepper;
  * Steps through time at (self-adjusting) variable intervals.
  */
 template <bool Forward>
-class VariableStepper : public Iteration {
+class VariableStepper final : public Iteration {
 
 	Real startTime, endTime, dt, target, scale, time;
 	Real (VariableStepper<Forward>::*_step)();
@@ -151,7 +151,7 @@ public:
 		Real dt,
 		Real target,
 		Real scale = 1,
-		int lookback = DEFAULT_STEPPER_LOOKBACK
+		int lookback = DEFAULT_LOOKBACK
 	) noexcept :
 		Iteration(lookback),
 		startTime(startTime),

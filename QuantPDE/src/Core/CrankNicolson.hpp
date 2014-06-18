@@ -20,12 +20,6 @@ class CrankNicolson : public LinearSystemIteration {
 		return Forward ? t1 - t0 : t0 - t1;
 	}
 
-public:
-
-	virtual bool isATheSame() const {
-		return isTimestepTheSame() && op->isATheSame();
-	}
-
 	virtual Matrix A() {
 		const Real t1 = nextTime();
 
@@ -44,6 +38,16 @@ public:
 			domain->identity()
 			- op->A(t0) * dt() / 2.
 		) * v0 + ( op->b(t1) + op->b(t0) ) / 2.;
+	}
+
+	virtual int minimumLookback() const {
+		return 1;
+	}
+
+public:
+
+	virtual bool isATheSame() const {
+		return isTimestepTheSame() && op->isATheSame();
 	}
 
 	template <typename D>
@@ -136,18 +140,22 @@ class Rannacher : public LinearSystemIteration {
 	void _onIterationEnd4() {
 	}
 
-public:
-
-	virtual bool isATheSame() const {
-		return (this->*_isATheSame)();
-	}
-
 	virtual Matrix A() {
 		return (this->*_A)();
 	}
 
 	virtual Vector b() {
 		return (this->*_b)();
+	}
+
+	virtual int minimumLookback() const {
+		return 1;
+	}
+
+public:
+
+	virtual bool isATheSame() const {
+		return (this->*_isATheSame)();
 	}
 
 	virtual void clear() {
