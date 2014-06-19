@@ -1,3 +1,13 @@
+////////////////////////////////////////////////////////////////////////////////
+// vanilla_convergence_table.cpp
+// -----------------------------
+//
+// Creates a convergence tables for European/American options with vanilla
+// (call/put) payoffs.
+//
+// Author: Parsiad Azimzadeh
+////////////////////////////////////////////////////////////////////////////////
+
 #include <QuantPDE/Core>
 #include <QuantPDE/Modules/Payoffs>
 
@@ -238,8 +248,10 @@ int main(int argc, char **argv) {
 
 			// Time discretization method
 			LinearSystemIteration *discretization = smooth
-				? (LinearSystemIteration *) new ReverseRannacher(grid, bs)
-				: (LinearSystemIteration *) new ReverseLinearBDFTwo(grid, bs)
+				? (LinearSystemIteration *)
+						new ReverseRannacher(grid,bs)
+				: (LinearSystemIteration *)
+						new ReverseLinearBDFTwo(grid,bs)
 			;
 			discretization->setIteration(*stepper);
 

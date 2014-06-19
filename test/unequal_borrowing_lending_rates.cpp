@@ -1,3 +1,16 @@
+////////////////////////////////////////////////////////////////////////////////
+// unequal_borrowing_lending_rates.cpp
+// -----------------------------------
+//
+// Prices a long-position straddle option under the Black-Scholes model assuming
+// unequal borrowing/lending rates. The pricing problem is given by:
+//
+// V_t = \sup_{r \in \{ r_l, r_b \}} (-\sigma^2 S^2 V_{SS} / 2 + r( V - S V_S ))
+// V(0, S) = max(S - K, K - S)
+//
+// Author: Parsiad Azimzadeh
+////////////////////////////////////////////////////////////////////////////////
+
 #include <QuantPDE/Core>
 #include <QuantPDE/Modules/Payoffs>
 
@@ -7,13 +20,13 @@
 using namespace QuantPDE;
 using namespace QuantPDE::Modules;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 #include <iostream>  // cout, cerr
 
 using namespace std;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 int main() {
 
@@ -58,16 +71,16 @@ int main() {
 	// Iteration tree
 	//
 	// Sets up the loop structure:
-	// for(int n : {1, 2, ..., N}) {
-	// 	for(int k : {1, 2, ...}) {
+	// for(int n = 0; n < N; n++) {
+	// 	for(int k = 0; ; k++) {
 	// 		// do stuff
-	// 		if(error < tolerance) break
+	// 		if(error < tolerance) break;
 	// 	}
 	// }
 	////////////////////////////////////////////////////////////////////////
 
 	ReverseConstantStepper stepper(
-		0.,
+		0., // Initial time
 		T,  // Expiry time
 		N   // Number of steps
 	);
@@ -90,14 +103,17 @@ int main() {
 		0.   // Dividend rate
 	);
 
+	// Policy iteration
 	// The notation [N][_M] at the end of class names is used when the
 	// problem is N-dimensional (in space) with an M-dimensional control.
 	// In the following, we instantiate a policy iteration class meant for
 	// one-dimensional (in space) problems with a one-dimensional control.
 	MaxPolicyIteration1_1 policy(grid, controls, bs);
-	policy.setIteration(tolerance);
+	policy.setIteration(tolerance); // Associate with k-iteration
+
+	// BDF2 (timestepping)
 	ReverseLinearBDFTwo bdf2(grid, policy);
-	bdf2.setIteration(stepper);
+	bdf2.setIteration(stepper); // Associate with n-iteration
 
 	////////////////////////////////////////////////////////////////////////
 
@@ -109,10 +125,12 @@ int main() {
 
 	// Get the solution vector (not a function)
 	Vector solution = stepper.iterateUntilDone(
-		initial,
-		bdf2,
-		solver
+		initial, // Initial iterand
+		bdf2,    // Root of linear system tree
+		solver   // Linear system solver
 	);
+
+	////////////////////////////////////////////////////////////////////////
 
 	// Print solution
 	cout << grid.accessor(solution);
