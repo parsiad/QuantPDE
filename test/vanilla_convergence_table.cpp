@@ -2,8 +2,8 @@
 // vanilla_convergence_table.cpp
 // -----------------------------
 //
-// Creates a convergence tables for European/American options with vanilla
-// (call/put) payoffs.
+// Outputs the rate of convergence for computing the price of a
+// European/American call/put.
 //
 // Author: Parsiad Azimzadeh
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,8 +33,8 @@ using namespace std;
 void help() {
 	cerr <<
 "vanilla_convergence_table [OPTIONS]" << endl << endl <<
-"Outputs the rate of convergence for computing the price of a call or put using" << endl <<
-"a discretization of the Black-Scholes partial differential equation." << endl <<
+"Outputs the rate of convergence for computing the price of a European/American" << endl <<
+"call/put." << endl <<
 endl <<
 "-A" << endl <<
 endl <<
@@ -53,6 +53,10 @@ endl <<
 endl <<
 "    sets the strike price (default is 100.)" << endl <<
 endl <<
+"-N POSITIVE_INTEGER" << endl <<
+endl <<
+"    sets the initial number of steps to take in time (default is 25)" << endl <<
+endl <<
 "-p" << endl <<
 endl <<
 "    computes the price of a European put (default is call)" << endl <<
@@ -61,14 +65,10 @@ endl <<
 endl <<
 "    sets interest rate (default is 0.04)" << endl <<
 endl <<
-"-R POSITIVE_INTEGER" << endl <<
+"-R NONNEGATIVE_INTEGER" << endl <<
 endl <<
 "    sets the maximum number of refinement steps in the computation (default is" << endl <<
 "    5)" << endl <<
-endl <<
-"-s POSITIVE_INTEGER" << endl <<
-endl <<
-"    sets the initial number of steps to take in time (default is 25)" << endl <<
 endl <<
 "-S REAL" << endl <<
 endl <<
@@ -95,8 +95,8 @@ int main(int argc, char **argv) {
 	Real dividends      = 0.;
 	Real asset          = 100.;
 	Real strike         = 100.;
-	unsigned refinement = 5;
-	unsigned steps      = 25;
+	int  refinement     = 5;
+	int  steps          = 25;
 	bool call           = true;
 	bool variable       = false;
 	bool american       = false;
@@ -104,7 +104,7 @@ int main(int argc, char **argv) {
 
 	// Setting options with getopt
 	{ char c;
-	while((c = getopt(argc, argv, "Acd:hK:pr:R:s:S:T:v:V")) != -1) {
+	while((c = getopt(argc, argv, "Acd:hK:N:pr:R:S:T:v:V")) != -1) {
 		switch(c) {
 			case 'A':
 				american = true;
@@ -121,6 +121,14 @@ int main(int argc, char **argv) {
 			case 'K':
 				strike = atof(optarg);
 				break;
+			case 'N':
+				steps = atoi(optarg);
+				if(steps <= 0) {
+					cerr <<
+"error: the number of steps must be positive" << endl;
+					return 1;
+				}
+				break;
 			case 'p':
 				call = false;
 				break;
@@ -129,12 +137,9 @@ int main(int argc, char **argv) {
 				break;
 			case 'R':
 				refinement = atoi(optarg);
-				break;
-			case 's':
-				steps = atoi(optarg);
-				if(steps <= 0) {
+				if(refinement < 0) {
 					cerr <<
-"error: the number of steps must be positive" << endl;
+"error: the maximum level of refinement must be nonnegative" << endl;
 					return 1;
 				}
 				break;
