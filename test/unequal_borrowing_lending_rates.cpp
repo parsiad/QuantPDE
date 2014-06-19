@@ -190,7 +190,7 @@ int main(int argc, char **argv) {
 	//
 	// auto payoff = [K] (Real S) {
 	// 	return S < K ? K - S : S - K;
-	// }
+	// };
 
 	////////////////////////////////////////////////////////////////////////
 	// Iteration tree
