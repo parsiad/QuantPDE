@@ -298,7 +298,10 @@ int main(int argc, char **argv) {
 			}
 
 			// Solution at S = stock (default is 100.)
-			value = grid.accessor(solutionVector)(asset);
+			// Linear interpolation is used to get the value off
+			// the grid
+			PiecewiseLinear1 interpolated(grid, solutionVector);
+			value = interpolated(asset);
 
 			delete penalty;
 			delete tolerance;

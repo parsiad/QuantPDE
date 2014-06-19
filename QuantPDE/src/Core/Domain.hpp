@@ -11,8 +11,6 @@
 
 // TODO: Allow for different interpolation methods to query the value of a
 //       vector off the domain nodes
-// TODO: Currently, the domain is responsible for handing the accessor an
-//       interpolant factory. Change this.
 // TODO: Specialize Refiner?
 
 namespace QuantPDE {
@@ -83,10 +81,12 @@ public:
 	 */
 	virtual std::unique_ptr<Interpolant<Dimension>> interpolant(
 			const Vector &vector) const = 0;
-
 	virtual std::unique_ptr<Interpolant<Dimension>> interpolant(
 			Vector &&vector) const = 0;
 
+	/**
+	 * @return A clone of this factory.
+	 */
 	virtual std::unique_ptr<InterpolantFactoryBase> clone() const = 0;
 
 };
@@ -427,14 +427,6 @@ class Domain : public DomainBase {
 
 		////////////////////////////////////////////////////////////////
 
-		template <typename ...Ts>
-		Real operator()(Ts ...coordinates) const {
-			return (*domain->interpolantFactory().interpolant(
-					*vector))(coordinates...);
-		}
-
-		////////////////////////////////////////////////////////////////
-
 		VectorIterator<O> begin() const {
 			return VectorIterator<O>(*domain, vector);
 		}
@@ -462,10 +454,8 @@ class Domain : public DomainBase {
 			}
 			return os;
 		}
-	};
 
-	virtual const InterpolantFactoryBase<Dimension> &interpolantFactory()
-			const = 0;
+	};
 
 public:
 
@@ -555,7 +545,7 @@ public:
 	 * that the innermost loop will be unrolled by any (smart) compiler for
 	 * low dimensions, and that autovectorizers will be able to pick up on
 	 * potential optimizations.
-	 * @return An accessor to a vector.
+	 * @return A vector accessor.
 	 */
 	VectorAccessor<Ownership::CONST> accessor(const Vector &vector) const {
 		return VectorAccessor<Ownership::CONST>(*this, &vector);
@@ -755,6 +745,7 @@ class RectilinearGrid : public Domain<Dimension> {
 					"consistent with the dimensions");
 			return vector(grid->index(indices...));
 		}
+
 	};
 
 	////////////////////////////////////////////////////////////////////////
@@ -982,18 +973,6 @@ class RectilinearGrid : public Domain<Dimension> {
 
 	////////////////////////////////////////////////////////////////////////
 
-	typedef std::unique_ptr< InterpolantFactory<::QuantPDE::RectilinearGrid,
-			Dimension> > Factory;
-
-	Factory factory;
-
-	virtual const InterpolantFactoryBase<Dimension> &interpolantFactory()
-			const {
-		return *factory;
-	}
-
-	////////////////////////////////////////////////////////////////////////
-
 public:
 
 	/**
@@ -1047,14 +1026,20 @@ public:
 	 * Constructor.
 	 */
 	template <typename ...Ts>
-	RectilinearGrid(Ts &&...axes) noexcept;
+	RectilinearGrid(Ts &&...axes) noexcept
+			: axes { std::forward<Ts>(axes)... } {
+		static_assert(Dimension == sizeof...(Ts),
+				"The number of arguments must be consistent "
+				"with the dimensions");
+		initialize();
+	}
+
 
 	/**
 	 * Copy constructor.
 	 */
 	RectilinearGrid(const RectilinearGrid &that) noexcept
-			: vsize(that.vsize),
-			factory( factory->cloneAndReassign(*this) ) {
+			: vsize(that.vsize) {
 		// TODO: Optimize (loop unroll)
 		for(Index i = 0; i < Dimension; i++) {
 			axes[i] = that.axes[i];
@@ -1063,8 +1048,7 @@ public:
 	/**
 	 * Move constructor.
 	 */
-	RectilinearGrid(RectilinearGrid &&that) noexcept : vsize(that.vsize),
-			factory( factory->cloneAndReassign(*this) ) {
+	RectilinearGrid(RectilinearGrid &&that) noexcept : vsize(that.vsize) {
 		// TODO: Optimize (loop unroll)
 		for(Index i = 0; i < Dimension; i++) {
 			axes[i] = std::move(that.axis[i]);
@@ -1075,8 +1059,6 @@ public:
 	 * Copy assignment operator.
 	 */
 	RectilinearGrid &operator=(const RectilinearGrid &that) & noexcept {
-		factory = factory->cloneAndReassign(*this);
-
 		vsize = that.vsize;
 
 		// TODO: Optimize (loop unroll)
@@ -1091,8 +1073,6 @@ public:
 	 * Move assignment operator.
 	 */
 	RectilinearGrid &operator=(RectilinearGrid &&that) & noexcept {
-		factory = factory->cloneAndReassign(*this);
-
 		vsize = that.vsize;
 
 		// TODO: Optimize (loop unroll)
@@ -1616,19 +1596,6 @@ public:
 typedef PiecewiseLinear<1> PiecewiseLinear1;
 typedef PiecewiseLinear<2> PiecewiseLinear2;
 typedef PiecewiseLinear<3> PiecewiseLinear3;
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <Index Dimension> template <typename ...Ts>
-RectilinearGrid<Dimension>::RectilinearGrid(Ts &&...axes) noexcept
-		: axes { std::forward<Ts>(axes)... },
-		factory( Factory(
-		new typename PiecewiseLinear<Dimension>::Factory(*this)) ) {
-	static_assert(Dimension == sizeof...(Ts),
-			"The number of arguments must be consistent "
-			"with the dimensions");
-	initialize();
-}
 
 } // QuantPDE
 
