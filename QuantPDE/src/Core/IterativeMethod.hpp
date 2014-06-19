@@ -401,19 +401,17 @@ class WrapperFunction final {
 
 	class Control final : public Base {
 
-		std::unique_ptr<InterpolantFactoryBase<Dimension>> factory;
-		std::unique_ptr<Interpolant<Dimension>> interpolant;
+		typedef std::unique_ptr<InterpolantFactoryBase<Dimension>> F;
+		typedef std::unique_ptr<Interpolant<Dimension>> I;
+
+		F factory;
+		I interpolant;
 
 	public:
 
-		Control(
-			std::unique_ptr<InterpolantFactoryBase<Dimension>>
-					factory,
-			std::unique_ptr<Interpolant<Dimension>> interpolant
-					= nullptr
-		) noexcept :
-			factory( std::move(factory) ),
-			interpolant( std::move(interpolant) ) {
+		Control(F factory, I interpolant = nullptr) noexcept
+				: factory( std::move(factory) ),
+				interpolant( std::move(interpolant) ) {
 		}
 
 		virtual Real value(std::array<Real, Dimension + 1> coordinates)
@@ -433,12 +431,11 @@ class WrapperFunction final {
 		}
 
 		virtual void setInput(const Vector &input) {
-			interpolant = std::move( factory->interpolant(input) );
+			interpolant = factory->interpolant(input);
 		}
 
 		virtual void setInput(Vector &&input) {
-			interpolant = std::move( factory->interpolant(
-					std::move(input) ) );
+			interpolant = factory->interpolant( std::move(input) );
 		}
 
 		virtual std::unique_ptr<Base> clone() const {

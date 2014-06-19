@@ -54,7 +54,18 @@ int main() {
 	// Payoff is a straddle
 	auto payoff = QUANT_PDE_MODULES_PAYOFFS_STRADDLE_FIXED_STRIKE( K );
 
+	////////////////////////////////////////////////////////////////////////
 	// Iteration tree
+	//
+	// Sets up the loop structure:
+	// for(int n : {1, 2, ..., N}) {
+	// 	for(int k : {1, 2, ...}) {
+	// 		// do stuff
+	// 		if(error < tolerance) break
+	// 	}
+	// }
+	////////////////////////////////////////////////////////////////////////
+
 	ReverseConstantStepper stepper(
 		0.,
 		T,  // Expiry time
@@ -63,7 +74,12 @@ int main() {
 	ToleranceIteration tolerance;
 	stepper.setInnerIteration(tolerance);
 
+	////////////////////////////////////////////////////////////////////////
 	// Linear system tree
+	//
+	// Makes the linear system to solve at each iteration
+	////////////////////////////////////////////////////////////////////////
+
 	BlackScholes bs(
 		grid,
 
@@ -73,26 +89,33 @@ int main() {
 		vol, // Volatility
 		0.   // Dividend rate
 	);
+
+	// The notation [N][_M] at the end of class names is used when the
+	// problem is N-dimensional (in space) with an M-dimensional control.
+	// In the following, we instantiate a policy iteration class meant for
+	// one-dimensional (in space) problems with a one-dimensional control.
 	MaxPolicyIteration1_1 policy(grid, controls, bs);
 	policy.setIteration(tolerance);
 	ReverseLinearBDFTwo bdf2(grid, policy);
 	bdf2.setIteration(stepper);
 
-	// Initial solution
+	////////////////////////////////////////////////////////////////////////
+
+	// Initial solution (maps the payoff function to a vector)
 	Vector initial = (PointwiseMap1(grid))(payoff);
 
 	// Linear system solver
 	BiCGSTABSolver solver;
 
-	// Get solution
-	Vector solutionVector = stepper.iterateUntilDone(
+	// Get the solution vector (not a function)
+	Vector solution = stepper.iterateUntilDone(
 		initial,
 		bdf2,
 		solver
 	);
 
 	// Print solution
-	cout << grid.accessor(solutionVector);
+	cout << grid.accessor(solution);
 
 	return 0;
 
