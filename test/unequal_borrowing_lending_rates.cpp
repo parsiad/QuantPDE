@@ -182,6 +182,16 @@ int main(int argc, char **argv) {
 
 	// Payoff is a straddle
 	auto payoff = QUANT_PDE_MODULES_PAYOFFS_STRADDLE_FIXED_STRIKE( K );
+	//
+	// Whenever possible, QuantPDE uses lambda functions to specify
+	// functions.
+	// For example, payoffs (in general: initial conditions), are always
+	// specified as lambda functions.
+	// The above is just a macro that expands to
+	//
+	// auto payoff = [K] (Real S) {
+	// 	return S < K ? K - S : S - K;
+	// }
 
 	////////////////////////////////////////////////////////////////////////
 	// Iteration tree

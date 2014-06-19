@@ -284,6 +284,10 @@ class WrapperFunction final {
 
 	static_assert(Dimension > 0, "Dimension must be positive");
 
+	class Base; typedef std::unique_ptr<Base> B;
+	typedef std::unique_ptr<InterpolantFactory<Dimension>> F;
+	typedef std::unique_ptr<Interpolant<Dimension>> I;
+
 	class Base {
 
 	public:
@@ -319,7 +323,7 @@ class WrapperFunction final {
 			// Default: do nothing
 		}
 
-		virtual std::unique_ptr<Base> clone() const = 0;
+		virtual B clone() const = 0;
 
 	};
 
@@ -341,8 +345,8 @@ class WrapperFunction final {
 			return true;
 		}
 
-		virtual std::unique_ptr<Base> clone() const {
-			return std::unique_ptr<Base>(new Constant(constant));
+		virtual B clone() const {
+			return B(new Constant(constant));
 		}
 
 	};
@@ -364,9 +368,8 @@ class WrapperFunction final {
 					coordinates.data());
 		}
 
-		virtual std::unique_ptr<Base> clone() const {
-			return std::unique_ptr<Base>(
-					new FunctionOfSpaceAndTime(function));
+		virtual B clone() const {
+			return B(new FunctionOfSpaceAndTime(function));
 		}
 
 	};
@@ -392,17 +395,13 @@ class WrapperFunction final {
 			return true;
 		}
 
-		virtual std::unique_ptr<Base> clone() const {
-			return std::unique_ptr<Base>(
-					new FunctionOfSpace(function));
+		virtual B clone() const {
+			return B(new FunctionOfSpace(function));
 		}
 
 	};
 
 	class Control final : public Base {
-
-		typedef std::unique_ptr<InterpolantFactoryBase<Dimension>> F;
-		typedef std::unique_ptr<Interpolant<Dimension>> I;
 
 		F factory;
 		I interpolant;
@@ -438,18 +437,14 @@ class WrapperFunction final {
 			interpolant = factory->interpolant( std::move(input) );
 		}
 
-		virtual std::unique_ptr<Base> clone() const {
-			return std::unique_ptr<Base>(
-				new Control(
-					factory->clone(),
-					interpolant->clone()
-				)
-			);
+		virtual B clone() const {
+			return B( new Control( factory->clone(),
+					interpolant->clone() ) );
 		}
 
 	};
 
-	std::unique_ptr<Base> base;
+	B base;
 
 public:
 
@@ -457,66 +452,45 @@ public:
 	 * Constructor for a constant.
 	 */
 	WrapperFunction(Real constant) noexcept {
-		base = std::unique_ptr<Base>(new Constant(constant));
+		base = B(new Constant(constant));
 	}
 
 	/**
 	 * Constructor for a function of space and time.
 	 */
 	WrapperFunction(const Function<Dimension + 1> &function) noexcept {
-		base = std::unique_ptr<Base>(
-			new FunctionOfSpaceAndTime(
-				function
-			)
-		);
+		base = B(new FunctionOfSpaceAndTime(function));
 	}
 
 	/**
 	 * Move constructor for a function of space and time.
 	 */
 	WrapperFunction(Function<Dimension + 1> &&function) noexcept {
-		base = std::unique_ptr<Base>(
-			new FunctionOfSpaceAndTime(
-				std::move(function)
-			)
-		);
+		base = B(new FunctionOfSpaceAndTime(std::move(function)));
 	}
 
 	/**
 	 * Constructor for a function of space.
 	 */
 	WrapperFunction(const Function<Dimension> &function) noexcept {
-		base = std::unique_ptr<Base>(
-			new FunctionOfSpace(
-				function
-			)
-		);
+		base = B(new FunctionOfSpace(function));
 	}
 
 	/**
 	 * Move constructor for a function of space.
 	 */
 	WrapperFunction(Function<Dimension> &&function) noexcept {
-		base = std::unique_ptr<Base>(
-			new FunctionOfSpace(
-				std::move(function)
-			)
-		);
+		base = B(new FunctionOfSpace(std::move(function)));
 	}
 
 	/**
 	 * Constructor for a control.
 	 * @param factory The interpolant factory used to create interpolants
 	 *                for this control on the spatial domain.
-	 * @see QuantPDE::InterpolantFactoryBase
+	 * @see QuantPDE::InterpolantFactory
 	 */
-	WrapperFunction(std::unique_ptr<InterpolantFactoryBase<Dimension>>
-			factory) noexcept {
-		base = std::unique_ptr<Base>(
-			new Control(
-				std::move(factory)
-			)
-		);
+	WrapperFunction(F factory) noexcept {
+		base = B(new Control(std::move(factory)));
 	}
 
 	/**
@@ -589,11 +563,8 @@ public:
 	 */
 	template <template <Index> class T = PiecewiseLinear, typename D>
 	static WrapperFunction make(D &domain) {
-		return WrapperFunction(
-			std::unique_ptr<InterpolantFactoryBase<Dimension>>(
-				new typename T<Dimension>::Factory(domain)
-			)
-		);
+		return WrapperFunction( F(
+				new typename T<Dimension>::Factory(domain)) );
 	}
 
 };

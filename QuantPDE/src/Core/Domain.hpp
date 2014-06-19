@@ -33,6 +33,8 @@ class Interpolant {
 	virtual Real interpolate(const std::array<Real, Dimension> &coordinates)
 			const = 0;
 
+	typedef std::unique_ptr<Interpolant<Dimension>> I;
+
 public:
 
 	/**
@@ -55,7 +57,7 @@ public:
 	/**
 	 * @return A clone of this interpolant.
 	 */
-	virtual std::unique_ptr<Interpolant> clone() const = 0;
+	virtual I clone() const = 0;
 
 };
 
@@ -64,14 +66,17 @@ typedef Interpolant<2> Interpolant2;
 typedef Interpolant<3> Interpolant3;
 
 template <Index Dimension>
-class InterpolantFactoryBase {
+class InterpolantFactory {
+
+	typedef std::unique_ptr<Interpolant<Dimension>> I;
+	typedef std::unique_ptr<InterpolantFactory> F;
 
 public:
 
 	/**
 	 * Destructor.
 	 */
-	virtual ~InterpolantFactoryBase() {
+	virtual ~InterpolantFactory() {
 	}
 
 	/**
@@ -79,36 +84,19 @@ public:
 	 * @param vector Data points.
 	 * @return An interpolant.
 	 */
-	virtual std::unique_ptr<Interpolant<Dimension>> interpolant(
-			const Vector &vector) const = 0;
-	virtual std::unique_ptr<Interpolant<Dimension>> interpolant(
-			Vector &&vector) const = 0;
+	virtual I interpolant(const Vector &vector) const = 0;
+	virtual I interpolant(Vector &&vector) const = 0;
 
 	/**
 	 * @return A clone of this factory.
 	 */
-	virtual std::unique_ptr<InterpolantFactoryBase> clone() const = 0;
+	virtual F clone() const = 0;
 
 };
 
-typedef InterpolantFactoryBase<1> InterpolantFactoryBase1;
-typedef InterpolantFactoryBase<2> InterpolantFactoryBase2;
-typedef InterpolantFactoryBase<3> InterpolantFactoryBase3;
-
-template <template <Index> class T, Index Dimension>
-class InterpolantFactory : public InterpolantFactoryBase<Dimension> {
-
-public:
-
-	/**
-	 * Creates a clone of this factory and assigns it to a new domain.
-	 * @param domain The new owner of this factory.
-	 * @return An interpolant factory.
-	 */
-	virtual std::unique_ptr<InterpolantFactory> cloneAndReassign(
-			const T<Dimension> &domain) const = 0;
-
-};
+typedef InterpolantFactory<1> InterpolantFactory1;
+typedef InterpolantFactory<2> InterpolantFactory2;
+typedef InterpolantFactory<3> InterpolantFactory3;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1489,9 +1477,12 @@ class PiecewiseLinear : public Interpolant<Dimension> {
 
 public:
 
-	class Factory : public InterpolantFactory<RectilinearGrid, Dimension> {
+	class Factory : public InterpolantFactory<Dimension> {
 
 		const RectilinearGrid<Dimension> *grid;
+
+		typedef std::unique_ptr<Interpolant<Dimension>> I;
+		typedef std::unique_ptr<InterpolantFactory<Dimension>> F;
 
 	public:
 
@@ -1516,32 +1507,16 @@ public:
 			return *this;
 		}
 
-		virtual std::unique_ptr< Interpolant<Dimension> > interpolant(
-				const Vector &vector) const {
-			return std::unique_ptr<Interpolant<Dimension>>(
-					new PiecewiseLinear(*grid, vector));
+		virtual I interpolant(const Vector &vector) const {
+			return I(new PiecewiseLinear(*grid, vector));
 		}
 
-		virtual std::unique_ptr< Interpolant<Dimension> > interpolant(
-				Vector &&vector) const {
-			return std::unique_ptr<Interpolant<Dimension>>(
-					new PiecewiseLinear(*grid,
-					std::move(vector)));
+		virtual I interpolant(Vector &&vector) const {
+			return I(new PiecewiseLinear(*grid, std::move(vector)));
 		}
 
-		virtual std::unique_ptr<InterpolantFactoryBase<Dimension>>
-				clone() const {
-			return std::unique_ptr<InterpolantFactoryBase<
-					Dimension>>( new Factory(*this) );
-		}
-
-		virtual std::unique_ptr< InterpolantFactory<RectilinearGrid,
-				Dimension> > cloneAndReassign(
-				const RectilinearGrid<Dimension> &domain) const
-				{
-			return std::unique_ptr< InterpolantFactory<
-					RectilinearGrid, Dimension> >(
-					new Factory(domain) );
+		virtual F clone() const {
+			return F( new Factory(*this) );
 		}
 
 	};

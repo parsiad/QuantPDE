@@ -34,8 +34,8 @@ Real put(Real S, Real K) {
 		QuantPDE::Modules::Payoffs::put, std::placeholders::_1, STRIKE)
 
 /**
- * @param stock The stock price.
- * @param strike The strike price.
+ * @param S The stock price.
+ * @param K The strike price.
  * @return Payoff for a straddle; the sum of the payoffs of a call and a put.
  */
 Real straddle(Real S, Real K) {
