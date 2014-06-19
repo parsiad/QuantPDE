@@ -5,10 +5,12 @@
 // Prices a long/short position straddle option under the Black-Scholes model
 // assuming unequal borrowing/lending rates [1].
 //
-// The pricing problem is given by:
+// The pricing problem is given by
 //
 // V_t = \sup_{r \in \{ r_l, r_b \}} (-\sigma^2 S^2 V_{SS} / 2 + r( V - S V_S ))
 // V(0, S) = max(S - K, K - S)
+//
+// for the short position. The \sup becomes an \inf for the long position.
 //
 // [1] Forsyth, Peter A., and George Labahn. "Numerical methods for controlled
 // Hamilton-Jacobi-Bellman PDEs in finance." Journal of Computational Finance
