@@ -77,8 +77,8 @@ public:
 	 * @param vector Data points.
 	 * @return An interpolant.
 	 */
-	virtual I interpolant(const Vector &vector) const = 0;
-	virtual I interpolant(Vector &&vector) const = 0;
+	virtual I make(const Vector &vector) const = 0;
+	virtual I make(Vector &&vector) const = 0;
 
 };
 
@@ -262,11 +262,11 @@ public:
 			return *this;
 		}
 
-		virtual I interpolant(const Vector &vector) const {
+		virtual I make(const Vector &vector) const {
 			return I(new PiecewiseLinear(*grid, vector));
 		}
 
-		virtual I interpolant(Vector &&vector) const {
+		virtual I make(Vector &&vector) const {
 			return I(new PiecewiseLinear(*grid, std::move(vector)));
 		}
 

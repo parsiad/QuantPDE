@@ -492,11 +492,11 @@ public:
 		}
 
 		virtual void setInput(const Vector &input) {
-			interpolant = factory->interpolant(input);
+			interpolant = factory->make(input);
 		}
 
 		virtual void setInput(Vector &&input) {
-			interpolant = factory->interpolant( std::move(input) );
+			interpolant = factory->make( std::move(input) );
 		}
 
 		virtual B clone() const {
@@ -630,7 +630,7 @@ typedef Control<3> Control3;
 /**
  * A controllable linear system.
  */
-class ControlledLinearSystem : public LinearSystem {
+class ControlledLinearSystemBase : public LinearSystem {
 
 	/**
 	 * Controls the system.
@@ -650,7 +650,7 @@ public:
 	/**
 	 * Constructor.
 	 */
-	ControlledLinearSystem() noexcept : LinearSystem() {
+	ControlledLinearSystemBase() noexcept : LinearSystem() {
 	}
 
 	/**
@@ -672,7 +672,7 @@ public:
  * @see QuantPDE::WrapperFunction
  */
 template <Index Dimension>
-class SimpleControlledLinearSystem : public ControlledLinearSystem {
+class ControlledLinearSystem : public ControlledLinearSystemBase {
 
 	std::vector<WrapperFunction<Dimension> *> controls;
 
@@ -705,14 +705,14 @@ public:
 	/**
 	 * Constructor.
 	 */
-	SimpleControlledLinearSystem() noexcept : ControlledLinearSystem() {
+	ControlledLinearSystem() noexcept : ControlledLinearSystemBase() {
 	}
 
 };
 
-typedef SimpleControlledLinearSystem<1> SimpleControlledLinearSystem1;
-typedef SimpleControlledLinearSystem<2> SimpleControlledLinearSystem2;
-typedef SimpleControlledLinearSystem<3> SimpleControlledLinearSystem3;
+typedef ControlledLinearSystem<1> ControlledLinearSystem1;
+typedef ControlledLinearSystem<2> ControlledLinearSystem2;
+typedef ControlledLinearSystem<3> ControlledLinearSystem3;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -869,12 +869,20 @@ class Iteration {
 	}
 
 	/**
+	 * Called at the beginning of each iteration.
+	 * @return The transformed iterand.
+	 */
+	virtual Vector transformIterand(const Vector &iterand) const {
+		return iterand;
+	}
+
+	/**
 	 * @return True if and only if this iteration is done.
 	 */
 	virtual bool done() const = 0;
 
 	Vector iterateUntilDone(
-		const Vector &initialIterand,
+		Vector iterand,
 		LinearSystemIteration &root,
 		LinearSolver &solver,
 		Real time,
@@ -892,7 +900,7 @@ class Iteration {
 
 		// Keep track of the initial iterand
 		history.clear();
-		history.push( std::make_tuple(time, initialIterand) );
+		history.push( std::make_tuple(time, iterand) );
 
 		// Iterate until done
 		implicitTime = time;
@@ -904,6 +912,7 @@ class Iteration {
 		#define QUANT_PDE_TMP_HEAD                                     \
 				do {                                           \
 					implicitTime += timestep();            \
+					iterand = transformIterand(iterand);   \
 					for(auto system : systems) {           \
 						system->onIterationStart();    \
 					}                                      \
@@ -930,16 +939,18 @@ class Iteration {
 			do {
 				QUANT_PDE_TMP_HEAD;
 
+				iterand = child->iterateUntilDone(
+					iterand,
+					root,
+					solver,
+					this->time(0),
+					initialized
+				);
+
 				// Add a new iterand
 				history.push( std::make_tuple(
 					implicitTime,
-					child->iterateUntilDone(
-						iterand(0),
-						root,
-						solver,
-						this->time(0),
-						initialized
-					)
+					iterand
 				) );
 
 				QUANT_PDE_TMP_TAIL;
@@ -957,12 +968,14 @@ class Iteration {
 					solver.initialize(root.A());
 				}
 
+				iterand = solver.solve(
+					root.b(),
+					iterand
+				);
+
 				history.push( std::make_tuple(
 					implicitTime,
-					solver.solve(
-						root.b(),
-						iterand(0)
-					)
+					iterand
 				) );
 
 				QUANT_PDE_TMP_TAIL;
@@ -973,10 +986,17 @@ class Iteration {
 		#undef QUANT_PDE_TMP_HEAD
 		#undef QUANT_PDE_TMP_TAIL
 
-		return iterand(0);
+		return iterand;
 	}
 
 protected:
+
+	/**
+	 * Removes all previous iterands.
+	 */
+	void clearHistory() {
+		history.clear();
+	}
 
 	/**
 	 * @param index See CircularBuffer for indexing information.

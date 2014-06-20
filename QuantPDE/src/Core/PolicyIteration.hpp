@@ -39,12 +39,12 @@ class PolicyIteration : public LinearSystemIteration {
 
 	const Domain<Dimension> *domain;
 	const Domain<ControlDimension> *controlDomain;
-	ControlledLinearSystem *system;
+	ControlledLinearSystemBase *system;
 
 	virtual void onIterationStart() {
-		NaryMethodNonConst<void, ControlledLinearSystem,
+		NaryMethodNonConst<void, ControlledLinearSystemBase,
 				ControlDimension, Vector &&> setInputs =
-				&ControlledLinearSystem::setInputs;
+				&ControlledLinearSystemBase::setInputs;
 
 		// Optimal controls
 		Vector optimal[ControlDimension];
@@ -94,7 +94,7 @@ public:
 
 	template <typename D, typename C>
 	PolicyIteration(D &domain, C &controlDomain,
-			ControlledLinearSystem &system) noexcept
+			ControlledLinearSystemBase &system) noexcept
 			: domain(&domain), controlDomain(&controlDomain),
 			system(&system) {
 	}

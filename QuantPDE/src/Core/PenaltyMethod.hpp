@@ -118,8 +118,12 @@ class PenaltyMethodDifference : public PenaltyMethod {
 			Real time,
 			const Real *array
 		) {
-			return DifferenceSystem::packAndCall( V_0,
-					time, array, GenerateSequence<N>() );
+			return DifferenceSystem::packAndCall(
+				V_0,
+				time,
+				array,
+				GenerateSequence<N>()
+			);
 		}
 
 		const PenaltyMethodDifference *parent;
@@ -141,8 +145,8 @@ class PenaltyMethodDifference : public PenaltyMethod {
 		virtual Vector b(Real) {
 			Vector v = domain->vector();
 			for(auto node : domain->accessor(v)) {
-				*node = DifferenceSystem::packAndCall<
-						Dimension>(
+				*node = DifferenceSystem::packAndCall<Dimension>
+				(
 					function,
 					parent->nextTime(),
 					(&node).data()

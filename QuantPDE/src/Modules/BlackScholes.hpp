@@ -10,7 +10,7 @@ namespace Modules {
  * \f$LV\equiv - 1/2 v^2 S^2 V_SS - (r - q) S V_S + r V\f$
  * where \f$r\f$, \f$v\f$, and \f$q\f$ are not necessarily constant.
  */
-class BlackScholes : public SimpleControlledLinearSystem1 {
+class BlackScholes : public ControlledLinearSystem1 {
 
 	const RectilinearGrid1 *G;
 	WrapperFunction1 r, v, q;
