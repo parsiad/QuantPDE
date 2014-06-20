@@ -152,6 +152,8 @@ int main(int argc, char **argv) {
 	} }
 
 	////////////////////////////////////////////////////////////////////////
+	// Spatial grid
+	////////////////////////////////////////////////////////////////////////
 
 	// Initial discretization
 	RectilinearGrid1 grid(
@@ -177,28 +179,38 @@ int main(int argc, char **argv) {
 		grid.refine( RectilinearGrid1::NewTickBetweenEachPair() );
 	}
 
+	// Factory for creating functions that interpolate points on the grid
+	PiecewiseLinear1::Factory factory(grid);
+
+	////////////////////////////////////////////////////////////////////////
+	// Control grid
+	////////////////////////////////////////////////////////////////////////
+
 	// Control can be two interest rates: lending or borrowing
 	RectilinearGrid1 controls( Axis { r_l, r_b } );
 
-	// Payoff is a straddle
-	auto payoff = QUANT_PDE_MODULES_PAYOFFS_STRADDLE_FIXED_STRIKE( K );
-	// Whenever possible, QuantPDE uses lambda functions to specify
-	// functions.
-	// For example, payoffs (in general: initial conditions), are always
-	// specified as lambda functions.
-	// The above is just a macro that expands to
+	////////////////////////////////////////////////////////////////////////
+	// Payoff
+	// ------
+	//
+	// Payoffs are lambda functions. The following is just a macro that
+	// expands to
 	//
 	// auto payoff = [K] (Real S) {
 	// 	return S < K ? K - S : S - K;
 	// };
+	////////////////////////////////////////////////////////////////////////
+
+	auto payoff = QUANT_PDE_MODULES_PAYOFFS_STRADDLE_FIXED_STRIKE( K );
 
 	////////////////////////////////////////////////////////////////////////
 	// Iteration tree
+	// --------------
 	//
 	// Sets up the loop structure:
 	// for(int n = 0; n < N; n++) {
 	// 	for(int k = 0; ; k++) {
-	// 		// do stuff
+	// 		// Solve a linear system
 	// 		if(error < tolerance) break;
 	// 	}
 	// }
@@ -214,6 +226,7 @@ int main(int argc, char **argv) {
 
 	////////////////////////////////////////////////////////////////////////
 	// Linear system tree
+	// ------------------
 	//
 	// Makes the linear system to solve at each iteration
 	////////////////////////////////////////////////////////////////////////
@@ -222,13 +235,13 @@ int main(int argc, char **argv) {
 		grid,
 
 		// Interest rate (passed as a control)
-		Control1::make(grid),
+		Control1(factory),
 
 		vol, // Volatility
 		div  // Dividend rate
 	);
 
-	// Policy iteration
+	// Policy iteration (a node in the linear system tree)
 	//
 	// The notation [N][_M] at the end of class names is used when the
 	// problem is N-dimensional (in space) with an M-dimensional control.
@@ -250,6 +263,11 @@ int main(int argc, char **argv) {
 	bdf2.setIteration(stepper); // Associate with n-iteration
 
 	////////////////////////////////////////////////////////////////////////
+	// Running
+	// -------
+	//
+	// Everything prior to this was setup. Now we run the method.
+	////////////////////////////////////////////////////////////////////////
 
 	// Initial solution (maps the payoff function to a vector)
 	Vector initial = (PointwiseMap1(grid))(payoff);
@@ -257,8 +275,8 @@ int main(int argc, char **argv) {
 	// Linear system solver
 	BiCGSTABSolver solver;
 
-	// Get the solution vector
-	Vector solution = stepper.iterateUntilDone(
+	// Calculate the solution vector
+	Vector solutionOnGrid = stepper.iterateUntilDone(
 		initial, // Initial iterand
 		bdf2,    // Root of linear system tree
 		solver   // Linear system solver
@@ -266,8 +284,8 @@ int main(int argc, char **argv) {
 
 	////////////////////////////////////////////////////////////////////////
 
-	// Print solution
-	cout << grid.accessor(solution);
+	// Print all (node-coordinate, value-at-node) pairs
+	cout << grid.accessor(solutionOnGrid);
 
 	// Cleanup
 	delete policy;

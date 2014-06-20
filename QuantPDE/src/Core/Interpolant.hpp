@@ -63,7 +63,6 @@ template <Index Dimension>
 class InterpolantFactory {
 
 	typedef std::unique_ptr<Interpolant<Dimension>> I;
-	typedef std::unique_ptr<InterpolantFactory> F;
 
 public:
 
@@ -80,11 +79,6 @@ public:
 	 */
 	virtual I interpolant(const Vector &vector) const = 0;
 	virtual I interpolant(Vector &&vector) const = 0;
-
-	/**
-	 * @return A clone of this factory.
-	 */
-	virtual F clone() const = 0;
 
 };
 
@@ -274,10 +268,6 @@ public:
 
 		virtual I interpolant(Vector &&vector) const {
 			return I(new PiecewiseLinear(*grid, std::move(vector)));
-		}
-
-		virtual F clone() const {
-			return F( new Factory(*this) );
 		}
 
 	};

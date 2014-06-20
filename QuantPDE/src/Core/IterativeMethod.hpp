@@ -285,7 +285,6 @@ class WrapperFunction final {
 	static_assert(Dimension > 0, "Dimension must be positive");
 
 	class Base; typedef std::unique_ptr<Base> B;
-	typedef std::unique_ptr<InterpolantFactory<Dimension>> F;
 	typedef std::unique_ptr<Interpolant<Dimension>> I;
 
 	class Base {
@@ -297,10 +296,6 @@ class WrapperFunction final {
 
 		virtual ~Base() {
 		}
-
-		// Disable copy constructor and assignment operator.
-		Base(const Base &) = delete;
-		Base &operator=(const Base &) = delete;
 
 		virtual Real value(std::array<Real, Dimension + 1> coordinates)
 				const = 0;
@@ -333,7 +328,15 @@ class WrapperFunction final {
 
 	public:
 
-		Constant(Real constant) noexcept : Base(), constant(constant) {
+		Constant(Real constant) noexcept : constant(constant) {
+		}
+
+		Constant(const Constant &that) noexcept
+				: constant(that.constant) {
+		}
+
+		Constant &operator=(const Constant &that) & noexcept {
+			constant = that.constant;
 		}
 
 		virtual Real value(std::array<Real, Dimension + 1> coordinates)
@@ -346,20 +349,35 @@ class WrapperFunction final {
 		}
 
 		virtual B clone() const {
-			return B(new Constant(constant));
+			return B(new Constant(*this));
 		}
 
 	};
 
-	class FunctionOfSpaceAndTime final : public Base {
+	class FunctionST final : public Base {
 
 		Function<Dimension + 1> function;
 
 	public:
 
 		template <typename F>
-		FunctionOfSpaceAndTime(F &&function) noexcept : Base(),
-				function(function) {
+		FunctionST(F &&function) noexcept : function(function) {
+		}
+
+		FunctionST(const FunctionST &that) noexcept
+				: function(that.function) {
+		}
+
+		FunctionST(FunctionST &&that) noexcept
+				: function( std::move(that.function) ) {
+		}
+
+		FunctionST &operator=(const FunctionST &that) & noexcept {
+			function = that.function;
+		}
+
+		FunctionST &operator=(FunctionST &&that) & noexcept {
+			function = std::move(that.function);
 		}
 
 		virtual Real value(std::array<Real, Dimension + 1> coordinates)
@@ -369,20 +387,35 @@ class WrapperFunction final {
 		}
 
 		virtual B clone() const {
-			return B(new FunctionOfSpaceAndTime(function));
+			return B(new FunctionST(*this));
 		}
 
 	};
 
-	class FunctionOfSpace final : public Base {
+	class FunctionS final : public Base {
 
 		Function<Dimension> function;
 
 	public:
 
 		template <typename F>
-		FunctionOfSpace(F &&function) noexcept : Base(),
-				function(function) {
+		FunctionS(F &&function) noexcept : function(function) {
+		}
+
+		FunctionS(const FunctionS &that) noexcept
+				: function(that.function) {
+		}
+
+		FunctionS(FunctionS &&that) noexcept
+				: function( std::move(that.function) ) {
+		}
+
+		FunctionS &operator=(const FunctionS &that) & noexcept {
+			function = that.function;
+		}
+
+		FunctionS &operator=(FunctionS &&that) & noexcept {
+			function = std::move(that.function);
 		}
 
 		virtual Real value(std::array<Real, Dimension + 1> coordinates)
@@ -396,21 +429,50 @@ class WrapperFunction final {
 		}
 
 		virtual B clone() const {
-			return B(new FunctionOfSpace(function));
+			return B(new FunctionS(*this));
 		}
 
 	};
 
+	B base;
+
+public:
+
 	class Control final : public Base {
 
-		F factory;
+		const InterpolantFactory<Dimension> *factory;
 		I interpolant;
+
+		template <typename F>
+		Control(F &factory, I interpolant) noexcept
+				: factory(&factory),
+				interpolant(std::move(interpolant)) {
+		}
 
 	public:
 
-		Control(F factory, I interpolant = nullptr) noexcept
-				: factory( std::move(factory) ),
-				interpolant( std::move(interpolant) ) {
+		template <typename F>
+		Control(F &factory) noexcept
+				: factory(&factory),
+				interpolant(nullptr) {
+		}
+
+		Control(const Control &that) noexcept : factory(that.factory),
+				interpolant( that.interpolant->clone() ) {
+		}
+
+		Control(Control &&that) noexcept : factory(that.factory),
+				interpolant( std::move(that.interpolant) ) {
+		}
+
+		Control &operator=(const Control &that) & noexcept {
+			factory = that.factory;
+			interpolant = that.interpolant->clone();
+		}
+
+		Control &operator=(Control &&that) & noexcept {
+			factory = that.factory;
+			interpolant = std::move(that.interpolant);
 		}
 
 		virtual Real value(std::array<Real, Dimension + 1> coordinates)
@@ -438,15 +500,10 @@ class WrapperFunction final {
 		}
 
 		virtual B clone() const {
-			return B( new Control( factory->clone(),
-					interpolant->clone() ) );
+			return B(new Control(*this));
 		}
 
 	};
-
-	B base;
-
-public:
 
 	/**
 	 * Constructor for a constant.
@@ -459,39 +516,37 @@ public:
 	 * Constructor for a function of space and time.
 	 */
 	WrapperFunction(const Function<Dimension + 1> &function) noexcept {
-		base = B(new FunctionOfSpaceAndTime(function));
+		base = B(new FunctionST(function));
 	}
 
 	/**
 	 * Move constructor for a function of space and time.
 	 */
 	WrapperFunction(Function<Dimension + 1> &&function) noexcept {
-		base = B(new FunctionOfSpaceAndTime(std::move(function)));
+		base = B(new FunctionST(std::move(function)));
 	}
 
 	/**
 	 * Constructor for a function of space.
 	 */
 	WrapperFunction(const Function<Dimension> &function) noexcept {
-		base = B(new FunctionOfSpace(function));
+		base = B(new FunctionS(function));
 	}
 
 	/**
 	 * Move constructor for a function of space.
 	 */
 	WrapperFunction(Function<Dimension> &&function) noexcept {
-		base = B(new FunctionOfSpace(std::move(function)));
+		base = B(new FunctionS(std::move(function)));
 	}
 
 	/**
-	 * Constructor for a control.
-	 * @param factory The interpolant factory used to create interpolants
-	 *                for this control on the spatial domain.
-	 * @see QuantPDE::InterpolantFactory
+	 * Move constructor for a control.
 	 */
-	WrapperFunction(F factory) noexcept {
-		base = B(new Control(std::move(factory)));
+	WrapperFunction(Control &&control) noexcept {
+		base = B(new Control( std::move(control) ));
 	}
+	WrapperFunction(const Control &control) = delete;
 
 	/**
 	 * Copy constructor.
@@ -556,25 +611,15 @@ public:
 		base->setInput(input);
 	}
 
-	/**
-	 * Creates a control of particular dimension.
-	 * @tparam T The interpolant to use.
-	 * @param domain The domain to interpolate on.
-	 */
-	template <template <Index> class T = PiecewiseLinear, typename D>
-	static WrapperFunction make(D &domain) {
-		return WrapperFunction( F(
-				new typename T<Dimension>::Factory(domain)) );
-	}
-
 };
 
 typedef WrapperFunction<1> WrapperFunction1;
 typedef WrapperFunction<2> WrapperFunction2;
 typedef WrapperFunction<3> WrapperFunction3;
 
+// Expose Control
 template <Index Dimension>
-using Control = WrapperFunction<Dimension>;
+using Control = typename WrapperFunction<Dimension>::Control;
 
 typedef Control<1> Control1;
 typedef Control<2> Control2;
