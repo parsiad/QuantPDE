@@ -176,6 +176,10 @@ public:
 
 		int position = (tail - 1 + n - index) % n;
 
+		//#ifndef NDEBUG
+		//std::cout << index << " " << size << std::endl;
+		//#endif
+
 		assert(position < size);
 
 		return data[position];
@@ -477,7 +481,7 @@ public:
 
 		virtual Real value(std::array<Real, Dimension + 1> coordinates)
 				const {
-			assert(interpolant != nullptr);
+			assert(interpolant);
 
 			// Pack and call
 			NaryMethodConst<Real, Interpolant<Dimension>,
@@ -846,6 +850,13 @@ class Iteration {
 		}
 	}
 
+	void _clear() {
+		for(auto system : systems) {
+			system->clear();
+		}
+		history.clear();
+	}
+
 	/**
 	 * Method called before iteration begins.
 	 */
@@ -870,10 +881,11 @@ class Iteration {
 
 	/**
 	 * Called at the beginning of each iteration.
-	 * @return The transformed iterand.
+	 * @param iterand The iterand.
+	 * @return True if and only if the iterand was changed.
 	 */
-	virtual Vector transformIterand(const Vector &iterand) const {
-		return iterand;
+	virtual bool transformIterand(Vector &iterand) {
+		return false;
 	}
 
 	/**
@@ -891,19 +903,13 @@ class Iteration {
 		its.push_back(0);
 
 		clear();
-
-		for(auto system : systems) {
-			system->clear();
-		}
+		_clear();
 
 		time = initialTime(time);
 
-		// Keep track of the initial iterand
-		history.clear();
-		history.push( std::make_tuple(time, iterand) );
-
 		// Iterate until done
 		implicitTime = time;
+		history.push( std::make_tuple(implicitTime, iterand) );
 
 		// Use macros to prevent branching inside iteration loop
 
@@ -911,8 +917,15 @@ class Iteration {
 		// calls
 		#define QUANT_PDE_TMP_HEAD                                     \
 				do {                                           \
+					if(transformIterand(iterand)) {        \
+						initialized = false;           \
+						_clear();                      \
+						history.push( std::make_tuple( \
+							implicitTime,          \
+							iterand                \
+						) );                           \
+					}                                      \
 					implicitTime += timestep();            \
-					iterand = transformIterand(iterand);   \
 					for(auto system : systems) {           \
 						system->onIterationStart();    \
 					}                                      \
@@ -947,11 +960,8 @@ class Iteration {
 					initialized
 				);
 
-				// Add a new iterand
-				history.push( std::make_tuple(
-					implicitTime,
-					iterand
-				) );
+				history.push( std::make_tuple(implicitTime,
+						iterand) );
 
 				QUANT_PDE_TMP_TAIL;
 			} while( !done() );
@@ -973,10 +983,8 @@ class Iteration {
 					iterand
 				);
 
-				history.push( std::make_tuple(
-					implicitTime,
-					iterand
-				) );
+				history.push( std::make_tuple(implicitTime,
+						iterand) );
 
 				QUANT_PDE_TMP_TAIL;
 			} while( !done() );
@@ -986,17 +994,13 @@ class Iteration {
 		#undef QUANT_PDE_TMP_HEAD
 		#undef QUANT_PDE_TMP_TAIL
 
+		// Events occuring at the end
+		transformIterand(iterand);
+
 		return iterand;
 	}
 
 protected:
-
-	/**
-	 * Removes all previous iterands.
-	 */
-	void clearHistory() {
-		history.clear();
-	}
 
 	/**
 	 * @param index See CircularBuffer for indexing information.
@@ -1086,6 +1090,10 @@ public:
 	}
 
 	friend LinearSystemIteration;
+
+	// TODO: Remove friendship
+	template <Index, bool> friend class EventIterationBase;
+	template <Index, bool> friend class EventIteration;
 };
 
 void LinearSystemIteration::setIteration(Iteration &iteration) {

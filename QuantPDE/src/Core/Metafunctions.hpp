@@ -37,13 +37,9 @@ struct IntegerPower<Base, 0>
 
 namespace Metafunctions {
 
-namespace GenerateSequenceHelpers {
-
 template <int ...Is>
 struct Sequence {
 };
-
-} // GenerateSequenceHelpers
 
 } // Metafunctions
 
@@ -55,8 +51,7 @@ struct GenerateSequence : GenerateSequence<N - 1, N - 1, Is...> {
 };
 
 template <int ...Is>
-struct GenerateSequence<0, Is...>
-		: Metafunctions::GenerateSequenceHelpers::Sequence<Is...> {
+struct GenerateSequence<0, Is...> : Metafunctions::Sequence<Is...> {
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -157,6 +152,58 @@ char (& Helper(T&, typename Nondeducible<const volatile T&>::type))[2];
 
 #define QUANT_PDE_ASSERT_LVALUE(X) static_assert(QUANT_PDE_IS_LVALUE(X), \
 		"Passing by rvalue is not supported")
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace Metafunctions {
+
+template <typename T>
+class RRef {
+
+	T x;
+
+	#ifndef NDEBUG
+	bool copied = false;
+	#endif
+
+public:
+
+	RRef() = delete;
+
+	RRef(T && x) noexcept : x{std::move(x)} {
+	}
+
+	RRef(RRef &that) noexcept : x{std::move(that.x)} {
+		#ifndef NDEBUG
+		copied = true;
+		#endif
+		assert(that.copied == false);
+	}
+
+	RRef(RRef && that) noexcept : x{std::move(that.x)} {
+		#ifndef NDEBUG
+		copied = that.copied;
+		#endif
+	}
+
+	RRef &operator=(RRef that) = delete;
+
+	T &&move() {
+		return std::move(x);
+	}
+
+	const T &get() const {
+		return x;
+	}
+
+};
+
+} // Metafunctions
+
+template <typename T>
+Metafunctions::RRef<T> makeRRef(T &&x) {
+	return Metafunctions::RRef<T>{ std::move(x) };
+}
 
 } // QuantPDE
 

@@ -104,8 +104,7 @@ class PenaltyMethodDifference : public PenaltyMethod {
 			//const Vector &iterand,
 			Real time,
 			const Real *array,
-			Metafunctions::GenerateSequenceHelpers::Sequence<
-					Indices...>
+			Metafunctions::Sequence<Indices...>
 		) {
 			return V_0( time, array[Indices]... );
 		}
@@ -118,7 +117,7 @@ class PenaltyMethodDifference : public PenaltyMethod {
 			Real time,
 			const Real *array
 		) {
-			return DifferenceSystem::packAndCall(
+			return packAndCall(
 				V_0,
 				time,
 				array,
@@ -145,8 +144,7 @@ class PenaltyMethodDifference : public PenaltyMethod {
 		virtual Vector b(Real) {
 			Vector v = domain->vector();
 			for(auto node : domain->accessor(v)) {
-				*node = DifferenceSystem::packAndCall<Dimension>
-				(
+				*node = packAndCall<Dimension> (
 					function,
 					parent->nextTime(),
 					(&node).data()

@@ -1,6 +1,7 @@
 #ifndef QUANT_PDE_CORE_STEPPER
 #define QUANT_PDE_CORE_STEPPER
 
+#include <cstdlib>    // std::abs
 #include <functional> // std::function
 #include <memory>     // std::unique_ptr
 #include <queue>      // std::priority_queue
@@ -14,10 +15,10 @@ namespace Metafunctions {
 namespace NaryFunctionSignatureHelpers {
 
 template <typename R, typename ...Ts>
-using TransformTarget = R (const Function<sizeof...(Ts)> &, Real, Ts...);
+using TransformTarget = R (const Interpolant<sizeof...(Ts)> &, Ts...);
 
 template <unsigned N>
-using TransformSignature = Type<TransformTarget, Matrix, N, Vector>;
+using TransformSignature = Type<TransformTarget, Real, N, Real>;
 
 } // NaryFunctionSignatureHelpers
 
@@ -70,52 +71,50 @@ class Event : public EventBase {
 	typedef std::unique_ptr<Interpolant<Dimension>> I;
 	typedef std::unique_ptr<Map<Dimension>> Out;
 
-	const Domain<Dimension> *domain;
-
 	Transform<Dimension> transform;
 
 	In in;
 	Out out;
 
-	template <int ...Indices>
-	static inline Real packAndCall(
-		const Transform<Dimension> &transform,
-		const Function<Dimension> &solution,
-		const Real *array,
-		Metafunctions::GenerateSequenceHelpers::Sequence<
-				Indices...>
-	) {
-		return transform( solution, array[Indices]... );
-	}
+	////////////////////////////////////////////////////////////////////////
 
-	template <int N>
-	static inline Real packAndCall(
-		const Transform<Dimension> &transform,
-		const Function<Dimension> &solution,
-		const Real *array
-	) {
-		return Event::packAndCall(
-			transform,
-			solution,
-			array,
-			GenerateSequence<N>()
-		);
-	}
+	// TODO: Use C++1y move-capture in the future; return a bound function
+
+	template <Index N, typename T, typename ...Ts>
+	struct Driver : public Driver<N - 1, T, T, Ts...> {
+	};
+
+	template <typename T, typename ...Ts>
+	struct Driver<0, T, Ts...> {
+		static_assert( sizeof...(Ts) == Dimension,
+				"The number of binding arguments in an event "
+				"should be equal to the dimension");
+
+		static inline Vector function(
+			const I &interpolant,
+			const Transform<Dimension> &transform,
+			const Out &out
+		) {
+			return (*out)( [&] (Ts ...coordinates) {
+				return transform(*interpolant, coordinates...);
+			} );
+		}
+	};
+
+	////////////////////////////////////////////////////////////////////////
 
 	template <typename V>
 	Vector _doEvent(V &&vector) const {
-		I i = in->make(std::forward<V>(vector));
+		// 1. Make interpolated function from vector
+		// 2. Create a new the function by binding the first argument of
+		//    the transform function to the interpolated function
+		// 3. Map the function to the domain (producing a vector)
 
-		Vector v = domain->vector();
-		for(auto node : domain->accessor(v)) {
-			*node = packAndCall<Dimension>(
-				transform,
-				in,
-				(&node).data()
-			);
-		}
-
-		return (*out)(v);
+		return Driver<Dimension, Real>::function(
+			in->make( std::forward<V>(vector) ),
+			transform,
+			out
+		);
 	}
 
 	virtual Vector doEvent(const Vector &vector) const {
@@ -143,7 +142,35 @@ public:
 		out( Out(new PointwiseMap<Dimension>(grid)) ) {
 	}
 
+	// Disable copy constructor and copy assignment operator.
+	Event(const Event &) = delete;
+	Event &operator=(const Event &) = delete;
+
+	/**
+	 * Move constructor.
+	 */
+	Event(Event &&that) noexcept :
+		transform(std::move(that.transform)),
+		in(std::move(that.in)),
+		out(std::move(that.out))
+	{
+	}
+
+	/**
+	 * Move assignment operator.
+	 */
+	Event &operator=(Event &&that) & noexcept {
+		transform = std::move(that.transform);
+		in = std::move(that.in);
+		out = std::move(that.out);
+		return *this;
+	}
+
 };
+
+typedef Event<1> Event1;
+typedef Event<2> Event2;
+typedef Event<3> Event3;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -187,10 +214,17 @@ class EventIterationBase : public Iteration {
 
 protected:
 
-	typedef typename std::conditional< Forward, std::less<Real>,
-			std::greater<Real> >::type Order;
+	typedef typename std::conditional<
+		Forward,
+		std::greater<Real>,
+		std::less<Real>
+	>::type Order;
 
-	typedef std::tuple<int, Real, Event<Dimension>> T;
+	typedef std::tuple<
+		int,
+		Real,
+		std::unique_ptr<EventBase>
+	> T;
 
 	struct TimeOrder {
 		// Returns true if a goes before b in the ordering
@@ -200,13 +234,15 @@ protected:
 				|| (
 					std::get<1>(a) == std::get<1>(b)
 					&& Order()( std::get<0>(a),
-							std::get<0><(b) )
+							std::get<0>(b) )
 				)
 			;
 		}
 	};
 
-	// TODO: What happens if events are set to the same time?
+	// If events are set to the same time, ties are broken depending on the
+	// order they were added. Events added later are assumed to occur later
+	// in time (e.g. handled earlier if Forward == true; later otherwise).
 
 	typedef std::unique_ptr<Iteration> I;
 
@@ -223,7 +259,9 @@ protected:
 private:
 
 	virtual Real timestep() {
-		return iteration->timestep();
+		Real step = iteration->timestep();
+		time += step;
+		return step;
 	}
 
 public:
@@ -232,27 +270,56 @@ public:
 	 * Constructor.
 	 */
 	template <typename F>
-	EventIterationBase(Real startTime, Real endTime, F &factory) noexcept
-			: id(0), startTime(startTime), endTime(endTime),
-			factory(&factory) {
+	EventIterationBase(Real startTime, Real endTime, F &factory,
+			int lookback = DEFAULT_LOOKBACK) noexcept
+			: Iteration(lookback), id(0), startTime(startTime),
+			endTime(endTime), factory(&factory) {
 		assert(startTime >= 0);
 		assert(startTime < endTime);
 	}
+
+	// TODO: unique_ptr<EventBase> constructor
 
 	/**
 	 * Adds an event to be processed.
 	 * @param time The time at which the event occurs.
 	 * @param event The event.
 	 */
-	template <typename E>
-	void add(Real time, E &&event) {
+	template <typename ...Ts>
+	void add(Real time, Ts &&...args) {
+		// TODO: Does not work with clang-503.0.40 with -std=c++1y.
+		//       Tries to use Event's copy constructor.
+		//       Is this a Clang bug?
+
 		assert(time >= startTime);
 		assert(time <= endTime);
-		events.push( std::make_tuple(id++, time,
-				std::forward<E>(event)) );
+		assert(time != initialTime(0.));
+
+		events.emplace(
+			id++,
+			time,
+			std::unique_ptr<EventBase>(
+				new Event<Dimension>(
+					std::forward<Ts>(args)...
+				)
+			)
+		);
 	}
 
 };
+
+#define QUANT_PDE_TMP(TRANSFORMED)                                             \
+		do { if(this->iteration && !this->events.empty()) {            \
+			Real t = std::get<1>( this->events.top() );            \
+			do {                                                   \
+				TRANSFORMED = true;                            \
+				it = ( *std::get<2>(this->events.top()) )(it); \
+				this->events.pop();                            \
+				if(this->events.empty()) {                     \
+					break;                                 \
+				}                                              \
+			} while( std::get<1>(this->events.top()) == t );       \
+		} } while(0)
 
 /**
  * Handles timestepping with interleaved events.
@@ -261,29 +328,29 @@ public:
 template <Index Dimension, bool Forward>
 class EventIteration final : public EventIterationBase<Dimension, Forward> {
 
-	virtual Vector transformIterand(const Vector &iterand) {
-		Vector it = iterand;
+	virtual bool transformIterand(Vector &it) {
+		bool transformed = false;
 
-		if(this->iteration == nullptr || this->iteration->done()) {
+		if(!this->iteration || this->iteration->done()) {
+			QUANT_PDE_TMP(transformed);
 
-			// Perform events
-			while( std::get<1>(this->events.top()) == time ) {
-				it = ( std::get<2>(this->events.pop()) )(it);
+			// Get next terminal time
+			Real t = this->events.empty()
+				? this->startTime
+				: std::get<1>(this->events.top());
+
+			if(!done()) {
+				this->iteration = this->factory->make(
+						t, this->time);
+				this->iteration->clear();
 			}
-
-			this->clearHistory();
-
-			Real t = this->events.empty() ? this->startTime
-					: std::get<0>(this->events.top());
-			this->iteration = this->factory->make(t, time);
-
 		}
 
-		return it;
+		return transformed;
 	}
 
 	virtual void clear() {
-		time = this->endTime;
+		this->time = this->endTime;
 		this->iteration = nullptr;
 	}
 
@@ -292,7 +359,7 @@ class EventIteration final : public EventIterationBase<Dimension, Forward> {
 	}
 
 	virtual bool done() const {
-		return time <= this->startTime;
+		return this->time <= this->startTime;
 	}
 
 public:
@@ -301,9 +368,17 @@ public:
 	 * Constructor.
 	 */
 	template <typename F>
-	EventIteration(Real startTime, Real endTime, F &factory) noexcept
-			: EventIterationBase<Dimension, Forward>(startTime,
-			endTime, std::forward<F>(factory)) {
+	EventIteration(
+		Real startTime,
+		Real endTime,
+		F &factory,
+		int lookback = DEFAULT_LOOKBACK
+	) noexcept : EventIterationBase<Dimension, Forward>(
+		startTime,
+		endTime,
+		factory,
+		lookback
+	) {
 	}
 
 };
@@ -312,29 +387,29 @@ template <Index Dimension>
 class EventIteration<Dimension, true> final
 		: public EventIterationBase<Dimension, true> {
 
-	virtual Vector transformIterand(const Vector &iterand) {
-		Vector it = iterand;
+	virtual bool transformIterand(Vector &it) {
+		bool transformed = false;
 
-		if(this->iteration == nullptr || this->iteration->done()) {
+		if(!this->iteration || this->iteration->done()) {
+			QUANT_PDE_TMP(transformed);
 
-			// Perform events
-			while( std::get<1>(this->events.top()) == time ) {
-				it = ( std::get<2>(this->events.pop()) )(it);
+			// Get next terminal time
+			Real t = this->events.empty()
+				? this->endTime
+				: std::get<1>(this->events.top());
+
+			if(!done()) {
+				this->iteration = this->factory->make(
+						this->time, t);
+				this->iteration->clear();
 			}
-
-			this->clearHistory();
-
-			Real t = this->events.empty() ? this->endTime
-					: std::get<0>(this->events.top());
-			this->iteration = this->factory->make(time, t);
-
 		}
 
-		return it;
+		return transformed;
 	}
 
 	virtual void clear() {
-		time = this->startTime;
+		this->time = this->startTime;
 		this->iteration = nullptr;
 	}
 
@@ -343,7 +418,7 @@ class EventIteration<Dimension, true> final
 	}
 
 	virtual bool done() const {
-		return time >= this->endTime;
+		return this->time >= this->endTime;
 	}
 
 public:
@@ -352,12 +427,22 @@ public:
 	 * Constructor.
 	 */
 	template <typename F>
-	EventIteration(Real startTime, Real endTime, F &factory) noexcept
-			: EventIterationBase<Dimension, true>(startTime,
-			endTime, std::forward<F>(factory)) {
+	EventIteration(
+		Real startTime,
+		Real endTime,
+		F &factory,
+		int lookback = DEFAULT_LOOKBACK
+	) noexcept : EventIterationBase<Dimension, true>(
+		startTime,
+		endTime,
+		factory,
+		lookback
+	) {
 	}
 
 };
+
+#undef QUANT_PDE_TMP
 
 template <Index Dimension>
 using ReverseEventIteration = EventIteration<Dimension, false>;
@@ -429,7 +514,7 @@ public:
 			lookback = that.lookback;
 		}
 
-		virtual I make(Real startTime, Real endTime) {
+		virtual I make(Real startTime, Real endTime) const {
 			return I(new ConstantStepper(startTime, endTime,
 					steps, lookback));
 		}
