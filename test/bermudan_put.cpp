@@ -19,23 +19,126 @@ using namespace QuantPDE::Modules;
 ///////////////////////////////////////////////////////////////////////////////
 
 #include <iostream>  // cout, cerr
-//#include <iomanip>   // setw
-//#include <unistd.h>  // getopt
+#include <unistd.h>  // getopt
 
 using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-int main() {
+/**
+ * Prints help to stderr.
+ */
+void help() {
+	cerr <<
+"unequal_borrowing_lending_rates [OPTIONS]" << endl << endl <<
+"Prices a long/short position straddle under the Black-Scholes model assuming" << endl <<
+"unequal borrowing/lending rates." << endl <<
+endl <<
+"-d REAL" << endl <<
+endl <<
+"    sets the dividend rate (default is 0.)" << endl <<
+endl <<
+"-e NONNEGATIVE_INTEGER" << endl <<
+endl <<
+"    the number of premature exercises, spread evenly throughout the interval" << endl <<
+"    (default is 10)" << endl <<
+endl <<
+"-K REAL" << endl <<
+endl <<
+"    sets the strike price (default is 100.)" << endl <<
+endl <<
+"-N POSITIVE_INTEGER" << endl <<
+endl <<
+"    sets the number of steps to take in time (default is 100)" << endl <<
+endl <<
+"-r REAL" << endl <<
+endl <<
+"    sets the interest rate (default is 0.04)" << endl <<
+endl <<
+"-R NONNEGATIVE_INTEGER" << endl <<
+endl <<
+"    controls the coarseness of the grid, with 0 being coarsest (default is 0)" << endl <<
+endl <<
+"-T POSITIVE_REAL" << endl <<
+endl <<
+"    sets the expiry time (default is 1.)" << endl <<
+endl <<
+"-v REAL" << endl <<
+endl <<
+"    sets the volatility (default is 0.2)" << endl << endl;
+}
 
-	const Real K = 100.;
-	const Real T = 1.;
-	const Real r = 0.04;
-	const Real v = 0.2;
-	const Real q = 0.;
+int main(int argc, char **argv) {
 
-	const unsigned M = 10; // Must be > 0
-	const unsigned N = 25;
+	Real K = 100.;
+	Real T = 1.;
+	Real r = 0.04;
+	Real v = 0.2;
+	Real q = 0.;
+
+	int R = 0;
+	int e = 10;
+	int N = 25;
+
+	// Setting options with getopt
+	{ char c;
+	while((c = getopt(argc, argv, "d:e:hK:N:r:R:T:v:")) != -1) {
+		switch(c) {
+			case 'd':
+				q = atof(optarg);
+				break;
+			case 'e':
+				e = atoi(optarg);
+				if(e < 0) {
+					cerr <<
+"error: the number of premature exercises must be nonnegative" << endl;
+					return 1;
+				}
+				break;
+			case 'h':
+				help();
+				return 0;
+			case 'K':
+				K = atof(optarg);
+				break;
+			case 'N':
+				N = atoi(optarg);
+				if(N <= 0) {
+					cerr <<
+"error: the number of steps must be positive" << endl;
+					return 1;
+				}
+				break;
+			case 'r':
+				r = atof(optarg);
+				break;
+			case 'R':
+				R = atoi(optarg);
+				if(R < 0) {
+					cerr <<
+"error: the maximum level of refinement must be nonnegative" << endl;
+					return 1;
+				}
+				break;
+			case 'T':
+				if((T = atof(optarg)) <= 0.) {
+					cerr <<
+"error: expiry time must be positive" << endl;
+					return 1;
+				}
+				break;
+			case 'v':
+				v = atof(optarg);
+				break;
+			case ':':
+			case '?':
+				cerr << endl;
+				help();
+				return 1;
+		}
+	} }
+
+	////////////////////////////////////////////////////////////////////////
 
 	RectilinearGrid1 grid(
 		Axis {
@@ -54,7 +157,11 @@ int main() {
 			10000.
 		}
 	);
-	grid.refine( RectilinearGrid1::NewTickBetweenEachPair() );
+
+	// Refine grid
+	for(int i = 0; i < R; i++) {
+		grid.refine( RectilinearGrid1::NewTickBetweenEachPair() );
+	}
 
 	auto payoff = QUANT_PDE_MODULES_PAYOFFS_PUT_FIXED_STRIKE( K );
 
@@ -69,10 +176,10 @@ int main() {
 	// Exercise events
 	////////////////////////////////////////////////////////////////////////
 
-	for(unsigned m = 0; m < M; m++) {
+	for(unsigned m = 0; m < e; m++) {
 		stepper.add(
 			// Time at which the event takes place
-			T / M * m,
+			T / e * m,
 
 			// Take the maximum of the continuation and exercise
 			// values

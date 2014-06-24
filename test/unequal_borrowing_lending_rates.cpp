@@ -80,7 +80,7 @@ endl <<
 endl <<
 "-v REAL" << endl <<
 endl <<
-"    sets the volatility" << endl << endl;
+"    sets the volatility (default is 0.3)" << endl << endl;
 }
 
 int main(int argc, char **argv) {
