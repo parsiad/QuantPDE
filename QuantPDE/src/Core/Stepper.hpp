@@ -157,8 +157,8 @@ public:
 		G &grid
 	) noexcept :
 		transform( std::forward<T>( transform ) ),
-		in(In(new typename PiecewiseLinear<Dimension>::Factory(grid))),
-		out( Out(new PointwiseMap<Dimension>(grid)) ) {
+		in( grid.defaultInterpolantFactory() ),
+		out( Out( new PointwiseMap<Dimension>(grid) ) ) {
 	}
 
 	// Disable copy constructor and copy assignment operator.

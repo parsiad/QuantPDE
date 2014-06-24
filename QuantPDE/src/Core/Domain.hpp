@@ -13,6 +13,7 @@
 
 namespace QuantPDE {
 
+template <Index Dimension> class InterpolantFactory;
 template <Index Dimension> class Refiner;
 
 /**
@@ -500,6 +501,13 @@ public:
 	 * @return The coordinates associated with this index.
 	 */
 	virtual std::array<Real, Dimension> coordinates(Index index) const = 0;
+
+	/**
+	 * @return A default interpolant factory associated with this domain.
+	 * @see QuantPDE::InterpolantFactory
+	 */
+	virtual std::unique_ptr<InterpolantFactory<Dimension>>
+			defaultInterpolantFactory() const = 0;
 
 };
 
@@ -1236,6 +1244,9 @@ public:
 	virtual Index size() const {
 		return vsize;
 	}
+
+	virtual std::unique_ptr<InterpolantFactory<Dimension>>
+			defaultInterpolantFactory() const;
 
 };
 

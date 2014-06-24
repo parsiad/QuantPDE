@@ -64,7 +64,7 @@ endl <<
 endl <<
 "-L" << endl <<
 endl <<
-"    long position (default is short)" << endl <<
+"    calculates the price for a long position (default is short position)" << endl <<
 endl <<
 "-N POSITIVE_INTEGER" << endl <<
 endl <<
@@ -269,23 +269,23 @@ int main(int argc, char **argv) {
 	// Everything prior to this was setup. Now we run the method.
 	////////////////////////////////////////////////////////////////////////
 
-	// Initial solution (maps the payoff function to a vector)
-	Vector initial = (PointwiseMap1(grid))(payoff);
-
 	// Linear system solver
 	BiCGSTABSolver solver;
 
-	// Calculate the solution vector
-	Vector solutionOnGrid = stepper.iterateUntilDone(
-		initial, // Initial iterand
-		bdf2,    // Root of linear system tree
-		solver   // Linear system solver
+	// Calculate the solution at time zero
+	auto V = stepper.solve(
+		grid,   // Domain
+		payoff, // Initial condition
+		bdf2,   // Root of linear system tree
+		solver  // Linear system solver
 	);
 
 	////////////////////////////////////////////////////////////////////////
+	// Print solution
+	////////////////////////////////////////////////////////////////////////
 
-	// Print all (node-coordinate, value-at-node) pairs
-	cout << grid.accessor(solutionOnGrid);
+	// TODO: Print more than just V(S = 100)
+	cout << V(100.) << endl;
 
 	// Cleanup
 	delete policy;

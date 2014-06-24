@@ -40,8 +40,8 @@ endl <<
 endl <<
 "-e NONNEGATIVE_INTEGER" << endl <<
 endl <<
-"    the number of premature exercises, spread evenly throughout the interval" << endl <<
-"    (default is 10)" << endl <<
+"    sets the number of premature exercises, spread evenly throughout the" << endl <<
+"    interval (default is 10)" << endl <<
 endl <<
 "-K REAL" << endl <<
 endl <<
@@ -139,6 +139,8 @@ int main(int argc, char **argv) {
 	} }
 
 	////////////////////////////////////////////////////////////////////////
+	// Spatial grid
+	////////////////////////////////////////////////////////////////////////
 
 	RectilinearGrid1 grid(
 		Axis {
@@ -163,7 +165,29 @@ int main(int argc, char **argv) {
 		grid.refine( RectilinearGrid1::NewTickBetweenEachPair() );
 	}
 
+	////////////////////////////////////////////////////////////////////////
+	// Payoff
+	// ------
+	//
+	// Payoffs are lambda functions. The following is just a macro that
+	// expands to
+	//
+	// auto payoff = [K] (Real S) {
+	// 	return S < K ? K - S : 0.;
+	// };
+	////////////////////////////////////////////////////////////////////////
+
 	auto payoff = QUANT_PDE_MODULES_PAYOFFS_PUT_FIXED_STRIKE( K );
+
+	////////////////////////////////////////////////////////////////////////
+	// Iteration tree
+	// --------------
+	//
+	// Sets up the loop structure:
+	// for(int n = 0; n < N; n++) {
+	// 	// Solve a linear system
+	// }
+	////////////////////////////////////////////////////////////////////////
 
 	ReverseConstantStepper::Factory factory(N);
 	ReverseEventIteration1 stepper(
@@ -193,6 +217,11 @@ int main(int argc, char **argv) {
 	}
 
 	////////////////////////////////////////////////////////////////////////
+	// Linear system tree
+	// ------------------
+	//
+	// Makes the linear system to solve at each iteration
+	////////////////////////////////////////////////////////////////////////
 
 	BlackScholes bs(
 		grid,
@@ -205,17 +234,28 @@ int main(int argc, char **argv) {
 	ReverseLinearBDFTwo bdf2(grid, bs);
 	bdf2.setIteration(stepper);
 
-	Vector initial = (PointwiseMap1(grid))(payoff);
+	////////////////////////////////////////////////////////////////////////
+	// Running
+	// -------
+	//
+	// Everything prior to this was setup. Now we run the method.
+	////////////////////////////////////////////////////////////////////////
 
 	BiCGSTABSolver solver;
 
-	Vector solutionOnGrid = stepper.iterateUntilDone(
-		initial, // Initial iterand
-		bdf2,    // Root of linear system tree
-		solver   // Linear system solver
+	auto V = stepper.solve(
+		grid,   // Domain
+		payoff, // Initial condition
+		bdf2,   // Root of linear system tree
+		solver  // Linear system solver
 	);
 
-	cout << grid.accessor(solutionOnGrid);
+	////////////////////////////////////////////////////////////////////////
+	// Print solution
+	////////////////////////////////////////////////////////////////////////
+
+	// TODO: Print more than just S = 100
+	cout << V(100.) << endl;
 
 	return 0;
 

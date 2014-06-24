@@ -270,6 +270,16 @@ public:
 			return I(new PiecewiseLinear(*grid, std::move(vector)));
 		}
 
+		/**
+		 * Creates and returns an instance of this factory, wrapped in a
+		 * smart pointer.
+		 * @return An instance of this factory.
+		 */
+		template <typename G>
+		static F create(G &grid) {
+			return F(new Factory(grid));
+		}
+
 	};
 
 	/**
@@ -317,6 +327,14 @@ public:
 	}
 
 };
+
+template <Index Dimension>
+std::unique_ptr<InterpolantFactory<Dimension>>
+		RectilinearGrid<Dimension>::defaultInterpolantFactory() const {
+	return std::unique_ptr<InterpolantFactory<Dimension>>(
+			new typename PiecewiseLinear<Dimension>::Factory(
+			*this));
+}
 
 typedef PiecewiseLinear<1> PiecewiseLinear1;
 typedef PiecewiseLinear<2> PiecewiseLinear2;

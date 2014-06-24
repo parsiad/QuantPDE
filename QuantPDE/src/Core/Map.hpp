@@ -3,6 +3,7 @@
 
 #include <cmath>       // exp, sqrt
 #include <complex>     // std::complex
+#include <memory>      // std::unique_ptr
 #include <utility>     // std::forward, std::move
 #include <vector>      // std::vector
 
@@ -46,6 +47,8 @@ typedef Map<3> Map3;
 template <Index Dimension>
 class PointwiseMap final : public Map<Dimension> {
 
+	typedef std::unique_ptr<Map<Dimension>> M;
+
 	const Domain<Dimension> *domain;
 
 public:
@@ -76,6 +79,16 @@ public:
 
 	virtual Vector operator()(Function<Dimension> &&function) const {
 		return domain->image( std::move(function) );
+	}
+
+	/**
+	 * Creates and returns an instance of this map, wrapped in a smart
+	 * pointer.
+	 * @return An instance of this map.
+	 */
+	template <typename D>
+	static M create(D &domain) {
+		return M(new PointwiseMap(domain));
 	}
 
 };
@@ -256,6 +269,8 @@ public:
  */
 class DiracConvolution1 final : public MollifierConvolution1 {
 
+	typedef std::unique_ptr<Map1> M;
+
 public:
 
 	/**
@@ -272,6 +287,16 @@ public:
 				},
 				epsilon
 			) {
+	}
+
+	/**
+	 * Creates and returns an instance of this map, wrapped in a smart
+	 * pointer.
+	 * @return An instance of this map.
+	 */
+	template <typename G>
+	static M create(G &grid, Real epsilon) {
+		return M(new DiracConvolution1(grid, epsilon));
 	}
 
 };

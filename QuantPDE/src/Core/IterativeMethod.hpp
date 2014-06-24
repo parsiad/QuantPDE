@@ -1000,6 +1000,38 @@ class Iteration {
 		return iterand;
 	}
 
+	template <Index Dimension>
+	class InterpolantWrapper {
+
+		typedef std::unique_ptr<Interpolant<Dimension>> I;
+		I i;
+
+	public:
+
+		InterpolantWrapper(I i) noexcept : i(std::move(i)) {
+		}
+
+		InterpolantWrapper(const InterpolantWrapper &) = delete;
+		InterpolantWrapper &operator=(const InterpolantWrapper &)
+				= delete;
+
+		InterpolantWrapper(InterpolantWrapper &&that) noexcept
+				: i( std::move(that.i) ) {
+		}
+
+		InterpolantWrapper &operator=(InterpolantWrapper &&that)
+				noexcept {
+			i = std::move(that.i);
+			return *this;
+		}
+
+		template <typename ...Ts>
+		Real operator()(Ts ...coordinates) {
+			return (*i)(coordinates...);
+		}
+
+	};
+
 protected:
 
 	/**
@@ -1047,27 +1079,63 @@ public:
 	Iteration &operator=(const Iteration &) = delete;
 
 	/**
-	 * Iterates until completion and returns the final iterand.
-	 * @param initialIterand The initial iterand.
+	 * @param initialCondition The initial condition (as a lambda function).
+	 * @param map A mapping from a function to a domain.
 	 * @param root The linear system used to generate the left and right
 	 *             hand sides of the linear equation to be solved at each
 	 *             iteration.
 	 * @param solver A linear solver.
-	 * @return The final iterand.
+	 * @return The solution.
+	 * @see QuantPDE::Map
 	 */
-	Vector iterateUntilDone(
-		const Vector &initialIterand,
+	template <typename F, Index Dimension>
+	InterpolantWrapper<Dimension> solve(
+		std::unique_ptr<Map<Dimension>> map,
+		std::unique_ptr<InterpolantFactory<Dimension>> factory,
+		F &&initialCondition,
 		LinearSystemIteration &root,
 		LinearSolver &solver
 	) {
 		clearIterations();
 
-		return iterateUntilDone(
-			initialIterand,
+		return InterpolantWrapper<Dimension>(
+			factory->make(
+				iterateUntilDone(
+					(*map)(std::forward<F>(
+							initialCondition)),
+					root,
+					solver,
+					0.,
+					false
+				)
+			)
+		);
+	}
+
+	/**
+	 * @param initialCondition The initial condition (as a lambda function).
+	 * @param domain The spatial domain this problem is defined on.
+	 * @param root The linear system used to generate the left and right
+	 *             hand sides of the linear equation to be solved at each
+	 *             iteration.
+	 * @param solver A linear solver.
+	 * @return The solution.
+	 * @see QuantPDE::Map
+	 */
+	template <typename F, Index Dimension>
+	InterpolantWrapper<Dimension> solve(
+		const Domain<Dimension> &domain,
+		F &&initialCondition,
+		LinearSystemIteration &root,
+		LinearSolver &solver
+	) {
+		return solve(
+			std::unique_ptr<Map<Dimension>>(
+					new PointwiseMap<Dimension>(domain)),
+			domain.defaultInterpolantFactory(),
+			std::forward<F>(initialCondition),
 			root,
-			solver,
-			0.,
-			false
+			solver
 		);
 	}
 

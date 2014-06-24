@@ -288,20 +288,17 @@ int main(int argc, char **argv) {
 			// Linear system solver
 			BiCGSTABSolver solver;
 
-			// Transfer the payoff function to the grid
-			Map1 *map = smooth
-				? (Map1 *) new DiracConvolution1(
-					grid,
-					10. / pow2l
-				)
-				: (Map1 *) new PointwiseMap1(grid)
-			;
-			Vector initial = (*map)(payoff);
-			delete map;
-
 			// Compute solution
-			Vector solutionVector = stepper->iterateUntilDone(
-				initial,
+			auto solution = stepper->solve(
+				smooth
+					? DiracConvolution1::create(
+						grid,
+						10. / pow2l
+					)
+					: PointwiseMap1::create(grid)
+				,
+				PiecewiseLinear1::Factory::create(grid),
+				payoff,
 				*root,
 				solver
 			);
@@ -317,8 +314,7 @@ int main(int argc, char **argv) {
 			// Solution at S = stock (default is 100.)
 			// Linear interpolation is used to get the value off
 			// the grid
-			PiecewiseLinear1 interpolated(grid, solutionVector);
-			value = interpolated(asset);
+			value = solution(asset);
 
 			delete penalty;
 			delete tolerance;
