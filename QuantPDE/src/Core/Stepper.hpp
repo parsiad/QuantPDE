@@ -91,8 +91,8 @@ class Event : public EventBase {
 				"should be equal to the dimension");
 
 		static inline Vector function(
-			const I &interpolant,
 			const Transform<Dimension> &transform,
+			const I &interpolant,
 			const Out &out
 		) {
 			return (*out)( [&] (Ts ...coordinates) {
@@ -111,8 +111,8 @@ class Event : public EventBase {
 		// 3. Map the function to the domain (producing a vector)
 
 		return Driver<Dimension, Real>::function(
-			in->make( std::forward<V>(vector) ),
 			transform,
+			in->make( std::forward<V>(vector) ),
 			out
 		);
 	}
@@ -127,10 +127,29 @@ class Event : public EventBase {
 
 public:
 
-	// TODO: Make constructor for general interpolation/mapping
+	/**
+	 * Constructor.
+	 * @param transform A function that transforms the solution.
+	 * @param in An interpolant factory that handles how the solution is
+	 *           interpolated off the domain nodes.
+	 * @param out A map that handles how to transfer the transformed
+	 *            solution back onto the domain.
+	 */
+	template <typename T>
+	Event(
+		T &&transform,
+		In in,
+		Out out
+	) noexcept :
+		transform( std::forward<T>( transform) ),
+		in( std::move(in) ),
+		out( std::move(out) ) {
+	}
 
 	/**
 	 * Default constructor for rectilinear grids.
+	 * @param transform A function that transforms the solution.
+	 * @param grid A rectilinear grid.
 	 */
 	template <typename T, typename G>
 	Event(
@@ -278,12 +297,24 @@ public:
 		assert(startTime < endTime);
 	}
 
-	// TODO: unique_ptr<EventBase> constructor
-
 	/**
 	 * Adds an event to be processed.
 	 * @param time The time at which the event occurs.
 	 * @param event The event.
+	 */
+	void add(Real time, std::unique_ptr<EventBase> event) {
+		assert(time >= startTime);
+		assert(time <= endTime);
+		assert(time != initialTime(0.));
+
+		events.emplace( id++, time, std::move(event) );
+	}
+
+	/**
+	 * Adds an event to be processed.
+	 * @param time The time at which the event occurs.
+	 * @param args Arguments passed to Event constructor.
+	 * @see QuantPDE::Event
 	 */
 	template <typename ...Ts>
 	void add(Real time, Ts &&...args) {
