@@ -21,8 +21,5 @@
 #include "src/Core/LinearBDF.hpp"
 #include "src/Core/CrankNicolson.hpp"
 
-//#include "src/Core/Problem.hpp"
-//#include "src/Core/Solver.hpp"
-
 #endif
 
