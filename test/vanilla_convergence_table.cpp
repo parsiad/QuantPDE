@@ -21,6 +21,7 @@ using namespace QuantPDE::Modules;
 
 #include <iostream>  // cout, cerr
 #include <iomanip>   // setw
+#include <memory>    // unique_ptr
 #include <unistd.h>  // getopt
 
 using namespace std;
@@ -237,7 +238,7 @@ int main(int argc, char **argv) {
 			);
 
 			// Timestepping method
-			Iteration *stepper = variable
+			unique_ptr<Iteration> stepper(variable
 				? (Iteration *) new ReverseVariableStepper(
 					0., // Initial time
 					expiry,
@@ -249,40 +250,44 @@ int main(int argc, char **argv) {
 					expiry,
 					steps
 				)
-			;
+			);
 
 			// Time discretization method
-			LinearSystemIteration *discretization = smooth
+			unique_ptr<LinearSystemIteration> discretization(smooth
 				? (LinearSystemIteration *)
 						new ReverseRannacher(grid,bs)
 				: (LinearSystemIteration *)
 						new ReverseLinearBDFTwo(grid,bs)
-			;
+			);
 			discretization->setIteration(*stepper);
 
 			// American-specific components; penalty method or not?
 			LinearSystemIteration *root;
-			ToleranceIteration *tolerance = nullptr;
-			PenaltyMethodDifference1 *penalty = nullptr;
+			unique_ptr<ToleranceIteration> tolerance;
+			unique_ptr<PenaltyMethodDifference1> penalty;
 			if(american) {
 				// American case
-				penalty = new PenaltyMethodDifference1(
-					grid,
-					*discretization,
-					[&payoff] (Real t, Real x) {
-						return payoff(x);
-					}
+				penalty = unique_ptr<PenaltyMethodDifference1>(
+					new PenaltyMethodDifference1(
+						grid,
+						*discretization,
+						[&payoff] (Real t, Real x) {
+							return payoff(x);
+						}
+					)
 				);
 
-				tolerance = new ToleranceIteration();
+				tolerance = unique_ptr<ToleranceIteration>(
+					new ToleranceIteration()
+				);
 
 				penalty->setIteration(*tolerance);
 				stepper->setInnerIteration(*tolerance);
 
-				root = penalty;
+				root = penalty.get();
 			} else {
 				// European case
-				root = discretization;
+				root = discretization.get();
 			}
 
 			// Linear system solver
@@ -290,14 +295,12 @@ int main(int argc, char **argv) {
 
 			// Compute solution
 			auto solution = stepper->solve(
-				smooth
-					? DiracConvolution1::create(
-						grid,
-						10. / pow2l
-					)
-					: PointwiseMap1::create(grid)
-				,
-				PiecewiseLinear1::Factory::create(grid),
+				*unique_ptr<Map1>(smooth
+					? (Map1*) new DiracConvolution1(grid,
+							10./pow2l)
+					: (Map1*) new PointwiseMap1(grid)
+				),
+				PiecewiseLinear1::Factory(grid),
 				payoff,
 				*root,
 				solver
@@ -315,11 +318,6 @@ int main(int argc, char **argv) {
 			// Linear interpolation is used to get the value off
 			// the grid
 			value = solution(asset);
-
-			delete penalty;
-			delete tolerance;
-			delete discretization;
-			delete stepper;
 		}
 
 		///////////////////////////////////////////////////////////////

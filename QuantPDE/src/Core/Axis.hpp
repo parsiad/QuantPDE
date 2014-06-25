@@ -2,6 +2,7 @@
 #define QUANT_PDE_CORE_AXIS
 
 #include <cassert>          // assert
+#include <cmath>            // std::floor
 #include <cstring>          // std::memcpy
 #include <initializer_list> // std::initializer_list
 #include <iostream>         // std::ostream
@@ -148,6 +149,23 @@ public:
 	 */
 	Index size() const {
 		return length;
+	}
+
+	/**
+	 * Creates an axis with evenly spaced ticks. Similar to MATLAB's colon
+	 * notation with begin:step:end.
+	 * @param begin The first tick (included in the axis).
+	 * @param step The spacing.
+	 * @param end The last tick (included if and only if end - begin is
+	 *            divisible by step).
+	 * @return An axis.
+	 */
+	static Axis range(Real begin, Real step, Real end) {
+		Axis axis( (Index) std::floor( (end - begin) / step ) + 1 );
+		for(Index i = 0; i < axis.length; i++) {
+			axis[i] = begin + step * i;
+		}
+		return axis;
 	}
 
 	template <Index> friend class RectilinearGrid;

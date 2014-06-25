@@ -461,6 +461,8 @@ public:
 		return VectorAccessor<Ownership::NON_CONST>(*this, &vector);
 	}
 
+	// TODO: FunctionAccessor
+
 	/**
 	 * Used to evaluate the function on the domain.
 	 * Consider the following example, evaluating the function

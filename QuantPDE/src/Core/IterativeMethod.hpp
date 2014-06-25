@@ -1011,9 +1011,15 @@ class Iteration {
 		InterpolantWrapper(I i) noexcept : i(std::move(i)) {
 		}
 
-		InterpolantWrapper(const InterpolantWrapper &) = delete;
-		InterpolantWrapper &operator=(const InterpolantWrapper &)
-				= delete;
+		InterpolantWrapper(const InterpolantWrapper &that) noexcept
+				: i(that.i->clone()) {
+		}
+
+		InterpolantWrapper &operator=(const InterpolantWrapper &that)
+				noexcept {
+			i = that.i->clone();
+			return *this;
+		}
 
 		InterpolantWrapper(InterpolantWrapper &&that) noexcept
 				: i( std::move(that.i) ) {
@@ -1090,8 +1096,8 @@ public:
 	 */
 	template <typename F, Index Dimension>
 	InterpolantWrapper<Dimension> solve(
-		std::unique_ptr<Map<Dimension>> map,
-		std::unique_ptr<InterpolantFactory<Dimension>> factory,
+		const Map<Dimension> &map,
+		const InterpolantFactory<Dimension> &factory,
 		F &&initialCondition,
 		LinearSystemIteration &root,
 		LinearSolver &solver
@@ -1099,9 +1105,9 @@ public:
 		clearIterations();
 
 		return InterpolantWrapper<Dimension>(
-			factory->make(
+			factory.make(
 				iterateUntilDone(
-					(*map)(std::forward<F>(
+					map(std::forward<F>(
 							initialCondition)),
 					root,
 					solver,
@@ -1129,10 +1135,12 @@ public:
 		LinearSystemIteration &root,
 		LinearSolver &solver
 	) {
+		PointwiseMap<Dimension> map(domain);
+		auto factory = domain.defaultInterpolantFactory();
+
 		return solve(
-			std::unique_ptr<Map<Dimension>>(
-					new PointwiseMap<Dimension>(domain)),
-			domain.defaultInterpolantFactory(),
+			map,
+			*factory,
 			std::forward<F>(initialCondition),
 			root,
 			solver

@@ -254,8 +254,8 @@ int main(int argc, char **argv) {
 	// Print solution
 	////////////////////////////////////////////////////////////////////////
 
-	// TODO: Print more than just S = 100
-	cout << V(100.) << endl;
+	RectilinearGrid1 printGrid( Axis::range(0., 10., 200.) );
+	cout << printGrid.accessor( printGrid.image( V ) ) << endl;
 
 	return 0;
 

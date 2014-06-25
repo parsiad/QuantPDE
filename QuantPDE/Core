@@ -7,6 +7,7 @@
 #endif
 
 #include "src/Core/Types.hpp"
+#include "src/Core/Wrapper.hpp"
 #include "src/Core/Metafunctions.hpp"
 #include "src/Core/DateTime.hpp"
 #include "src/Core/Function.hpp"

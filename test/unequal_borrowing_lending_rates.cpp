@@ -31,6 +31,7 @@ using namespace QuantPDE::Modules;
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <iostream>  // cout, cerr
+#include <memory>    // unique_ptr
 #include <unistd.h>  // getopt
 
 using namespace std;
@@ -250,12 +251,12 @@ int main(int argc, char **argv) {
 	//
 	// Pick min/max policy iteration depending on whether we are considering
 	// the long or short position problem.
-	LinearSystemIteration *policy = L
+	unique_ptr<LinearSystemIteration> policy(L
 		? (LinearSystemIteration*)
 				new MinPolicyIteration1_1(grid, controls, bs)
 		: (LinearSystemIteration*)
 				new MaxPolicyIteration1_1(grid, controls, bs)
-	;
+	);
 	policy->setIteration(tolerance); // Associate with k-iteration
 
 	// BDF2 (timestepping)
@@ -284,11 +285,8 @@ int main(int argc, char **argv) {
 	// Print solution
 	////////////////////////////////////////////////////////////////////////
 
-	// TODO: Print more than just V(S = 100)
-	cout << V(100.) << endl;
-
-	// Cleanup
-	delete policy;
+	RectilinearGrid1 printGrid( Axis::range(0., 10., 200.) );
+	cout << printGrid.accessor( printGrid.image( V ) ) << endl;
 
 	return 0;
 

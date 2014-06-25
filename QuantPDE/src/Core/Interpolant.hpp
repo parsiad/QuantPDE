@@ -270,16 +270,6 @@ public:
 			return I(new PiecewiseLinear(*grid, std::move(vector)));
 		}
 
-		/**
-		 * Creates and returns an instance of this factory, wrapped in a
-		 * smart pointer.
-		 * @return An instance of this factory.
-		 */
-		template <typename G>
-		static F create(G &grid) {
-			return F(new Factory(grid));
-		}
-
 	};
 
 	/**
