@@ -238,8 +238,8 @@ int main(int argc, char **argv) {
 				? (Iteration *) new ReverseVariableStepper(
 					0.,                       // startTime
 					expiry,                   // endTime
-					expiry / steps / pow2l,   // dt
-					target / pow2l            // target
+					expiry / steps / (pow2l * pow2l), // dt
+					target / (pow2l * pow2l)  // target
 				)
 				: (Iteration *) new ReverseConstantStepper(
 					0.,            // startTime
@@ -249,7 +249,7 @@ int main(int argc, char **argv) {
 			);
 
 			// Time discretization method
-			ReverseLinearBDFSix discretization(grid, bs);
+			ReverseRannacher discretization(grid, bs);
 			discretization.setIteration(*stepper);
 
 			// American-specific components; penalty method or not?
@@ -332,7 +332,7 @@ int main(int argc, char **argv) {
 		previousValue = value;
 
 		// If variable timestepping is on, decrease by 4 at each step
-		pow2l *= variable ? 4 : 2;
+		pow2l *= 2;
 	}
 
 	return 0;

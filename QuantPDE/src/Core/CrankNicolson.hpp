@@ -106,6 +106,8 @@ class Rannacher : public LinearSystemIteration {
 		t1 = nextTime();
 		t0 = time(0);
 
+		h0 = difference(t1, t0);
+
 		return
 			domain->identity()
 			+ op->A(t1) * h0 / 2.
