@@ -331,7 +331,7 @@ int main(int argc, char **argv) {
 		previousChange = change;
 		previousValue = value;
 
-		pow2l *= 2.;
+		pow2l *= american ? 4 : 2;
 	}
 
 	return 0;
