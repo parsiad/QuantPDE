@@ -41,11 +41,6 @@ endl <<
 endl <<
 "    American option (default is European)" << endl <<
 endl <<
-"-c" << endl <<
-"    Convolve the payoff with a smooth function to smoothen the initial " << endl <<
-"    condition. Rannacher timestepping is also used (default is no smoothing with" << endl <<
-"    BDF2." << endl <<
-endl <<
 "-d REAL" << endl <<
 endl <<
 "    sets the dividend rate (default is 0.)" << endl <<
@@ -99,19 +94,15 @@ int main(int argc, char **argv) {
 	int  refinement     = 5;
 	int  steps          = 25;
 	bool call           = true;
-	bool variable       = false;
+	//bool variable       = false;
 	bool american       = false;
-	bool smooth         = false;
 
 	// Setting options with getopt
 	{ char c;
-	while((c = getopt(argc, argv, "Acd:hK:N:pr:R:S:T:v:V")) != -1) {
+	while((c = getopt(argc, argv, "Ad:hK:N:pr:R:S:T:v:V")) != -1) {
 		switch(c) {
 			case 'A':
 				american = true;
-				break;
-			case 'c':
-				smooth = true;
 				break;
 			case 'd':
 				dividends = atof(optarg);
@@ -158,7 +149,10 @@ int main(int argc, char **argv) {
 				volatility = atof(optarg);
 				break;
 			case 'V':
-				variable = true;
+				// TODO: Remove this
+				cerr <<
+"warning: variable timestepping not implemented (-V ignored)" << endl;
+				//variable = true;
 				break;
 			case ':':
 			case '?':
@@ -213,8 +207,8 @@ int main(int argc, char **argv) {
 	//auto payoff = QUANT_PDE_MODULES_PAYOFFS_CALL_FIXED_STRIKE(strike);
 	//auto payoff = QUANT_PDE_MODULES_PAYOFFS_PUT_FIXED_STRIKE(strike);
 
-	Real pow2l  = 1.; // 2^l
-	for(unsigned l = 0; l < refinement; l++, steps *= variable ? 4 : 2) {
+	unsigned pow2l  = 1.; // 2^l
+	for(unsigned l = 0; l < refinement; l++) {
 
 		///////////////////////////////////////////////////////////////
 		// Build spatial grid
@@ -238,28 +232,24 @@ int main(int argc, char **argv) {
 			);
 
 			// Timestepping method
-			unique_ptr<Iteration> stepper(variable
-				? (Iteration *) new ReverseVariableStepper(
-					0., // Initial time
-					expiry,
-					expiry / steps,
-					expiry / steps * 10. / pow2l
-				)
-				: (Iteration *) new ReverseConstantStepper(
-					0., // Initial time
-					expiry,
-					steps
+			unique_ptr<Iteration> stepper(//variable
+				//? (Iteration *) new ReverseVariableStepper(
+				//	0.,                       // startTime
+				//	expiry,                   // endTime
+				//	dt,                       // dt
+				//	target / pow2l            // target
+				//)
+				//:
+				(Iteration *) new ReverseConstantStepper(
+					0.,            // startTime
+					expiry,        // endTime
+					steps * pow2l  // steps
 				)
 			);
 
 			// Time discretization method
-			unique_ptr<LinearSystemIteration> discretization(smooth
-				? (LinearSystemIteration *)
-						new ReverseRannacher(grid,bs)
-				: (LinearSystemIteration *)
-						new ReverseLinearBDFTwo(grid,bs)
-			);
-			discretization->setIteration(*stepper);
+			ReverseRannacher discretization(grid, bs);
+			discretization.setIteration(*stepper);
 
 			// American-specific components; penalty method or not?
 			LinearSystemIteration *root;
@@ -270,7 +260,7 @@ int main(int argc, char **argv) {
 				penalty = unique_ptr<PenaltyMethodDifference1>(
 					new PenaltyMethodDifference1(
 						grid,
-						*discretization,
+						discretization,
 						[&payoff] (Real t, Real x) {
 							return payoff(x);
 						}
@@ -287,7 +277,7 @@ int main(int argc, char **argv) {
 				root = penalty.get();
 			} else {
 				// European case
-				root = discretization.get();
+				root = &discretization;
 			}
 
 			// Linear system solver
@@ -295,11 +285,7 @@ int main(int argc, char **argv) {
 
 			// Compute solution
 			auto solution = stepper->solve(
-				*unique_ptr<Map1>(smooth
-					? (Map1*) new DiracConvolution1(grid,
-							10./pow2l)
-					: (Map1*) new PointwiseMap1(grid)
-				),
+				PointwiseMap1(grid),
 				PiecewiseLinear1::Factory(grid),
 				payoff,
 				*root,

@@ -12,7 +12,7 @@ namespace Modules {
  */
 class BlackScholes : public ControlledLinearSystem1 {
 
-	const RectilinearGrid1 *G;
+	const RectilinearGrid1 &G;
 	WrapperFunction1 r, v, q;
 
 public:
@@ -24,7 +24,7 @@ public:
 		F2 &&volatility,
 		F3 &&dividends
 	) noexcept :
-		G(&grid),
+		G( grid ),
 		r( std::forward<F1>(interest) ),
 		v( std::forward<F2>(volatility) ),
 		q( std::forward<F3>(dividends) ) {
@@ -39,9 +39,9 @@ public:
 	}
 
 	virtual Matrix A(Real time) {
-		auto M_G = G->builder( IntegerVector::Constant(G->size(), 3) );
+		auto M_G = G.builder( IntegerVector::Constant(G.size(), 3) );
 
-		const Axis &S = (*G)[0];
+		const Axis &S = G[0];
 
 		// Interior points
 		// alpha_i dt V_{i-1}^{n+1} + (1 + (alpha_i + beta_i + r) dt)
@@ -97,7 +97,7 @@ public:
 	}
 
 	virtual Vector b(Real time) {
-		return G->zero();
+		return G.zero();
 	}
 
 	virtual bool isATheSame() const {

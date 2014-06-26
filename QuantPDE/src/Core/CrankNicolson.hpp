@@ -162,7 +162,7 @@ public:
 		_isATheSame = &Rannacher::_isATheSame1;
 		_A = &Rannacher::_A1;
 		_b = &Rannacher::_b1;
-		_onIterationEnd = &Rannacher::_onIterationEnd3;
+		_onIterationEnd = &Rannacher::_onIterationEnd1;
 	}
 
 	virtual void onIterationEnd() {

@@ -26,15 +26,11 @@ class Axis final {
 	Axis(Index length) noexcept : length(length), n(new Real[length]) {
 	}
 
-public:
+	template <typename T>
+	inline void initialize(const T &list) {
+		length = list.size();
+		n = new Real[length];
 
-	/**
-	 * Constructor.
-	 * @param list The ticks. These should be strictly monotonically
-	 *             increasing.
-	 */
-	Axis(const std::initializer_list<Real> &list) noexcept
-			: length(list.size()), n(new Real[length]) {
 		assert(length > 0);
 
 		Real *p = n;
@@ -50,6 +46,27 @@ public:
 			p++;
 		}
 		#endif
+	}
+
+public:
+
+	/**
+	 * Constructor.
+	 * @param list The ticks. These should be strictly monotonically
+	 *             increasing.
+	 */
+	Axis(const std::initializer_list<Real> &list) noexcept {
+		initialize(list);
+	}
+
+	/**
+	 * Constructor.
+	 * @param list The ticks. These should be strictly monotonically
+	 *             increasing.
+	 */
+	template <typename T>
+	Axis(const T &list) noexcept {
+		initialize(list);
 	}
 
 	/**

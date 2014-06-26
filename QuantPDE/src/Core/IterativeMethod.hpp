@@ -1000,44 +1000,6 @@ class Iteration {
 		return iterand;
 	}
 
-	template <Index Dimension>
-	class InterpolantWrapper {
-
-		typedef std::unique_ptr<Interpolant<Dimension>> I;
-		I i;
-
-	public:
-
-		InterpolantWrapper(I i) noexcept : i(std::move(i)) {
-		}
-
-		InterpolantWrapper(const InterpolantWrapper &that) noexcept
-				: i(that.i->clone()) {
-		}
-
-		InterpolantWrapper &operator=(const InterpolantWrapper &that)
-				noexcept {
-			i = that.i->clone();
-			return *this;
-		}
-
-		InterpolantWrapper(InterpolantWrapper &&that) noexcept
-				: i( std::move(that.i) ) {
-		}
-
-		InterpolantWrapper &operator=(InterpolantWrapper &&that)
-				noexcept {
-			i = std::move(that.i);
-			return *this;
-		}
-
-		template <typename ...Ts>
-		Real operator()(Ts ...coordinates) {
-			return (*i)(coordinates...);
-		}
-
-	};
-
 protected:
 
 	/**
@@ -1095,7 +1057,7 @@ public:
 	 * @see QuantPDE::Map
 	 */
 	template <typename F, Index Dimension>
-	InterpolantWrapper<Dimension> solve(
+	typename Interpolant<Dimension>::Wrapper solve(
 		const Map<Dimension> &map,
 		const InterpolantFactory<Dimension> &factory,
 		F &&initialCondition,
@@ -1104,7 +1066,7 @@ public:
 	) {
 		clearIterations();
 
-		return InterpolantWrapper<Dimension>(
+		return typename Interpolant<Dimension>::Wrapper(
 			factory.make(
 				iterateUntilDone(
 					map(std::forward<F>(
@@ -1129,7 +1091,7 @@ public:
 	 * @see QuantPDE::Map
 	 */
 	template <typename F, Index Dimension>
-	InterpolantWrapper<Dimension> solve(
+	typename Interpolant<Dimension>::Wrapper solve(
 		const Domain<Dimension> &domain,
 		F &&initialCondition,
 		LinearSystemIteration &root,

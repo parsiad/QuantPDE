@@ -24,7 +24,7 @@ class Interpolant {
 	virtual Real interpolate(const std::array<Real, Dimension> &coordinates)
 			const = 0;
 
-	typedef std::unique_ptr<Interpolant> I;
+	typedef std::unique_ptr<Interpolant> P;
 
 public:
 
@@ -45,10 +45,28 @@ public:
 		return interpolate( {{coordinates...}} );
 	}
 
+	////////////////////////////////////////////////////////////////////////
+	// Wrapper
+	////////////////////////////////////////////////////////////////////////
+	class Wrapper : public Interpolant {
+		P p;
+		virtual Real interpolate(
+				const std::array<Real, Dimension> &) const {
+			throw 1; // This should not be visible
+		}
+	public:
+		template <typename ...Ts>
+		Real operator()(Ts ...coordinates) const {
+			return (*p)(coordinates...);
+		}
+		QUANT_PDE_CORE_WRAPPER_BODY(P, p)
+	};
+	////////////////////////////////////////////////////////////////////////
+
 	/**
 	 * @return A clone of this interpolant.
 	 */
-	virtual I clone() const = 0;
+	virtual P clone() const = 0;
 
 };
 

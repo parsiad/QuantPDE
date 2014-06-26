@@ -1,6 +1,7 @@
 #ifndef QUANT_PDE_CORE_STEPPER
 #define QUANT_PDE_CORE_STEPPER
 
+#include <algorithm>  // std::min, std::max
 #include <cstdlib>    // std::abs
 #include <functional> // std::function
 #include <memory>     // std::unique_ptr
@@ -611,23 +612,30 @@ Real ForwardConstantStepper::timestep() {
 template <bool Forward>
 class VariableStepper final : public Iteration {
 
-	Real startTime, endTime, dt, target, scale, time;
+	static_assert(std::numeric_limits<Real>::is_iec559,
+			"IEEE 754 required");
+
+	static constexpr Real epsilon = 1e-16;
+
+	Real startTime, endTime, dt, target, dtMin, dtMax, scale, time;
 	Real (VariableStepper::*_step)();
 
 	inline void __step1() {
+		const Real epsilon = 1e-6;
+
 		const Vector
 			&v1 = iterand(0),
 			&v0 = iterand(1)
 		;
 
 		// Tested 2014-06-08
-		dt *= target / ( v1 - v0 ).cwiseAbs().cwiseQuotient(
+		dt *= target / ( ( v1 - v0 ).cwiseAbs().cwiseQuotient(
 			( scale * Vector::Ones( v1.size() ) ).cwiseMax(
-				v1.cwiseAbs().cwiseMax(
-					v0.cwiseAbs()
-				)
+				v1.cwiseAbs()//.cwiseMax(v0.cwiseAbs())
 			)
-		).maxCoeff();
+		).maxCoeff() + epsilon );
+
+		dt = std::min( dtMax, std::max( dtMin, dt ) );
 	}
 
 	Real _step0();
@@ -653,9 +661,7 @@ public:
 
 		typedef std::unique_ptr<Iteration> I;
 
-		Real dt;
-		Real target;
-		Real scale;
+		Real dt, target, dtMin, dtMax, scale;
 		int lookback;
 
 	public:
@@ -663,18 +669,34 @@ public:
 		/**
 		 * Constructor.
 		 */
-		Factory(Real dt, Real target, Real scale,
-				int lookback = DEFAULT_LOOKBACK) noexcept
-				: dt(dt), target(target), scale(scale),
-				lookback(lookback) {
+		Factory(
+			Real dt,
+			Real target,
+			Real dtMin = VariableStepper::epsilon,
+			Real dtMax = std::numeric_limits<Real>::infinity(),
+			Real scale = 1.,
+			int lookback = DEFAULT_LOOKBACK
+		) noexcept :
+			dt(dt),
+			target(target),
+			dtMin(dtMin),
+			dtMax(dtMax),
+			scale(scale),
+			lookback(lookback)
+		{
 		}
 
 		/**
 		 * Copy constructor.
 		 */
-		Factory(const Factory &that) noexcept : dt(that.dt),
-				target(that.target), scale(that.scale),
-				lookback(that.lookback) {
+		Factory(const Factory &that) noexcept :
+			dt(that.dt),
+			target(that.target),
+			dtMin(that.dtMin),
+			dtMax(that.dtMax),
+			scale(that.scale),
+			lookback(that.lookback)
+		{
 		}
 
 		/**
@@ -683,13 +705,25 @@ public:
 		Factory &operator=(const Factory &that) & noexcept {
 			dt = that.dt;
 			target = that.target;
+			dtMin = that.dtMin;
+			dtMax = that.dtMax;
 			scale = that.scale;
 			lookback = that.lookback;
 		}
 
 		virtual I make(Real startTime, Real endTime) {
-			return I(new VariableStepper(startTime, endTime,
-					dt, target, scale, lookback));
+			return I(
+				new VariableStepper(
+					startTime,
+					endTime,
+					dt,
+					target,
+					dtMin,
+					dtMax,
+					scale,
+					lookback
+				)
+			);
 		}
 
 	};
@@ -708,7 +742,9 @@ public:
 		Real endTime,
 		Real dt,
 		Real target,
-		Real scale = 1,
+		Real dtMin = epsilon,
+		Real dtMax = std::numeric_limits<Real>::infinity(),
+		Real scale = 1.,
 		int lookback = DEFAULT_LOOKBACK
 	) noexcept :
 		Iteration(lookback),
@@ -716,11 +752,15 @@ public:
 		endTime(endTime),
 		dt(dt),
 		target(target),
+		dtMin(dtMin),
+		dtMax(dtMax),
 		scale(scale)
 	{
 		assert(startTime >= 0.);
 		assert(startTime < endTime);
-		assert(dt > 0);
+		assert(dt > epsilon);
+		assert(dtMin > 0);
+		assert(dtMax > 0);
 		assert(target > 0);
 		assert(scale > 0);
 		assert(lookback >= 2); // Need at least two iterands to
