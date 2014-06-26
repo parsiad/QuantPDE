@@ -73,11 +73,24 @@ public:
 /**
  * Used to solve a problem of the form
  * \f$\min( LV, V - V_0 \right)=0\f$ where V_0 is a function of time and space.
+ *
+ * There are two ways to pass V_0:
+ * \code{.cpp}
+ * [] (Real time, Real x1, Real x2, ..., Real xDimension) {
+ * 	// Return the value of the function at this point
+ * }
+ * \endcode
+ * and
+ * \code{.cpp}
+ * [] (Real x1, Real x2, ..., Real xDimension) {
+ * 	// Return the value of the function at this point
+ * }
+ * \endcode
+ * The second form is independent of time.
+ * @tparam Dimension The spatial dimension.
  */
 template <Index Dimension>
 class PenaltyMethodDifference : public PenaltyMethod {
-
-	// TODO: Allow passing in a function of just space alone
 
 	class DifferenceSystem : public LinearSystem {
 
@@ -96,6 +109,8 @@ class PenaltyMethodDifference : public PenaltyMethod {
 		*/
 
 		typedef Function<Dimension + 1> F;
+
+		////////////////////////////////////////////////////////////////
 
 		template <int ...Indices>
 		static inline Real packAndCall(
@@ -124,6 +139,37 @@ class PenaltyMethodDifference : public PenaltyMethod {
 				GenerateSequence<N>()
 			);
 		}
+		////////////////////////////////////////////////////////////////
+
+		template <Index N, typename T, typename ...Ts>
+		struct TimeWrapper : public TimeWrapper<N - 1, T, T, Ts...> {
+		};
+
+		template <typename T, typename ...Ts>
+		struct TimeWrapper<0, T, Ts...> {
+			static_assert(
+				sizeof...(Ts) == Dimension,
+				"The number of binding arguments in an event "
+				"should be equal to the dimension"
+			);
+
+			template <typename F1>
+			static inline Function<Dimension + 1> function(
+				F1 &&function
+			) {
+				// TODO: Use C++1y move-capture in the future;
+				//       currently we perform an unconditional
+				//       capture-by-value
+
+				// [ function(std::forward<F1>(function)) ]
+
+				return [function] (Real t, Ts ...coordinates) {
+					return function(coordinates...);
+				};
+			}
+		};
+
+		////////////////////////////////////////////////////////////////
 
 		const PenaltyMethodDifference *parent;
 		const Domain<Dimension> *domain;
@@ -131,10 +177,54 @@ class PenaltyMethodDifference : public PenaltyMethod {
 
 	public:
 
-		template <typename P, typename D, typename F>
-		DifferenceSystem(P &parent, D &domain, F &&function) noexcept
-				: parent(&parent), domain(&domain),
-				function( std::forward<F>(function) ) {
+		template <typename P, typename D>
+		DifferenceSystem(
+			P &parent,
+			D &domain,
+			const Function<Dimension> &function
+		) noexcept :
+			parent(&parent),
+			domain(&domain),
+			function( TimeWrapper<Dimension, Real>::function(
+					function) )
+		{
+		}
+
+		template <typename P, typename D>
+		DifferenceSystem(
+			P &parent,
+			D &domain,
+			Function<Dimension> &&function
+		) noexcept :
+			parent(&parent),
+			domain(&domain),
+			function( TimeWrapper<Dimension, Real>::function(
+					std::move(function)) )
+		{
+		}
+
+		template <typename P, typename D>
+		DifferenceSystem(
+			P &parent,
+			D &domain,
+			const Function<Dimension + 1> &function
+		) noexcept :
+			parent(&parent),
+			domain(&domain),
+			function(function)
+		{
+		}
+
+		template <typename P, typename D>
+		DifferenceSystem(
+			P &parent,
+			D &domain,
+			Function<Dimension + 1> &&function
+		) noexcept :
+			parent(&parent),
+			domain(&domain),
+			function( std::move(function) )
+		{
 		}
 
 		virtual Matrix A(Real) {

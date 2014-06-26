@@ -261,8 +261,8 @@ int main(int argc, char **argv) {
 					new PenaltyMethodDifference1(
 						grid,
 						discretization,
-						[&payoff] (Real t, Real x) {
-							return payoff(x);
+						[strike] (Real S) {
+							return strike - S;
 						}
 					)
 				);
@@ -285,8 +285,7 @@ int main(int argc, char **argv) {
 
 			// Compute solution
 			auto solution = stepper->solve(
-				PointwiseMap1(grid),
-				PiecewiseLinear1::Factory(grid),
+				grid,
 				payoff,
 				*root,
 				solver
@@ -331,7 +330,8 @@ int main(int argc, char **argv) {
 		previousChange = change;
 		previousValue = value;
 
-		pow2l *= american ? 4 : 2;
+		//pow2l *= american ? 4 : 2;
+		pow2l *= 2.;
 	}
 
 	return 0;

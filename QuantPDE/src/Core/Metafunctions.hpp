@@ -157,6 +157,18 @@ char (& Helper(T&, typename Nondeducible<const volatile T&>::type))[2];
 
 namespace Metafunctions {
 
+/**
+ * This class (and the corresponding function makeRRef) are used as a workaround
+ * for the lack of generalized capture (providing move captures) in lambda
+ * functions as of C++11.
+ * \code{.cpp}
+ * std::unique_ptr<int> p{new int(0)};
+ * auto rref = makeRRef( std::move(p) );
+ * auto lambda = [rref]() mutable {
+ * 	return rref.get();
+ * };
+ * \endcode
+ */
 template <typename T>
 class RRef {
 
@@ -192,7 +204,7 @@ public:
 		return std::move(x);
 	}
 
-	const T &get() const {
+	T &operator*() const {
 		return x;
 	}
 
