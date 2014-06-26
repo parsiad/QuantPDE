@@ -39,47 +39,49 @@ void help() {
 endl <<
 "-A" << endl <<
 endl <<
-"    American option (default is European)" << endl <<
+"    Computes the price of an American option (default is European)." << endl <<
 endl <<
 "-d REAL" << endl <<
 endl <<
-"    sets the dividend rate (default is 0.)" << endl <<
+"    Sets the dividend rate (default is 0.)." << endl <<
 endl <<
 "-K REAL" << endl <<
 endl <<
-"    sets the strike price (default is 100.)" << endl <<
+"    Sets the strike price (default is 100.)." << endl <<
 endl <<
 "-N POSITIVE_INTEGER" << endl <<
 endl <<
-"    sets the initial number of steps to take in time (default is 25)" << endl <<
+"    Sets the initial number of steps to take in time (default is 25)." << endl <<
 endl <<
 "-p" << endl <<
 endl <<
-"    computes the price of a European put (default is call)" << endl <<
+"    Computes the price of a European put (default is call)." << endl <<
 endl <<
 "-r REAL" << endl <<
 endl <<
-"    sets interest rate (default is 0.04)" << endl <<
+"    Sets interest rate (default is 0.04)." << endl <<
 endl <<
 "-R NONNEGATIVE_INTEGER" << endl <<
 endl <<
-"    sets the maximum number of refinement steps in the computation (default is" << endl <<
-"    5)" << endl <<
+"    Sets the maximum number of refinement steps in the computation (default is" << endl <<
+"    5). Each refinement steps doubles the size of the spatial grid and the" << endl <<
+"    number of timesteps (if variable timestepping is on, the initial timestep" << endl <<
+"    is divided by 4 after refinement)." << endl <<
 endl <<
 "-S REAL" << endl <<
 endl <<
-"    sets the initial stock price (default is 100.)" << endl <<
+"    Sets the initial stock price (default is 100.)." << endl <<
 endl <<
 "-T POSITIVE_REAL" << endl <<
 endl <<
-"    sets the expiry time (default is 1.)" << endl <<
+"    Sets the expiry time (default is 1.)." << endl <<
 endl <<
 "-v REAL" << endl <<
 endl <<
-"    sets the volatility" << endl <<
+"    Sets the volatility (default is 0.2)." << endl <<
 endl <<
 "-V" << endl <<
-"    uses variable-size timestepping" << endl << endl;
+"    Uses variable-size timestepping (default is constant-size)." << endl << endl;
 }
 
 int main(int argc, char **argv) {
@@ -94,8 +96,10 @@ int main(int argc, char **argv) {
 	int  refinement     = 5;
 	int  steps          = 25;
 	bool call           = true;
-	//bool variable       = false;
+	bool variable       = false;
 	bool american       = false;
+
+	const Real target   = 1;
 
 	// Setting options with getopt
 	{ char c;
@@ -149,10 +153,7 @@ int main(int argc, char **argv) {
 				volatility = atof(optarg);
 				break;
 			case 'V':
-				// TODO: Remove this
-				cerr <<
-"warning: variable timestepping not implemented (-V ignored)" << endl;
-				//variable = true;
+				variable = true;
 				break;
 			case ':':
 			case '?':
@@ -215,6 +216,7 @@ int main(int argc, char **argv) {
 		///////////////////////////////////////////////////////////////
 
 		// Refine the grid
+		// TODO: Uncomment
 		grid.refine( RectilinearGrid1::NewTickBetweenEachPair() );
 
 		///////////////////////////////////////////////////////////////
@@ -232,15 +234,14 @@ int main(int argc, char **argv) {
 			);
 
 			// Timestepping method
-			unique_ptr<Iteration> stepper(//variable
-				//? (Iteration *) new ReverseVariableStepper(
-				//	0.,                       // startTime
-				//	expiry,                   // endTime
-				//	dt,                       // dt
-				//	target / pow2l            // target
-				//)
-				//:
-				(Iteration *) new ReverseConstantStepper(
+			unique_ptr<Iteration> stepper(variable
+				? (Iteration *) new ReverseVariableStepper(
+					0.,                       // startTime
+					expiry,                   // endTime
+					expiry / steps / pow2l,   // dt
+					target / pow2l            // target
+				)
+				: (Iteration *) new ReverseConstantStepper(
 					0.,            // startTime
 					expiry,        // endTime
 					steps * pow2l  // steps
@@ -248,7 +249,7 @@ int main(int argc, char **argv) {
 			);
 
 			// Time discretization method
-			ReverseRannacher discretization(grid, bs);
+			ReverseLinearBDFSix discretization(grid, bs);
 			discretization.setIteration(*stepper);
 
 			// American-specific components; penalty method or not?
@@ -330,8 +331,8 @@ int main(int argc, char **argv) {
 		previousChange = change;
 		previousValue = value;
 
-		//pow2l *= american ? 4 : 2;
-		pow2l *= 2.;
+		// If variable timestepping is on, decrease by 4 at each step
+		pow2l *= variable ? 4 : 2;
 	}
 
 	return 0;

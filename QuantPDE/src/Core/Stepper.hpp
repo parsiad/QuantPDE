@@ -615,9 +615,7 @@ class VariableStepper final : public Iteration {
 	static_assert(std::numeric_limits<Real>::is_iec559,
 			"IEEE 754 required");
 
-	static constexpr Real epsilon = 1e-16;
-
-	Real startTime, endTime, dt, target, dtMin, dtMax, scale, time;
+	Real startTime, endTime, dt, target, scale, time;
 	Real (VariableStepper::*_step)();
 
 	inline void __step1() {
@@ -629,13 +627,16 @@ class VariableStepper final : public Iteration {
 		;
 
 		// Tested 2014-06-08
-		dt *= target / ( ( v1 - v0 ).cwiseAbs().cwiseQuotient(
+		const Real quotient = ( v1 - v0 ).cwiseAbs().cwiseQuotient(
 			( scale * Vector::Ones( v1.size() ) ).cwiseMax(
-				v1.cwiseAbs()//.cwiseMax(v0.cwiseAbs())
+				v1.cwiseAbs().cwiseMax(v0.cwiseAbs())
 			)
-		).maxCoeff() + epsilon );
+		).maxCoeff();
+		dt *= target / (quotient + epsilon);
 
-		dt = std::min( dtMax, std::max( dtMin, dt ) );
+		//std::cout << v0 << std::endl << std::endl << v1 << std::endl
+		//		<< std::endl << quotient << " | " << dtOld
+		//		<< " -> " << dt << std::endl << std::endl;
 	}
 
 	Real _step0();
@@ -672,15 +673,11 @@ public:
 		Factory(
 			Real dt,
 			Real target,
-			Real dtMin = VariableStepper::epsilon,
-			Real dtMax = std::numeric_limits<Real>::infinity(),
 			Real scale = 1.,
 			int lookback = DEFAULT_LOOKBACK
 		) noexcept :
 			dt(dt),
 			target(target),
-			dtMin(dtMin),
-			dtMax(dtMax),
 			scale(scale),
 			lookback(lookback)
 		{
@@ -692,8 +689,6 @@ public:
 		Factory(const Factory &that) noexcept :
 			dt(that.dt),
 			target(that.target),
-			dtMin(that.dtMin),
-			dtMax(that.dtMax),
 			scale(that.scale),
 			lookback(that.lookback)
 		{
@@ -705,8 +700,6 @@ public:
 		Factory &operator=(const Factory &that) & noexcept {
 			dt = that.dt;
 			target = that.target;
-			dtMin = that.dtMin;
-			dtMax = that.dtMax;
 			scale = that.scale;
 			lookback = that.lookback;
 		}
@@ -718,8 +711,6 @@ public:
 					endTime,
 					dt,
 					target,
-					dtMin,
-					dtMax,
 					scale,
 					lookback
 				)
@@ -742,8 +733,6 @@ public:
 		Real endTime,
 		Real dt,
 		Real target,
-		Real dtMin = epsilon,
-		Real dtMax = std::numeric_limits<Real>::infinity(),
 		Real scale = 1.,
 		int lookback = DEFAULT_LOOKBACK
 	) noexcept :
@@ -752,15 +741,11 @@ public:
 		endTime(endTime),
 		dt(dt),
 		target(target),
-		dtMin(dtMin),
-		dtMax(dtMax),
 		scale(scale)
 	{
 		assert(startTime >= 0.);
 		assert(startTime < endTime);
 		assert(dt > epsilon);
-		assert(dtMin > 0);
-		assert(dtMax > 0);
 		assert(target > 0);
 		assert(scale > 0);
 		assert(lookback >= 2); // Need at least two iterands to
