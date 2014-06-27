@@ -6,7 +6,7 @@
 namespace QuantPDE {
 
 template <bool Forward>
-class CrankNicolson : public LinearSystemIteration {
+class CrankNicolson : public IterationNode {
 
 	const DomainBase *domain;
 	LinearSystem *op;
@@ -61,7 +61,7 @@ typedef CrankNicolson<false> ReverseCrankNicolson;
 typedef CrankNicolson<true > ForwardCrankNicolson;
 
 template <bool Forward>
-class Rannacher : public LinearSystemIteration {
+class Rannacher : public IterationNode {
 
 	const DomainBase *domain;
 	LinearSystem *op;

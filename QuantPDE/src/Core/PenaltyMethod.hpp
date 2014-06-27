@@ -9,7 +9,7 @@ namespace QuantPDE {
  * Used to solve a problem of the form
  * \f$\min( LV, L^\prime V \right)=0\f$.
  */
-class PenaltyMethod : public LinearSystemIteration {
+class PenaltyMethod : public IterationNode {
 
 	DomainBase *domain;
 	LinearSystem *left, *right;

@@ -728,7 +728,7 @@ typedef ControlledLinearSystem<3> ControlledLinearSystem3;
  * Used to generate the left and right-hand sides of the linear system at each
  * iteration.
  */
-class LinearSystemIteration : public LinearSystem {
+class IterationNode : public LinearSystem {
 
 	Iteration *iteration;
 
@@ -807,7 +807,7 @@ public:
 	/**
 	 * Constructor.
 	 */
-	LinearSystemIteration() noexcept : LinearSystem(), iteration(nullptr) {
+	IterationNode() noexcept : LinearSystem(), iteration(nullptr) {
 	}
 
 	virtual Matrix A(Real) {
@@ -840,7 +840,7 @@ class Iteration {
 	Iteration *child;
 
 	// Nonownership
-	std::forward_list<LinearSystemIteration *> systems;
+	std::forward_list<IterationNode *> systems;
 
 	CircularBuffer< std::tuple<Real, Vector> > history;
 	Real implicitTime;
@@ -899,7 +899,7 @@ class Iteration {
 
 	Vector iterateUntilDone(
 		Vector iterand,
-		LinearSystemIteration &root,
+		IterationNode &root,
 		LinearSolver &solver,
 		Real time,
 		bool initialized
@@ -1065,7 +1065,7 @@ public:
 		const Map<Dimension> &map,
 		const InterpolantFactory<Dimension> &factory,
 		F &&initialCondition,
-		LinearSystemIteration &root,
+		IterationNode &root,
 		LinearSolver &solver
 	) {
 		clearIterations();
@@ -1098,7 +1098,7 @@ public:
 	typename Interpolant<Dimension>::Wrapper solve(
 		const Domain<Dimension> &domain,
 		F &&initialCondition,
-		LinearSystemIteration &root,
+		IterationNode &root,
 		LinearSolver &solver
 	) {
 		PointwiseMap<Dimension> map(domain);
@@ -1131,14 +1131,14 @@ public:
 		return mean;
 	}
 
-	friend LinearSystemIteration;
+	friend IterationNode;
 
 	// TODO: Remove friendship
 	template <Index, bool> friend class EventIterationBase;
 	template <Index, bool> friend class EventIteration;
 };
 
-void LinearSystemIteration::setIteration(Iteration &iteration) {
+void IterationNode::setIteration(Iteration &iteration) {
 	if(this->iteration) {
 		this->iteration->systems.remove(this);
 	}
@@ -1149,15 +1149,15 @@ void LinearSystemIteration::setIteration(Iteration &iteration) {
 	assert(minimumLookback() <= this->iteration->history.lookback());
 }
 
-Real LinearSystemIteration::time(int index) const {
+Real IterationNode::time(int index) const {
 	return iteration->time(index);
 }
 
-const Vector &LinearSystemIteration::iterand(int index) const {
+const Vector &IterationNode::iterand(int index) const {
 	return iteration->iterand(index);
 }
 
-Real LinearSystemIteration::nextTime() const {
+Real IterationNode::nextTime() const {
 	return iteration->implicitTime;
 }
 

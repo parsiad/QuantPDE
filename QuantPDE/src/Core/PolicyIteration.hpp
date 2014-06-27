@@ -28,7 +28,7 @@ struct Initial<true> {
 } // Metafunctions
 
 template <Index Dimension, Index ControlDimension, bool Max>
-class PolicyIteration : public LinearSystemIteration {
+class PolicyIteration : public IterationNode {
 
 	// Negative/positive infinity assert
 	static_assert(std::numeric_limits<Real>::is_iec559,

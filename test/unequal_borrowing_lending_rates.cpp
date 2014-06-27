@@ -248,10 +248,10 @@ int main(int argc, char **argv) {
 	//
 	// Pick min/max policy iteration depending on whether we are considering
 	// the long or short position problem.
-	unique_ptr<LinearSystemIteration> policy(L
-		? (LinearSystemIteration*)
+	unique_ptr<IterationNode> policy(L
+		? (IterationNode*)
 				new MinPolicyIteration1_1(grid, controls, bs)
-		: (LinearSystemIteration*)
+		: (IterationNode*)
 				new MaxPolicyIteration1_1(grid, controls, bs)
 	);
 	policy->setIteration(tolerance); // Associate with k-iteration

@@ -6,7 +6,7 @@
 namespace QuantPDE {
 
 template <bool Forward, size_t Lookback>
-class LinearBDFBase : public LinearSystemIteration {
+class LinearBDFBase : public IterationNode {
 
 	const DomainBase *domain;
 

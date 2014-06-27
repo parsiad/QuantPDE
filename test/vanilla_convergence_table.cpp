@@ -253,7 +253,7 @@ int main(int argc, char **argv) {
 			discretization.setIteration(*stepper);
 
 			// American-specific components; penalty method or not?
-			LinearSystemIteration *root;
+			IterationNode *root;
 			unique_ptr<ToleranceIteration> tolerance;
 			unique_ptr<PenaltyMethodDifference1> penalty;
 			if(american) {
