@@ -448,17 +448,19 @@ public:
 
 	public:
 
-		Control(const RectilinearGrid<Dimension> &grid) noexcept
-				: factory(grid.defaultInterpolantFactory()),
+		Control(WF factory) noexcept
+				: factory(std::move(factory)),
 				interpolant(nullptr) {
 		}
 
-		Control(const WF &factory) noexcept
-				: factory(factory), interpolant(nullptr) {
-		}
-
-		Control(WF &&factory) noexcept
-				: factory(std::move(factory)),
+		// explicit Control(const RectilinearGrid<Dimension> &grid)
+		//
+		// Clang seems to get tripped up at trying to disambiguate the
+		// (WF factory) constructor from the one above, hence the
+		// following workaround with templates:
+		template <typename G>
+		Control(G &grid) noexcept
+				: factory(grid.defaultInterpolantFactory()),
 				interpolant(nullptr) {
 		}
 

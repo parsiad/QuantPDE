@@ -17,6 +17,8 @@ namespace QuantPDE {
 template <Index Dimension>
 class Map {
 
+	typedef std::unique_ptr<Map> P;
+
 public:
 
 	virtual ~Map() {
@@ -35,6 +37,29 @@ public:
 	 */
 	virtual Vector operator()(Function<Dimension> &&function) const = 0;
 
+	////////////////////////////////////////////////////////////////////////
+	// Wrapper
+	////////////////////////////////////////////////////////////////////////
+	class Wrapper : public Map {
+		P p;
+	public:
+		virtual Vector operator()(const Function<Dimension> &function)
+				const {
+			return (*p)(function);
+		}
+		virtual Vector operator()(Function<Dimension> &&function) const
+				{
+			return (*p)(std::move(function));
+		}
+		QUANT_PDE_CORE_WRAPPER_BODY(P, p)
+	};
+	////////////////////////////////////////////////////////////////////////
+
+	/**
+	 * @return A clone of this map.
+	 */
+	virtual P clone() const = 0;
+
 };
 
 typedef Map<1> Map1;
@@ -46,6 +71,8 @@ typedef Map<3> Map3;
  */
 template <Index Dimension>
 class PointwiseMap final : public Map<Dimension> {
+
+	typedef std::unique_ptr<Map<Dimension>> M;
 
 	const Domain<Dimension> *domain;
 
@@ -78,6 +105,10 @@ public:
 
 	virtual Vector operator()(Function<Dimension> &&function) const {
 		return domain->image( std::move(function) );
+	}
+
+	virtual M clone() const {
+		return M(new PointwiseMap(*this));
 	}
 
 };
@@ -265,6 +296,8 @@ public:
 // TODO: Generalize this for n-dimensions
 class L2ProjectOnLagrangeBases1 final : public Map1 {
 
+	typedef std::unique_ptr<Map1> M;
+
 	const RectilinearGrid1 *G;
 
 	template <typename F1>
@@ -359,6 +392,10 @@ public:
 
 	virtual Vector operator()(Function1 &&function) const {
 		return map( std::move(function) );
+	}
+
+	virtual M clone() const {
+		return M(new L2ProjectOnLagrangeBases1(*this));
 	}
 
 };

@@ -69,7 +69,7 @@ template <Index Dimension>
 class Event : public EventBase {
 
 	typedef typename InterpolantFactory<Dimension>::Wrapper In;
-	typedef std::unique_ptr<Map<Dimension>> Out;
+	typedef typename Map<Dimension>::Wrapper Out;
 
 	Transform<Dimension> transform;
 
@@ -93,11 +93,11 @@ class Event : public EventBase {
 		static inline Vector function(
 			const Transform<Dimension> &transform,
 			const Interpolant<Dimension> &interpolant,
-			const Out &out
+			const Map<Dimension> &out
 		) {
-			return (*out)( [&] (Ts ...coordinates) {
+			return out([&] (Ts ...coordinates) {
 				return transform(interpolant, coordinates...);
-			} );
+			});
 		}
 	};
 
@@ -135,15 +135,15 @@ public:
 	 * @param out A map that handles how to transfer the transformed
 	 *            solution back onto the domain.
 	 */
-	template <typename T, typename I>
+	template <typename T>
 	Event(
 		T &&transform,
-		I &&in,
+		In in,
 		Out out
 	) noexcept :
-		transform( std::forward<T>(transform) ),
-		in( std::forward<I>(in) ),
-		out( std::move(out) ) {
+		transform(std::forward<T>(transform)),
+		in(std::move(in)),
+		out(std::move(out)) {
 	}
 
 	/**
@@ -156,9 +156,11 @@ public:
 		T &&transform,
 		const RectilinearGrid<Dimension> &grid
 	) noexcept :
-		transform( std::forward<T>( transform ) ),
-		in( grid.defaultInterpolantFactory() ),
-		out( Out( new PointwiseMap<Dimension>(grid) ) ) {
+		transform(std::forward<T>(transform)),
+		in(grid.defaultInterpolantFactory()),
+		out( std::unique_ptr<Map<Dimension>>(
+				new PointwiseMap<Dimension>(grid)) )
+	{
 	}
 
 	// Disable copy constructor and copy assignment operator.
