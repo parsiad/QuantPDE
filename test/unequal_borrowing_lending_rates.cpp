@@ -180,9 +180,6 @@ int main(int argc, char **argv) {
 		grid.refine( RectilinearGrid1::NewTickBetweenEachPair() );
 	}
 
-	// Factory for creating functions that interpolate points on the grid
-	PiecewiseLinear1::Factory factory(grid);
-
 	////////////////////////////////////////////////////////////////////////
 	// Control grid
 	////////////////////////////////////////////////////////////////////////
@@ -236,7 +233,7 @@ int main(int argc, char **argv) {
 		grid,
 
 		// Interest rate (passed as a control)
-		Control1(factory),
+		Control1(grid),
 
 		vol, // Volatility
 		div  // Dividend rate

@@ -82,6 +82,7 @@ template <Index Dimension>
 class InterpolantFactory {
 
 	typedef typename Interpolant<Dimension>::Wrapper WI;
+	typedef std::unique_ptr<InterpolantFactory> P;
 
 public:
 
@@ -98,6 +99,27 @@ public:
 	 */
 	virtual WI make(const Vector &vector) const = 0;
 	virtual WI make(Vector &&vector) const = 0;
+
+	////////////////////////////////////////////////////////////////////////
+	// Wrapper
+	////////////////////////////////////////////////////////////////////////
+	class Wrapper : public InterpolantFactory {
+		P p;
+	public:
+		virtual WI make(const Vector &vector) const {
+			return p->make(vector);
+		}
+		virtual WI make(Vector &&vector) const {
+			return p->make(std::move(vector));
+		}
+		QUANT_PDE_CORE_WRAPPER_BODY(P, p)
+	};
+	////////////////////////////////////////////////////////////////////////
+
+	/**
+	 * @return A clone of this factory.
+	 */
+	virtual P clone() const = 0;
 
 };
 
@@ -120,8 +142,8 @@ template <Index Dimension>
 class PiecewiseLinear : public Interpolant<Dimension> {
 
 	typedef std::unique_ptr<Interpolant<Dimension>> I;
-	typedef typename Interpolant<Dimension>::Wrapper WI;
 	typedef std::unique_ptr<InterpolantFactory<Dimension>> F;
+	typedef typename Interpolant<Dimension>::Wrapper WI;
 
 	const RectilinearGrid<Dimension> *grid;
 	Vector vector;
@@ -291,6 +313,10 @@ public:
 					std::move(vector))));
 		}
 
+		virtual F clone() const {
+			return F(new Factory(*this));
+		}
+
 	};
 
 	/**
@@ -340,11 +366,13 @@ public:
 };
 
 template <Index Dimension>
-std::unique_ptr<InterpolantFactory<Dimension>>
+typename InterpolantFactory<Dimension>::Wrapper
 		RectilinearGrid<Dimension>::defaultInterpolantFactory() const {
-	return std::unique_ptr<InterpolantFactory<Dimension>>(
-			new typename PiecewiseLinear<Dimension>::Factory(
-			*this));
+	return typename InterpolantFactory<Dimension>::Wrapper(
+		std::unique_ptr<InterpolantFactory<Dimension>>(
+			new typename PiecewiseLinear<Dimension>::Factory(*this)
+		)
+	);
 }
 
 typedef PiecewiseLinear<1> PiecewiseLinear1;

@@ -68,7 +68,7 @@ public:
 template <Index Dimension>
 class Event : public EventBase {
 
-	typedef std::unique_ptr<InterpolantFactory<Dimension>> In;
+	typedef typename InterpolantFactory<Dimension>::Wrapper In;
 	typedef std::unique_ptr<Map<Dimension>> Out;
 
 	Transform<Dimension> transform;
@@ -112,7 +112,7 @@ class Event : public EventBase {
 
 		return Driver<Dimension, Real>::function(
 			transform,
-			in->make( std::forward<V>(vector) ),
+			in.make( std::forward<V>(vector) ),
 			out
 		);
 	}
@@ -135,14 +135,14 @@ public:
 	 * @param out A map that handles how to transfer the transformed
 	 *            solution back onto the domain.
 	 */
-	template <typename T>
+	template <typename T, typename I>
 	Event(
 		T &&transform,
-		In in,
+		I &&in,
 		Out out
 	) noexcept :
-		transform( std::forward<T>( transform) ),
-		in( std::move(in) ),
+		transform( std::forward<T>(transform) ),
+		in( std::forward<I>(in) ),
 		out( std::move(out) ) {
 	}
 
@@ -151,10 +151,10 @@ public:
 	 * @param transform A function that transforms the solution.
 	 * @param grid A rectilinear grid.
 	 */
-	template <typename T, typename G>
+	template <typename T>
 	Event(
 		T &&transform,
-		G &grid
+		const RectilinearGrid<Dimension> &grid
 	) noexcept :
 		transform( std::forward<T>( transform ) ),
 		in( grid.defaultInterpolantFactory() ),

@@ -247,8 +247,6 @@ public:
  *
  * Many Black-Scholes models assume constant coefficients. For example,
  * \code{.cpp}
- * RectilinearGrid1 grid(Axis { 0., 50., 100., 150., 200. } );
- *
  * BlackScholes blackScholes(
  * 	grid,
  * 	0.04, // Interest rate
@@ -265,7 +263,7 @@ public:
  * 	grid,
  *
  * 	// Controllable interest rate
- * 	Control1::make(grid),
+ * 	Control1(grid),
  *
  * 	// Local volatility
  * 	[alpha] (Real t, Real S) { return alpha * t/S; },
@@ -290,6 +288,7 @@ class WrapperFunction final {
 
 	class Base; typedef std::unique_ptr<Base> B;
 	typedef typename Interpolant<Dimension>::Wrapper WI;
+	typedef typename InterpolantFactory<Dimension>::Wrapper WF;
 
 	class Base {
 
@@ -444,21 +443,31 @@ public:
 
 	class Control final : public Base {
 
-		const InterpolantFactory<Dimension> *factory;
+		WF factory;
 		WI interpolant;
 
 	public:
 
-		template <typename F>
-		Control(F &factory) noexcept
-				: factory(&factory), interpolant(nullptr) {
+		Control(const RectilinearGrid<Dimension> &grid) noexcept
+				: factory(grid.defaultInterpolantFactory()),
+				interpolant(nullptr) {
+		}
+
+		Control(const WF &factory) noexcept
+				: factory(factory), interpolant(nullptr) {
+		}
+
+		Control(WF &&factory) noexcept
+				: factory(std::move(factory)),
+				interpolant(nullptr) {
 		}
 
 		Control(const Control &that) noexcept : factory(that.factory),
 				interpolant(that.interpolant) {
 		}
 
-		Control(Control &&that) noexcept : factory(that.factory),
+		Control(Control &&that) noexcept
+				: factory(std::move(that.factory)),
 				interpolant(std::move(that.interpolant)) {
 		}
 
@@ -468,7 +477,7 @@ public:
 		}
 
 		Control &operator=(Control &&that) & noexcept {
-			factory = that.factory;
+			factory = std::move(that.factory);
 			interpolant = std::move(that.interpolant);
 		}
 
@@ -489,11 +498,11 @@ public:
 		}
 
 		virtual void setInput(const Vector &input) {
-			interpolant = factory->make(input);
+			interpolant = factory.make(input);
 		}
 
 		virtual void setInput(Vector &&input) {
-			interpolant = factory->make( std::move(input) );
+			interpolant = factory.make( std::move(input) );
 		}
 
 		virtual B clone() const {
@@ -1095,7 +1104,7 @@ public:
 
 		return solve(
 			map,
-			*factory,
+			factory,
 			std::forward<F>(initialCondition),
 			root,
 			solver

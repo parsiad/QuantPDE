@@ -508,7 +508,7 @@ public:
 	 * @return A default interpolant factory associated with this domain.
 	 * @see QuantPDE::InterpolantFactory
 	 */
-	virtual std::unique_ptr<InterpolantFactory<Dimension>>
+	virtual typename InterpolantFactory<Dimension>::Wrapper
 			defaultInterpolantFactory() const = 0;
 
 };
@@ -1247,7 +1247,7 @@ public:
 		return vsize;
 	}
 
-	virtual std::unique_ptr<InterpolantFactory<Dimension>>
+	virtual typename InterpolantFactory<Dimension>::Wrapper
 			defaultInterpolantFactory() const;
 
 };
