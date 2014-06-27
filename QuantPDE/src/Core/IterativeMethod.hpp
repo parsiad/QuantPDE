@@ -289,7 +289,7 @@ class WrapperFunction final {
 	static_assert(Dimension > 0, "Dimension must be positive");
 
 	class Base; typedef std::unique_ptr<Base> B;
-	typedef std::unique_ptr<Interpolant<Dimension>> I;
+	typedef typename Interpolant<Dimension>::Wrapper WI;
 
 	class Base {
 
@@ -445,33 +445,26 @@ public:
 	class Control final : public Base {
 
 		const InterpolantFactory<Dimension> *factory;
-		I interpolant;
-
-		template <typename F>
-		Control(F &factory, I interpolant) noexcept
-				: factory(&factory),
-				interpolant(std::move(interpolant)) {
-		}
+		WI interpolant;
 
 	public:
 
 		template <typename F>
 		Control(F &factory) noexcept
-				: factory(&factory),
-				interpolant(nullptr) {
+				: factory(&factory), interpolant(nullptr) {
 		}
 
 		Control(const Control &that) noexcept : factory(that.factory),
-				interpolant( that.interpolant->clone() ) {
+				interpolant(that.interpolant) {
 		}
 
 		Control(Control &&that) noexcept : factory(that.factory),
-				interpolant( std::move(that.interpolant) ) {
+				interpolant(std::move(that.interpolant)) {
 		}
 
 		Control &operator=(const Control &that) & noexcept {
 			factory = that.factory;
-			interpolant = that.interpolant->clone();
+			interpolant = that.interpolant;
 		}
 
 		Control &operator=(Control &&that) & noexcept {
@@ -487,7 +480,7 @@ public:
 			NaryMethodConst<Real, Interpolant<Dimension>,
 					Dimension, Real> tmp =
 					&Interpolant<Dimension>::operator();
-			return packAndCall<Dimension>(*interpolant, tmp,
+			return packAndCall<Dimension>(interpolant, tmp,
 					coordinates.data() + 1);
 		}
 
@@ -548,7 +541,7 @@ public:
 	 * Move constructor for a control.
 	 */
 	WrapperFunction(Control &&control) noexcept {
-		base = B(new Control( std::move(control) ));
+		base = B(new Control(std::move(control)));
 	}
 	WrapperFunction(const Control &control) = delete;
 

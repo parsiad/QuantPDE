@@ -51,8 +51,9 @@ public:
 	class Wrapper : public Interpolant {
 		P p;
 		virtual Real interpolate(
-				const std::array<Real, Dimension> &) const {
-			throw 1; // This should not be visible
+				const std::array<Real, Dimension> &coordinates)
+				const {
+			return p->interpolate(coordinates);
 		}
 	public:
 		template <typename ...Ts>
@@ -80,7 +81,7 @@ typedef Interpolant<3> Interpolant3;
 template <Index Dimension>
 class InterpolantFactory {
 
-	typedef std::unique_ptr<Interpolant<Dimension>> I;
+	typedef typename Interpolant<Dimension>::Wrapper WI;
 
 public:
 
@@ -95,8 +96,8 @@ public:
 	 * @param vector Data points.
 	 * @return An interpolant.
 	 */
-	virtual I make(const Vector &vector) const = 0;
-	virtual I make(Vector &&vector) const = 0;
+	virtual WI make(const Vector &vector) const = 0;
+	virtual WI make(Vector &&vector) const = 0;
 
 };
 
@@ -119,6 +120,7 @@ template <Index Dimension>
 class PiecewiseLinear : public Interpolant<Dimension> {
 
 	typedef std::unique_ptr<Interpolant<Dimension>> I;
+	typedef typename Interpolant<Dimension>::Wrapper WI;
 	typedef std::unique_ptr<InterpolantFactory<Dimension>> F;
 
 	const RectilinearGrid<Dimension> *grid;
@@ -280,12 +282,13 @@ public:
 			return *this;
 		}
 
-		virtual I make(const Vector &vector) const {
-			return I(new PiecewiseLinear(*grid, vector));
+		virtual WI make(const Vector &vector) const {
+			return WI(I(new PiecewiseLinear(*grid, vector)));
 		}
 
-		virtual I make(Vector &&vector) const {
-			return I(new PiecewiseLinear(*grid, std::move(vector)));
+		virtual WI make(Vector &&vector) const {
+			return WI(I(new PiecewiseLinear(*grid,
+					std::move(vector))));
 		}
 
 	};

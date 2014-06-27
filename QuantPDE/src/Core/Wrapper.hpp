@@ -16,6 +16,9 @@
 			p = std::move(that.p);                                 \
 			return *this;                                          \
 		}                                                              \
+		operator bool() const {                                        \
+			return (bool)p;                                        \
+		}                                                              \
 		virtual P clone() const {                                      \
 			return p->clone();                                     \
 		}

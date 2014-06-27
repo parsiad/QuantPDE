@@ -69,7 +69,6 @@ template <Index Dimension>
 class Event : public EventBase {
 
 	typedef std::unique_ptr<InterpolantFactory<Dimension>> In;
-	typedef std::unique_ptr<Interpolant<Dimension>> I;
 	typedef std::unique_ptr<Map<Dimension>> Out;
 
 	Transform<Dimension> transform;
@@ -93,11 +92,11 @@ class Event : public EventBase {
 
 		static inline Vector function(
 			const Transform<Dimension> &transform,
-			const I &interpolant,
+			const Interpolant<Dimension> &interpolant,
 			const Out &out
 		) {
 			return (*out)( [&] (Ts ...coordinates) {
-				return transform(*interpolant, coordinates...);
+				return transform(interpolant, coordinates...);
 			} );
 		}
 	};
@@ -745,7 +744,6 @@ public:
 	{
 		assert(startTime >= 0.);
 		assert(startTime < endTime);
-		assert(dt > epsilon);
 		assert(target > 0);
 		assert(scale > 0);
 		assert(lookback >= 2); // Need at least two iterands to
