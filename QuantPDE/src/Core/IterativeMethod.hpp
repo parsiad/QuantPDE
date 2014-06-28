@@ -840,7 +840,7 @@ class Iteration {
 	Iteration *child;
 
 	// Nonownership
-	std::forward_list<IterationNode *> systems;
+	std::forward_list<IterationNode *> nodes;
 
 	CircularBuffer< std::tuple<Real, Vector> > history;
 	Real implicitTime;
@@ -855,8 +855,8 @@ class Iteration {
 	}
 
 	void _clear() {
-		for(auto system : systems) {
-			system->clear();
+		for(auto node : nodes) {
+			node->clear();
 		}
 		history.clear();
 	}
@@ -930,8 +930,8 @@ class Iteration {
 						) );                           \
 					}                                      \
 					implicitTime += timestep();            \
-					for(auto system : systems) {           \
-						system->onIterationStart();    \
+					for(auto node : nodes) {               \
+						node->onIterationStart();      \
 					}                                      \
 				} while(0)
 
@@ -940,8 +940,8 @@ class Iteration {
 				do {                                           \
 					initialized = true;                    \
 					its.back()++;                          \
-					for(auto system : systems) {           \
-						system->onIterationEnd();      \
+					for(auto node : nodes) {               \
+						node->onIterationEnd();        \
 					}                                      \
 				} while(0)
 
@@ -1140,11 +1140,11 @@ public:
 
 void IterationNode::setIteration(Iteration &iteration) {
 	if(this->iteration) {
-		this->iteration->systems.remove(this);
+		this->iteration->nodes.remove(this);
 	}
 
 	this->iteration = &iteration;
-	iteration.systems.push_front(this);
+	iteration.nodes.push_front(this);
 
 	assert(minimumLookback() <= this->iteration->history.lookback());
 }
