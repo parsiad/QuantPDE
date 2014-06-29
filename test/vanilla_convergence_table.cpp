@@ -262,9 +262,7 @@ int main(int argc, char **argv) {
 					new PenaltyMethodDifference1(
 						grid,
 						discretization,
-						[strike] (Real S) {
-							return strike - S;
-						}
+						payoff
 					)
 				);
 
