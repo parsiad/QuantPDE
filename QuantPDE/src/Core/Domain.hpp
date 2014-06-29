@@ -410,7 +410,7 @@ public:
 	 * Vector v = D.vector();
 	 *
 	 * // For-each loop over the elements in the vector
-	 * for(auto v_xy : D.accessor(v)) {
+	 * for(auto v_xy : accessor(D, v)) {
 	 * 	// Get the coordinates associated with this node
 	 * 	auto xy = &v_xy; // xy is of type std::array<Real, 2>
 	 * 	Real x = xy[0], y = xy[1];
@@ -433,7 +433,7 @@ public:
 	 * MyDomain<Dimension> D;
 	 *
 	 * Vector v = D.vector();
-	 * for(auto v_x : D.accessor(v)) {
+	 * for(auto v_x : accessor(D, v)) {
 	 * 	auto x = &v_x; // x is of type std::array<Real, Dimension>
 	 * 	Real product = 1.;
 	 * 	for(Index i = 0; i < Dimension; i++) {
@@ -448,17 +448,25 @@ public:
 	 * potential optimizations.
 	 * @return A vector accessor.
 	 */
-	VectorAccessor<Ownership::CONST> accessor(const Vector &vector) const {
-		return VectorAccessor<Ownership::CONST>(*this, &vector);
+	template <typename D>
+	friend VectorAccessor<Ownership::CONST> accessor(D &domain,
+			const Vector &vector) {
+		return VectorAccessor<Ownership::CONST>(domain, &vector);
 	}
 
-	VectorAccessor<Ownership::SHARED> accessor(Vector &&vector) const {
-		return VectorAccessor<Ownership::SHARED>(*this, std::shared_ptr<
-				Vector>( new Vector(std::move(vector)) ));
+	template <typename D>
+	friend VectorAccessor<Ownership::SHARED> accessor(D &domain,
+			Vector &&vector) {
+		return VectorAccessor<Ownership::SHARED>(
+			domain,
+			std::shared_ptr<Vector>(new Vector(std::move(vector)))
+		);
 	};
 
-	VectorAccessor<Ownership::NON_CONST> accessor(Vector &vector) const {
-		return VectorAccessor<Ownership::NON_CONST>(*this, &vector);
+	template <typename D>
+	friend VectorAccessor<Ownership::NON_CONST> accessor(D &domain,
+			Vector &vector) {
+		return VectorAccessor<Ownership::NON_CONST>(domain, &vector);
 	}
 
 	// TODO: FunctionAccessor
@@ -481,7 +489,7 @@ public:
 	template <typename F>
 	Vector image(F &&function) const {
 		Vector v = vector();
-		for(auto node : accessor(v)) {
+		for(auto node : accessor(*this, v)) {
 			*node = packAndCall<Dimension>(
 				std::forward<F>(function),
 				(&node).data()

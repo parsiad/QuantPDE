@@ -284,7 +284,7 @@ int main(int argc, char **argv) {
 	////////////////////////////////////////////////////////////////////////
 
 	RectilinearGrid1 printGrid( Axis::range(0., 10., 200.) );
-	cout << printGrid.accessor( printGrid.image( V ) );
+	cout << accessor( printGrid, printGrid.image(V) );
 
 	return 0;
 

@@ -233,7 +233,7 @@ class PenaltyMethodDifference : public PenaltyMethod {
 
 		virtual Vector b(Real) {
 			Vector v = domain->vector();
-			for(auto node : domain->accessor(v)) {
+			for(auto node : accessor(*domain, v)) {
 				*node = packAndCall<Dimension> (
 					function,
 					parent->nextTime(),

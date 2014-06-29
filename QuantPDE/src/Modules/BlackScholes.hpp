@@ -35,9 +35,6 @@ public:
 
 	}
 
-	virtual ~BlackScholes() {
-	}
-
 	virtual Matrix A(Real time) {
 		auto M_G = G.builder( IntegerVector::Constant(G.size(), 3) );
 
