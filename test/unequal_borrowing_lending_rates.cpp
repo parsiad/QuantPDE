@@ -218,7 +218,7 @@ int main(int argc, char **argv) {
 	ReverseConstantStepper stepper(
 		0.,  // Initial time
 		T,   // Expiry time
-		T/N  // Number of steps
+		T/N  // Timestep size
 	);
 	ToleranceIteration tolerance;
 	stepper.setInnerIteration(tolerance);
