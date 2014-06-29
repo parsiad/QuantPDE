@@ -36,53 +36,53 @@ void help() {
 endl <<
 "-d REAL" << endl <<
 endl <<
-"    sets the dividend rate (default is 0.)" << endl <<
+"    Sets the dividend rate (default is 0.)." << endl <<
 endl <<
 "-e NONNEGATIVE_INTEGER" << endl <<
 endl <<
-"    sets the number of premature exercises, spread evenly throughout the" << endl <<
-"    interval (default is 10)" << endl <<
+"    Sets the number of premature exercises, spread evenly throughout the" << endl <<
+"    interval (default is 10)." << endl <<
 endl <<
 "-K REAL" << endl <<
 endl <<
-"    sets the strike price (default is 100.)" << endl <<
-endl <<
-"-N POSITIVE_INTEGER" << endl <<
-endl <<
-"    sets the number of steps to take in time (default is 100)" << endl <<
+"    Sets the strike price (default is 100.)." << endl <<
 endl <<
 "-r REAL" << endl <<
 endl <<
-"    sets the interest rate (default is 0.04)" << endl <<
+"    Sets the interest rate (default is 0.04)." << endl <<
 endl <<
 "-R NONNEGATIVE_INTEGER" << endl <<
 endl <<
-"    controls the coarseness of the grid, with 0 being coarsest (default is 0)" << endl <<
+"    Controls the coarseness of the grid, with 0 being coarsest (default is 0)." << endl <<
+endl <<
+"-t POSITIVE_REAL" << endl <<
+endl <<
+"    Sets the timestep size (default is 0.01)." << endl <<
 endl <<
 "-T POSITIVE_REAL" << endl <<
 endl <<
-"    sets the expiry time (default is 1.)" << endl <<
+"    Sets the expiry time (default is 1.)." << endl <<
 endl <<
 "-v REAL" << endl <<
 endl <<
-"    sets the volatility (default is 0.2)" << endl << endl;
+"    Sets the volatility (default is 0.2)." << endl << endl;
 }
 
 int main(int argc, char **argv) {
 
-	Real K = 100.;
-	Real T = 1.;
-	Real r = 0.04;
-	Real v = 0.2;
-	Real q = 0.;
+	Real K  = 100.;
+	Real T  = 1.;
+	Real r  = .04;
+	Real v  = .2;
+	Real q  = 0.;
+	Real dt = .01;
 
 	int R = 0;
 	int e = 10;
-	int N = 25;
 
 	// Setting options with getopt
 	{ char c;
-	while((c = getopt(argc, argv, "d:e:hK:N:r:R:T:v:")) != -1) {
+	while((c = getopt(argc, argv, "d:e:hK:r:R:t:T:v:")) != -1) {
 		switch(c) {
 			case 'd':
 				q = atof(optarg);
@@ -101,14 +101,6 @@ int main(int argc, char **argv) {
 			case 'K':
 				K = atof(optarg);
 				break;
-			case 'N':
-				N = atoi(optarg);
-				if(N <= 0) {
-					cerr <<
-"error: the number of steps must be positive" << endl;
-					return 1;
-				}
-				break;
 			case 'r':
 				r = atof(optarg);
 				break;
@@ -117,6 +109,14 @@ int main(int argc, char **argv) {
 				if(R < 0) {
 					cerr <<
 "error: the maximum level of refinement must be nonnegative" << endl;
+					return 1;
+				}
+				break;
+			case 't':
+				dt = atof(optarg);
+				if(dt <= 0.) {
+					cerr <<
+"error: the timestep size must be positive" << endl;
 					return 1;
 				}
 				break;
@@ -189,11 +189,10 @@ int main(int argc, char **argv) {
 	// }
 	////////////////////////////////////////////////////////////////////////
 
-	ReverseConstantStepper::Factory factory(N);
-	ReverseEventIteration1 stepper(
+	ReverseConstantStepper stepper(
 		0., // Initial time
 		T,  // Expiry time
-		factory
+		dt  // Timestep size
 	);
 
 	////////////////////////////////////////////////////////////////////////
@@ -201,7 +200,7 @@ int main(int argc, char **argv) {
 	////////////////////////////////////////////////////////////////////////
 
 	for(unsigned m = 0; m < e; m++) {
-		stepper.add(
+		stepper.add<1>(
 			// Time at which the event takes place
 			T / e * m,
 
@@ -255,7 +254,7 @@ int main(int argc, char **argv) {
 	////////////////////////////////////////////////////////////////////////
 
 	RectilinearGrid1 printGrid( Axis::range(0., 10., 200.) );
-	cout << printGrid.accessor( printGrid.image( V ) ) << endl;
+	cout << printGrid.accessor( printGrid.image( V ) );
 
 	return 0;
 

@@ -49,39 +49,39 @@ void help() {
 endl <<
 "-b REAL" << endl <<
 endl <<
-"    sets the borrowing interest rate (default is 0.05)" << endl <<
+"    Sets the borrowing interest rate (default is 0.05)." << endl <<
 endl <<
 "-d REAL" << endl <<
 endl <<
-"    sets the dividend rate (default is 0.)" << endl <<
+"    Sets the dividend rate (default is 0.)." << endl <<
 endl <<
 "-K REAL" << endl <<
 endl <<
-"    sets the strike price (default is 100.)" << endl <<
+"    Sets the strike price (default is 100.)." << endl <<
 endl <<
 "-l REAL" << endl <<
 endl <<
-"    sets lending interest rate (default is 0.03)" << endl <<
+"    Sets lending interest rate (default is 0.03)." << endl <<
 endl <<
 "-L" << endl <<
 endl <<
-"    calculates the price for a long position (default is short position)" << endl <<
+"    Calculates the price for a long position (default is short position)." << endl <<
 endl <<
 "-N POSITIVE_INTEGER" << endl <<
 endl <<
-"    sets the number of steps to take in time (default is 100)" << endl <<
+"    Sets the number of steps to take in time (default is 100)." << endl <<
 endl <<
 "-R NONNEGATIVE_INTEGER" << endl <<
 endl <<
-"    controls the coarseness of the grid, with 0 being coarsest (default is 0)" << endl <<
+"    Controls the coarseness of the grid, with 0 being coarsest (default is 0)." << endl <<
 endl <<
 "-T POSITIVE_REAL" << endl <<
 endl <<
-"    sets the expiry time (default is 1.)" << endl <<
+"    Sets the expiry time (default is 1.)." << endl <<
 endl <<
 "-v REAL" << endl <<
 endl <<
-"    sets the volatility (default is 0.3)" << endl << endl;
+"    Sets the volatility (default is 0.3)." << endl << endl;
 }
 
 int main(int argc, char **argv) {
@@ -92,6 +92,7 @@ int main(int argc, char **argv) {
 	Real r_b   = .05;
 	Real vol   = .3;
 	Real div   = 0.;
+
 	int N      = 100;
 	int R      = 0;
 	bool L     = false;
@@ -215,9 +216,9 @@ int main(int argc, char **argv) {
 	////////////////////////////////////////////////////////////////////////
 
 	ReverseConstantStepper stepper(
-		0., // Initial time
-		T,  // Expiry time
-		N   // Number of steps
+		0.,  // Initial time
+		T,   // Expiry time
+		T/N  // Number of steps
 	);
 	ToleranceIteration tolerance;
 	stepper.setInnerIteration(tolerance);
@@ -283,7 +284,7 @@ int main(int argc, char **argv) {
 	////////////////////////////////////////////////////////////////////////
 
 	RectilinearGrid1 printGrid( Axis::range(0., 10., 200.) );
-	cout << printGrid.accessor( printGrid.image( V ) ) << endl;
+	cout << printGrid.accessor( printGrid.image( V ) );
 
 	return 0;
 

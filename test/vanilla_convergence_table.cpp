@@ -242,9 +242,9 @@ int main(int argc, char **argv) {
 					target / (pow2l * pow2l)  // target
 				)
 				: (Iteration *) new ReverseConstantStepper(
-					0.,            // startTime
-					expiry,        // endTime
-					steps * pow2l  // steps
+					0.,                     // startTime
+					expiry,                 // endTime
+					expiry / steps / pow2l  // dt
 				)
 			);
 

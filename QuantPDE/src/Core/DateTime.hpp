@@ -1,9 +1,10 @@
 #ifndef QUANT_PDE_CORE_DATETIME
 #define QUANT_PDE_CORE_DATETIME
 
-#include <cstring> // strlen
-#include <ctime>   // time_t, tm, gmtime_r, timegm, asctime_r
-#include <string>  // std::string
+#include <cstring>  // std::strlen
+#include <ctime>    // std::time_t, std::tm, gmtime_r, timegm, asctime_r
+#include <string>   // std::string
+#include <iostream> // std::ostream
 
 namespace QuantPDE {
 
@@ -187,7 +188,7 @@ public:
 		asctime_r(&dateTime.details, buffer);
 
 		// Remove new line
-		buffer[strlen(buffer) - 1] = '\0';
+		buffer[std::strlen(buffer) - 1] = '\0';
 
 		// Print and return
 		os << buffer;

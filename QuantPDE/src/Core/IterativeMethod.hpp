@@ -4,7 +4,8 @@
 #include <array>        // std::array
 #include <cstdlib>      // size_t
 #include <forward_list> // std::forward_list
-#include <memory>       // std::unique_ptr
+#include <memory>       // std::shared_ptr, std::unique_ptr
+#include <queue>        // std::priority_queue
 #include <tuple>        // std::tuple
 #include <utility>      // std::forward, std::move
 #include <vector>       // std::vector
@@ -832,183 +833,66 @@ public:
 
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO: Make solution object so that Iteration can seem stateless
+
 /**
- * Represents an iterative method.
+ * An iterative method.
  */
 class Iteration {
 
-	Iteration *child;
-
-	// Nonownership
-	std::forward_list<IterationNode *> nodes;
-
-	CircularBuffer< std::tuple<Real, Vector> > history;
-	Real implicitTime;
-
-	std::vector<size_t> its;
-
-	void clearIterations() {
-		its.clear();
-		if(child) {
-			child->clearIterations();
-		}
-	}
-
-	void _clear() {
-		for(auto node : nodes) {
-			node->clear();
-		}
-		history.clear();
-	}
-
-	/**
-	 * Method called before iteration begins.
-	 */
-	virtual void clear() {
-		// Default: do nothing
-	}
-
-	/**
-	 * @return A step taken in time (positive or negative). Zero if none is
-	 *         taken.
-	 */
-	virtual Real timestep() {
-		return 0.;
-	}
-
-	/**
-	 * @return The initial time associated with this iteration.
-	 */
-	virtual Real initialTime(Real time) const {
-		return time;
-	}
-
-	/**
-	 * Called at the beginning of each iteration.
-	 * @param iterand The iterand.
-	 * @return True if and only if the iterand was changed.
-	 */
-	virtual bool transformIterand(Vector &iterand) {
-		return false;
-	}
-
-	/**
-	 * @return True if and only if this iteration is done.
-	 */
-	virtual bool done() const = 0;
-
-	Vector iterateUntilDone(
+	virtual Vector iterateUntilDone(
 		Vector iterand,
 		IterationNode &root,
 		LinearSolver &solver,
 		Real time,
 		bool initialized
-	) {
-		its.push_back(0);
+	) = 0;
 
-		clear();
-		_clear();
-
-		time = initialTime(time);
-
-		// Iterate until done
-		implicitTime = time;
-		history.push( std::make_tuple(implicitTime, iterand) );
-
-		// Use macros to prevent branching inside iteration loop
-
-		// Important that time is advanced before onIterationStart()
-		// calls
-		#define QUANT_PDE_TMP_HEAD                                     \
-				do {                                           \
-					if(transformIterand(iterand)) {        \
-						initialized = false;           \
-						_clear();                      \
-						history.push( std::make_tuple( \
-							implicitTime,          \
-							iterand                \
-						) );                           \
-					}                                      \
-					implicitTime += timestep();            \
-					for(auto node : nodes) {               \
-						node->onIterationStart();      \
-					}                                      \
-				} while(0)
-
-		// Must be initialized after the first iteration
-		#define QUANT_PDE_TMP_TAIL                                     \
-				do {                                           \
-					initialized = true;                    \
-					its.back()++;                          \
-					for(auto node : nodes) {               \
-						node->onIterationEnd();        \
-					}                                      \
-				} while(0)
-
-		// Iterating at least once allows us to make assumptions
-		// about how many iterands we have available to us for
-		// processing when implementing the done() method
-
-		if(child) {
-
-			// Inductive case (perform inner iteration)
-
-			do {
-				QUANT_PDE_TMP_HEAD;
-
-				iterand = child->iterateUntilDone(
-					iterand,
-					root,
-					solver,
-					this->time(0),
-					initialized
-				);
-
-				history.push( std::make_tuple(implicitTime,
-						iterand) );
-
-				QUANT_PDE_TMP_TAIL;
-			} while( !done() );
-
-		} else {
-
-			// Base case (solve linear system)
-
-			do {
-				QUANT_PDE_TMP_HEAD;
-
-				// Only compute A if necessary
-				if(!initialized || !root.isATheSame()) {
-					solver.initialize(root.A());
-				}
-
-				iterand = solver.solve(
-					root.b(),
-					iterand
-				);
-
-				history.push( std::make_tuple(implicitTime,
-						iterand) );
-
-				QUANT_PDE_TMP_TAIL;
-			} while( !done() );
-
+	inline void clearNodes() {
+		for(auto node : nodes) {
+			node->clear();
 		}
+	}
 
-		#undef QUANT_PDE_TMP_HEAD
-		#undef QUANT_PDE_TMP_TAIL
+	inline void startNodes() {
+		for(auto node : nodes) {
+			node->onIterationStart();
+		}
+	}
 
-		// Events occuring at the end
-		transformIterand(iterand);
+	inline void endNodes() {
+		for(auto node : nodes) {
+			node->onIterationEnd();
+		}
+	}
 
-		return iterand;
+	inline void solveLinearSystem(IterationNode &root, LinearSolver &solver,
+			bool initialized) {
+		if(!initialized || !root.isATheSame()) {
+			solver.initialize(root.A());
+		}
+		this->history.push(std::make_tuple(
+			this->implicitTime,
+			solver.solve(
+				root.b(),
+				this->iterand(0)
+			)
+		));
 	}
 
 protected:
 
+	Iteration *child;
+	std::forward_list<IterationNode *> nodes;
+	CircularBuffer<std::tuple<Real, Vector>> history;
+	Real implicitTime;
+	std::vector<size_t> its;
+
 	/**
 	 * @param index See CircularBuffer for indexing information.
-	 * @return Previously encountered time.
+	 * @return Previously processed time, in order of most-to-least recent.
 	 * @see QuantPDE::CircularBuffer
 	 */
 	Real time(int index) const {
@@ -1017,7 +901,8 @@ protected:
 
 	/**
 	* @param index See CircularBuffer for indexing information.
-	* @return Previously encountered iterand.
+	* @return Previously processed iterand, in order of most-to-least
+	*         recent.
 	* @see QuantPDE::CircularBuffer
 	*/
 	const Vector &iterand(int index) const {
@@ -1034,13 +919,15 @@ public:
 		                       // saved
 	}
 
+	/**
+	 * Destructor.
+	 */
 	virtual ~Iteration() {
 	}
 
 	/**
-	 * Associates with this iterative method an inner iterative method,
-	 * called on each iteration.
-	 * @param innerIteration The inner iterative method.
+	 * Sets the inner iterative method.
+	 * @param innerIteration An iterative method.
 	 */
 	void setInnerIteration(Iteration &innerIteration) {
 		child = &innerIteration;
@@ -1051,66 +938,11 @@ public:
 	Iteration &operator=(const Iteration &) = delete;
 
 	/**
-	 * @param initialCondition The initial condition (as a lambda function).
-	 * @param map A mapping from a function to a domain.
-	 * @param root The linear system used to generate the left and right
-	 *             hand sides of the linear equation to be solved at each
-	 *             iteration.
-	 * @param solver A linear solver.
-	 * @return The solution.
-	 * @see QuantPDE::Map
+	 * @return The time at which this iterative method is currently
+	 *         computing a solution for.
 	 */
-	template <typename F, Index Dimension>
-	typename Interpolant<Dimension>::Wrapper solve(
-		const Map<Dimension> &map,
-		const InterpolantFactory<Dimension> &factory,
-		F &&initialCondition,
-		IterationNode &root,
-		LinearSolver &solver
-	) {
-		clearIterations();
-
-		return typename Interpolant<Dimension>::Wrapper(
-			factory.make(
-				iterateUntilDone(
-					map(std::forward<F>(
-							initialCondition)),
-					root,
-					solver,
-					0.,
-					false
-				)
-			)
-		);
-	}
-
-	/**
-	 * @param initialCondition The initial condition (as a lambda function).
-	 * @param domain The spatial domain this problem is defined on.
-	 * @param root The linear system used to generate the left and right
-	 *             hand sides of the linear equation to be solved at each
-	 *             iteration.
-	 * @param solver A linear solver.
-	 * @return The solution.
-	 * @see QuantPDE::Map
-	 */
-	template <typename F, Index Dimension>
-	typename Interpolant<Dimension>::Wrapper solve(
-		const Domain<Dimension> &domain,
-		F &&initialCondition,
-		IterationNode &root,
-		LinearSolver &solver
-	) {
-		PointwiseMap<Dimension> map(domain);
-		auto factory = domain.defaultInterpolantFactory();
-
-		return solve(
-			map,
-			factory,
-			std::forward<F>(initialCondition),
-			root,
-			solver
-		);
+	Real nextTime() const {
+		return implicitTime;
 	}
 
 	/**
@@ -1131,22 +963,87 @@ public:
 		return mean;
 	}
 
-	friend IterationNode;
+	/**
+	 * @param map Maps the initial condition to the domain nodes.
+	 * @param factory Interpolates the solution on the domain nodes to the
+	 *                entire domain. The resulting interpolant is returned.
+	 * @param initialCondition The initial condition.
+	 * @param root The node used to generate the left and right hand sides
+	 *             of the linear equation to be solved at each iteration.
+	 * @param solver A linear solver.
+	 * @return The solution.
+	 * @see QuantPDE::Map
+	 */
+	template <typename F, Index Dimension>
+	typename Interpolant<Dimension>::Wrapper solve(
+		const Map<Dimension> &map,
+		const InterpolantFactory<Dimension> &factory,
+		F &&initialCondition,
+		IterationNode &root,
+		LinearSolver &solver
+	) {
+		// Clear iteration count
+		Iteration *current = this;
+		do {
+			current->its.clear();
+			current = current->child;
+		} while(current);
 
-	// TODO: Remove friendship
-	template <Index, bool> friend class EventIterationBase;
-	template <Index, bool> friend class EventIteration;
+		// Map, iterate, interpolate
+		return typename Interpolant<Dimension>::Wrapper(
+			factory.make(
+				iterateUntilDone(
+					map(std::forward<F>(initialCondition)),
+					root,
+					solver,
+					-1., // Use a time value that is bogus
+					false
+				)
+			)
+		);
+	}
+
+	/**
+	 * @param domain The spatial domain this problem is defined on.
+	 * @param initialCondition The initial condition.
+	 * @param root The node used to generate the left and right hand sides
+	 *             of the linear equation to be solved at each iteration.
+	 * @param solver A linear solver.
+	 * @return The solution.
+	 * @see QuantPDE::Map
+	 */
+	template <typename F, Index Dimension>
+	typename Interpolant<Dimension>::Wrapper solve(
+		const Domain<Dimension> &domain,
+		F &&initialCondition,
+		IterationNode &root,
+		LinearSolver &solver
+	) {
+		return solve(
+			PointwiseMap<Dimension>(domain),
+			domain.defaultInterpolantFactory(),
+			std::forward<F>(initialCondition),
+			root,
+			solver
+		);
+	}
+
+	friend IterationNode;
+	friend class ToleranceIteration;
+	template <bool> friend class TimeIteration;
+
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 void IterationNode::setIteration(Iteration &iteration) {
 	if(this->iteration) {
 		this->iteration->nodes.remove(this);
 	}
-
 	this->iteration = &iteration;
-	iteration.nodes.push_front(this);
 
-	assert(minimumLookback() <= this->iteration->history.lookback());
+	iteration.nodes.push_front(this);
+	assert(minimumLookback() <= iteration.history.lookback());
 }
 
 Real IterationNode::time(int index) const {
@@ -1163,30 +1060,94 @@ Real IterationNode::nextTime() const {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define QUANT_PDE_TMP_OUTER_HEAD
+#define QUANT_PDE_TMP_OUTER_TAIL
+#define QUANT_PDE_TMP_TIMESTEP
+
+#define QUANT_PDE_TMP_SET_TIME \
+	do { \
+		this->implicitTime = time; \
+	} while(0)
+
+#define QUANT_PDE_TMP_HEAD \
+	do { \
+		this->startNodes(); \
+	} while(0)
+
+#define QUANT_PDE_TMP_TAIL \
+	do { \
+		initialized = true; \
+		this->its.back()++; \
+		this->endNodes(); \
+	} while(0)
+
+#define QUANT_PDE_TMP_NOT_DONE \
+	( ( this->iterand(0) - this->iterand(1) ).cwiseAbs().cwiseQuotient( \
+		( scale * Vector::Ones(this->iterand(0).size()) ).cwiseMax( \
+			this->iterand(0).cwiseAbs() \
+		) \
+	).maxCoeff() > tolerance )
+
+#define QUANT_PDE_TMP_ITERATE_UNTIL_DONE \
+	do { \
+		QUANT_PDE_TMP_SET_TIME; \
+		this->its.push_back(0); \
+		this->clearNodes(); \
+		this->history.clear(); \
+		this->history.push(std::make_tuple( \
+			this->implicitTime, \
+			std::move(iterand) \
+		)); \
+		if(this->child) { \
+			QUANT_PDE_TMP_OUTER_HEAD; \
+			do { \
+				QUANT_PDE_TMP_TIMESTEP; \
+				QUANT_PDE_TMP_HEAD; \
+				this->history.push(std::make_tuple( \
+					this->implicitTime, \
+					this->child->iterateUntilDone( \
+						this->iterand(0), \
+						root, \
+						solver, \
+						this->implicitTime, \
+						initialized \
+					) \
+				)); \
+				QUANT_PDE_TMP_TAIL; \
+			} while(QUANT_PDE_TMP_NOT_DONE); \
+			QUANT_PDE_TMP_OUTER_TAIL; \
+		} else { \
+			QUANT_PDE_TMP_OUTER_HEAD; \
+			do { \
+				QUANT_PDE_TMP_TIMESTEP; \
+				QUANT_PDE_TMP_HEAD; \
+				this->solveLinearSystem(root, solver, \
+						initialized); \
+				QUANT_PDE_TMP_TAIL; \
+			} while(QUANT_PDE_TMP_NOT_DONE); \
+			QUANT_PDE_TMP_OUTER_TAIL; \
+		} \
+		return this->iterand(0); \
+	} while(0)
+
 /**
- * Iterative method whose stopping condition is
+ * An iterative method that terminates when adjacent iterands are within a
+ * certain error tolerance. Specifically, the stopping condition is
  * \f$ \max_{i}\frac{\left|x_{i}^{k+1}-x_{i}^{k}\right|}{\max\left(\text{scale},\left|x_{i}^{k+1}\right|\right)}<\text{tolerance} \f$
- *
  */
-class ToleranceIteration : public Iteration {
+class ToleranceIteration final : public Iteration {
 
-	Real tolerance;
-	Real scale;
-
-	virtual bool done() const {
-		const Vector
-			&v1 = iterand(0),
-			&v0 = iterand(1)
-		;
-
-		// Tested 2014-06-07
-		return
-			( v1 - v0 ).cwiseAbs().cwiseQuotient(
-				( scale * Vector::Ones(v1.size()) ).cwiseMax(
-					v1.cwiseAbs()
-				)
-			).maxCoeff() < tolerance;
+	virtual Vector iterateUntilDone(
+		Vector iterand,
+		IterationNode &root,
+		LinearSolver &solver,
+		Real time,
+		bool initialized
+	) {
+		QUANT_PDE_TMP_ITERATE_UNTIL_DONE;
 	}
+
+	Real tolerance, scale;
 
 public:
 
@@ -1210,6 +1171,216 @@ public:
 	}
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+#undef QUANT_PDE_TMP_SET_TIME
+#define QUANT_PDE_TMP_SET_TIME \
+	do { \
+		this->implicitTime = initialTime(); \
+	} while(0)
+
+// Copy the priority queue so this iteration can be used again in the future
+// and add the NullEvent so as to make sure that iteration terminates
+#undef QUANT_PDE_TMP_OUTER_HEAD
+#define QUANT_PDE_TMP_OUTER_HEAD \
+	PriorityQueue events(this->events); \
+	events.emplace( \
+		std::numeric_limits<unsigned>::max(), \
+		terminalTime(), \
+		std::unique_ptr<EventBase>(new NullEvent{}) \
+	); \
+	do { \
+		const Real nextEventTime = std::get<1>(events.top());
+
+#undef QUANT_PDE_TMP_OUTER_TAIL
+#define QUANT_PDE_TMP_OUTER_TAIL \
+		this->implicitTime = nextEventTime; \
+		const Vector *current = &this->iterand(0); \
+		Vector transformed; \
+		while(!events.empty() && std::get<1>(events.top()) \
+				== this->implicitTime) { \
+			transformed = (*std::get<2>(events.top()))(*current); \
+			events.pop(); \
+			current = &transformed; \
+		} \
+		this->clearNodes(); \
+		this->history.clear(); \
+		this->history.push(std::make_tuple( \
+			this->implicitTime, \
+			std::move(transformed) \
+		)); \
+	} while( Order()(terminalTime(), this->implicitTime) ) \
+
+// TODO: Optimize
+#undef QUANT_PDE_TMP_TIMESTEP
+#define QUANT_PDE_TMP_TIMESTEP \
+	do { \
+		this->implicitTime += (Forward ? 1. : -1.) * timestep(); \
+		if( Order()(this->implicitTime, nextEventTime) ) { \
+			this->implicitTime = nextEventTime; \
+		} \
+	} while(0)
+
+#undef QUANT_PDE_TMP_NOT_DONE
+#define QUANT_PDE_TMP_NOT_DONE \
+	( Order()(nextEventTime, this->implicitTime) )
+
+/**
+ * An iterative method that terminates when a specified terminal time is
+ * reached.
+ * @tparam Forward True if and only if time moves forward in the relevant
+ *                 initial value problem.
+ */
+template <bool Forward>
+class TimeIteration : public Iteration {
+
+	typedef typename std::conditional<
+		Forward,
+		std::greater<Real>,
+		std::less<Real>
+	>::type Order;
+
+	typedef std::tuple<
+		unsigned,
+		Real,
+		std::shared_ptr<EventBase>
+	> T;
+
+	struct TimeOrder {
+		// Returns true if a goes before b in the ordering
+		bool operator()(const T &a, const T &b) const {
+			return
+				Order()( std::get<1>(a), std::get<1>(b) )
+				|| (
+					std::get<1>(a) == std::get<1>(b)
+					&& Order()( std::get<0>(a),
+							std::get<0>(b) )
+				)
+			;
+		}
+	};
+
+	// If events are set to the same time, ties are broken depending on the
+	// order they were added. Events added later are assumed to occur later
+	// in time (e.g. handled earlier if Forward == true; later otherwise).
+
+	typedef std::priority_queue<T, std::vector<T>, TimeOrder> PriorityQueue;
+
+	////////////////////////////////////////////////////////////////////////
+
+	virtual Vector iterateUntilDone(
+		Vector iterand,
+		IterationNode &root,
+		LinearSolver &solver,
+		Real time,
+		bool initialized
+	) {
+		QUANT_PDE_TMP_ITERATE_UNTIL_DONE;
+	}
+
+	virtual Real timestep() = 0;
+
+	Real initialTime() const;
+
+	Real terminalTime() const;
+
+	////////////////////////////////////////////////////////////////////////
+
+	unsigned id;
+	PriorityQueue events;
+
+	Real startTime, endTime;
+
+public:
+
+	/**
+	 * Constructor.
+	 */
+	TimeIteration(Real startTime, Real endTime, int lookback) noexcept
+			: Iteration(lookback), id(0), startTime(startTime),
+			endTime(endTime) {
+		assert(startTime >= 0.);
+		assert(startTime < endTime);
+	}
+
+	/**
+	 * Adds an event to be processed.
+	 * @param time The time at which the event occurs.
+	 * @param event The event.
+	 */
+	void add(Real time, std::unique_ptr<EventBase> event) {
+		assert(time >= startTime);
+		assert(time <= endTime);
+		assert(time != initialTime());
+
+		events.emplace( id++, time, std::move(event) );
+
+		// TODO: Test to see if this works
+	}
+
+	// TODO: Infer Dimension
+
+	/**
+	 * Adds an event to be processed.
+	 * @param time The time at which the event occurs.
+	 * @param args Arguments passed to Event constructor.
+	 * @see QuantPDE::Event
+	 */
+	template <Index Dimension, typename ...Ts>
+	void add(Real time, Ts &&...args) {
+		// TODO: Does not work with clang-503.0.40 with -std=c++1y.
+		//       Tries to use Event's copy constructor.
+		//       Is this a Clang bug?
+
+		assert(time >= startTime);
+		assert(time <= endTime);
+		assert(time != initialTime());
+
+		events.emplace(
+			id++,
+			time,
+			std::shared_ptr<EventBase>(
+				new Event<Dimension>(
+					std::forward<Ts>(args)...
+				)
+			)
+		);
+	}
+
+};
+
+typedef TimeIteration<false> ReverseTimeIteration;
+typedef TimeIteration<true > ForwardTimeIteration;
+
+template <>
+Real ReverseTimeIteration::initialTime() const {
+	return endTime;
+}
+
+template <>
+Real ForwardTimeIteration::initialTime() const {
+	return startTime;
+}
+
+template <>
+Real ReverseTimeIteration::terminalTime() const {
+	return startTime;
+}
+
+template <>
+Real ForwardTimeIteration::terminalTime() const {
+	return endTime;
+}
+
+#undef QUANT_PDE_TMP_SET_TIME
+#undef QUANT_PDE_TMP_OUTER_HEAD
+#undef QUANT_PDE_TMP_OUTER_TAIL
+#undef QUANT_PDE_TMP_TIMESTEP
+#undef QUANT_PDE_TMP_HEAD
+#undef QUANT_PDE_TMP_TAIL
+#undef QUANT_PDE_TMP_NOT_DONE
+#undef QUANT_PDE_TMP_ITERATE_UNTIL_DONE
 
 } // QuantPDE
 
