@@ -2,7 +2,7 @@
 #define QUANT_PDE_CORE_ITERATIVE_METHOD
 
 #include <array>        // std::array
-#include <cstdlib>      // size_t
+#include <cstdlib>      // std:abs, size_t
 #include <forward_list> // std::forward_list
 #include <memory>       // std::shared_ptr, std::unique_ptr
 #include <queue>        // std::priority_queue
@@ -778,30 +778,25 @@ protected:
 	 * @return Previously encountered time.
 	 * @see QuantPDE::CircularBuffer
 	 */
-	Real time(int index) const;
+	inline Real time(int index) const;
 
 	/**
 	 * @param index See CircularBuffer for indexing information.
 	 * @return Previously encountered iterand.
 	 * @see QuantPDE::CircularBuffer
 	 */
-	const Vector &iterand(int index) const;
+	inline const Vector &iterand(int index) const;
 
 	/**
 	 * @return The time with which the next solution is associated with.
 	 */
-	Real nextTime() const;
+	inline Real nextTime() const;
 
 	/**
 	 * @return False if and only if the timestep size was different on the
 	 *         previous iteration.
 	 */
-	bool isTimestepTheSame() const {
-		Real t2 = nextTime();
-		Real t1 = time(0);
-		Real t0 = time(1);
-		return (t2 - t1) == (t1 - t0);
-	}
+	inline bool isTimestepTheSame() const;
 
 public:
 
@@ -881,6 +876,8 @@ class Iteration {
 			)
 		));
 	}
+
+	virtual bool isTimestepTheSame() const = 0;
 
 protected:
 
@@ -1058,6 +1055,10 @@ Real IterationNode::nextTime() const {
 	return iteration->implicitTime;
 }
 
+bool IterationNode::isTimestepTheSame() const {
+	return iteration->isTimestepTheSame();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #define QUANT_PDE_TMP_OUTER_HEAD
@@ -1147,6 +1148,10 @@ class ToleranceIteration final : public Iteration {
 		QUANT_PDE_TMP_ITERATE_UNTIL_DONE;
 	}
 
+	virtual bool isTimestepTheSame() const {
+		return true;
+	}
+
 	Real tolerance, scale;
 
 public:
@@ -1178,6 +1183,7 @@ public:
 #define QUANT_PDE_TMP_SET_TIME \
 	do { \
 		this->implicitTime = initialTime(); \
+		dt = -1.; \
 	} while(0)
 
 // Copy the priority queue so this iteration can be used again in the future
@@ -1188,7 +1194,7 @@ public:
 	events.emplace( \
 		std::numeric_limits<unsigned>::max(), \
 		terminalTime(), \
-		std::unique_ptr<EventBase>(new NullEvent{}) \
+		std::shared_ptr<EventBase>(new NullEvent{}) \
 	); \
 	do { \
 		const Real nextEventTime = std::get<1>(events.top());
@@ -1216,15 +1222,21 @@ public:
 #undef QUANT_PDE_TMP_TIMESTEP
 #define QUANT_PDE_TMP_TIMESTEP \
 	do { \
-		this->implicitTime += (Forward ? 1. : -1.) * timestep(); \
-		if( Order()(this->implicitTime, nextEventTime) ) { \
-			this->implicitTime = nextEventTime; \
+		dtPrevious = dt; \
+		dt = timestep(); \
+		Real tmp = this->implicitTime + direction * dt; \
+		if( std::abs(tmp - nextEventTime) < epsilon ) { \
+			tmp = nextEventTime; \
+		} else if( Order()(tmp, nextEventTime) ) { \
+			tmp = nextEventTime; \
+			dt = direction * (nextEventTime - this->implicitTime); \
 		} \
+		this->implicitTime = tmp; \
 	} while(0)
 
 #undef QUANT_PDE_TMP_NOT_DONE
 #define QUANT_PDE_TMP_NOT_DONE \
-	( Order()(nextEventTime, this->implicitTime) )
+	( Order()(nextEventTime, this->implicitTime + direction * epsilon) )
 
 /**
  * An iterative method that terminates when a specified terminal time is
@@ -1269,6 +1281,11 @@ class TimeIteration : public Iteration {
 
 	////////////////////////////////////////////////////////////////////////
 
+	static constexpr Real direction = Forward ? 1. : -1.;
+	static constexpr Real epsilon = 1e-12;
+
+	////////////////////////////////////////////////////////////////////////
+
 	virtual Vector iterateUntilDone(
 		Vector iterand,
 		IterationNode &root,
@@ -1277,6 +1294,10 @@ class TimeIteration : public Iteration {
 		bool initialized
 	) {
 		QUANT_PDE_TMP_ITERATE_UNTIL_DONE;
+	}
+
+	virtual bool isTimestepTheSame() const {
+		return dt == dtPrevious;
 	}
 
 	virtual Real timestep() = 0;
@@ -1290,7 +1311,7 @@ class TimeIteration : public Iteration {
 	unsigned id;
 	PriorityQueue events;
 
-	Real startTime, endTime;
+	Real startTime, endTime, dt, dtPrevious;
 
 public:
 
