@@ -469,7 +469,20 @@ public:
 		return VectorAccessor<Ownership::NON_CONST>(domain, &vector);
 	}
 
-	// TODO: FunctionAccessor
+	template <typename D, typename F>
+	friend VectorAccessor<Ownership::SHARED> accessor(D &domain,
+			F &&function) {
+		return VectorAccessor<Ownership::SHARED>(
+			domain,
+			std::shared_ptr<Vector>(
+				new Vector(
+					domain.image(
+						std::forward<F>(function)
+					)
+				)
+			)
+		);
+	}
 
 	/**
 	 * Used to evaluate the function on the domain.
