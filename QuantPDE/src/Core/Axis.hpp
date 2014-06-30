@@ -64,10 +64,10 @@ public:
 	 * @param list The ticks. These should be strictly monotonically
 	 *             increasing.
 	 */
-	template <typename T>
-	Axis(const T &list) noexcept {
-		initialize(list);
-	}
+	//template <typename T>
+	//Axis(const T &list) noexcept {
+	//	initialize(list);
+	//}
 
 	/**
 	 * Constructor.

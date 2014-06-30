@@ -13,7 +13,7 @@
 
 namespace QuantPDE {
 
-template <Index Dimension> class InterpolantFactory;
+template <Index Dimension> class InterpolantFactoryWrapper;
 template <Index Dimension> class Refiner;
 
 /**
@@ -290,6 +290,11 @@ class Domain : public DomainBase {
 
 	};
 
+	// TODO: GCC complained about std::ostream &operator<< being redefined
+	//       due to the templating (GCC bug? Works fine in Clang).
+	//       The following is a nasty hack to make it work.
+
+	/*
 	template <Ownership O>
 	class VectorAccessor final {
 
@@ -357,6 +362,70 @@ class Domain : public DomainBase {
 		}
 
 	};
+	*/
+
+#define QUANT_PDE_TMP(OWNERSHIP) \
+	class VectorAccessor##OWNERSHIP final { \
+		const Domain *domain; \
+		V0< Ownership::OWNERSHIP > vector; \
+	public: \
+		template <typename D, typename V> \
+		VectorAccessor##OWNERSHIP(D &domain, \
+				V &&vector) noexcept : domain(&domain), \
+				vector( std::forward<V>(vector) ) { \
+		} \
+		VectorAccessor##OWNERSHIP( \
+				const VectorAccessor##OWNERSHIP &that) \
+				noexcept : domain(that.domain), \
+				vector(that.vector) { \
+		} \
+		VectorAccessor##OWNERSHIP( \
+				VectorAccessor##OWNERSHIP &&that) \
+				noexcept : domain(that.domain), \
+				vector( std::move(that.vector) ) { \
+		} \
+		VectorAccessor##OWNERSHIP &operator=( \
+				const VectorAccessor##OWNERSHIP &that) & \
+				noexcept { \
+			domain = that.domain; \
+			vector = that.vector; \
+			return *this; \
+		} \
+		VectorAccessor##OWNERSHIP &operator=( \
+				VectorAccessor##OWNERSHIP &&that) & \
+				noexcept { \
+			domain = that.domain; \
+			vector = std::move(that.vector); \
+			return *this; \
+		} \
+		VectorIterator<Ownership::OWNERSHIP> begin() const { \
+			return VectorIterator<Ownership::OWNERSHIP>( \
+					*domain, vector); \
+		} \
+		VectorIterator<Ownership::OWNERSHIP> end() const { \
+			return VectorIterator<Ownership::OWNERSHIP>( \
+					*domain, vector, domain->size()); \
+		} \
+		friend std::ostream &operator<<(std::ostream &os, \
+				const VectorAccessor##OWNERSHIP \
+				&accessor) { \
+			std::array<Real, Dimension> coordinates; \
+			for(auto v_n : accessor) { \
+				coordinates = &v_n; \
+				for(Index i = 0; i < Dimension; i++) { \
+					os << coordinates[i] << '\t'; \
+				} \
+				os << *v_n << std::endl; \
+			} \
+			return os; \
+		} \
+	};
+
+QUANT_PDE_TMP(CONST)
+QUANT_PDE_TMP(SHARED)
+QUANT_PDE_TMP(NON_CONST)
+
+#undef QUANT_PDE_TMP
 
 public:
 
@@ -449,6 +518,40 @@ public:
 	 * @return A vector accessor.
 	 */
 	template <typename D>
+	friend VectorAccessorCONST accessor(D &domain, const Vector &vector) {
+		return VectorAccessorCONST(domain, &vector);
+	}
+
+	template <typename D>
+	friend VectorAccessorSHARED accessor(D &domain, Vector &&vector) {
+		return VectorAccessorSHARED(
+			domain,
+			std::shared_ptr<Vector>(new Vector(std::move(vector)))
+		);
+	}
+
+	template <typename D>
+	friend VectorAccessorNON_CONST accessor(D &domain, Vector &vector) {
+		return VectorAccessorNON_CONST(domain, &vector);
+	}
+
+	template <typename D, typename F>
+	friend VectorAccessorSHARED accessor(D &domain,
+			F &&function) {
+		return VectorAccessorSHARED(
+			domain,
+			std::shared_ptr<Vector>(
+				new Vector(
+					domain.image(
+						std::forward<F>(function)
+					)
+				)
+			)
+		);
+	}
+
+	/*
+	template <typename D>
 	friend VectorAccessor<Ownership::CONST> accessor(D &domain,
 			const Vector &vector) {
 		return VectorAccessor<Ownership::CONST>(domain, &vector);
@@ -483,6 +586,7 @@ public:
 			)
 		);
 	}
+	*/
 
 	/**
 	 * Used to evaluate the function on the domain.
@@ -529,8 +633,8 @@ public:
 	 * @return A default interpolant factory associated with this domain.
 	 * @see QuantPDE::InterpolantFactory
 	 */
-	virtual typename InterpolantFactory<Dimension>::Wrapper
-			defaultInterpolantFactory() const = 0;
+	virtual InterpolantFactoryWrapper<Dimension> defaultInterpolantFactory()
+			const = 0;
 
 };
 
@@ -1268,8 +1372,8 @@ public:
 		return vsize;
 	}
 
-	virtual typename InterpolantFactory<Dimension>::Wrapper
-			defaultInterpolantFactory() const;
+	virtual InterpolantFactoryWrapper<Dimension> defaultInterpolantFactory()
+			const;
 
 };
 

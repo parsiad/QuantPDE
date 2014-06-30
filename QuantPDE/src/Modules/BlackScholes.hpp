@@ -21,7 +21,7 @@ class BlackScholes : public ControlledLinearSystem1 {
 protected:
 
 	const RectilinearGrid1 &G;
-	WrapperFunction1 r, v, q, l;
+	MultiFunction1 r, v, q, l;
 
 	/**
 	 * Constructor for jump-diffusion process. Jumps occur according to a
@@ -32,10 +32,10 @@ protected:
 	 * @param dividends The continuous dividend rate.
 	 * @param meanArrivalTime The mean arrival time of the Poisson process.
 	 */
-	template <typename G, typename F1, typename F2, typename F3,
+	template <typename G1, typename F1, typename F2, typename F3,
 			typename F4>
 	BlackScholes(
-		G &grid,
+		G1 &grid,
 		F1 &&interest,
 		F2 &&volatility,
 		F3 &&dividends,
@@ -63,9 +63,9 @@ public:
 	 * @param volatility The volatility of the underlying asset.
 	 * @param dividends The continuous dividend rate.
 	 */
-	template <typename G, typename F1, typename F2, typename F3>
+	template <typename G1, typename F1, typename F2, typename F3>
 	BlackScholes(
-		G &grid,
+		G1 &grid,
 		F1 &&interest,
 		F2 &&volatility,
 		F3 &&dividends

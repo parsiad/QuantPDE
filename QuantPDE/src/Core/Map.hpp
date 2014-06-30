@@ -37,28 +37,34 @@ public:
 	 */
 	virtual Vector operator()(Function<Dimension> &&function) const = 0;
 
-	////////////////////////////////////////////////////////////////////////
-	// Wrapper
-	////////////////////////////////////////////////////////////////////////
-	class Wrapper : public Map {
-		P p;
-	public:
-		virtual Vector operator()(const Function<Dimension> &function)
-				const {
-			return (*p)(function);
-		}
-		virtual Vector operator()(Function<Dimension> &&function) const
-				{
-			return (*p)(std::move(function));
-		}
-		QUANT_PDE_CORE_WRAPPER_BODY(P, p)
-	};
-	////////////////////////////////////////////////////////////////////////
-
 	/**
 	 * @return A clone of this map.
 	 */
 	virtual P clone() const = 0;
+
+	template <Index> friend class MapWrapper;
+
+};
+
+template <Index Dimension>
+class MapWrapper : public Map<Dimension> {
+
+	typedef typename Map<Dimension>::P P;
+	P p;
+
+public:
+
+	virtual Vector operator()(const Function<Dimension> &function)
+			const {
+		return (*p)(function);
+	}
+
+	virtual Vector operator()(Function<Dimension> &&function) const
+			{
+		return (*p)(std::move(function));
+	}
+
+	QUANT_PDE_CORE_WRAPPER_BODY(Map)
 
 };
 

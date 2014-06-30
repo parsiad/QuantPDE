@@ -45,29 +45,35 @@ public:
 		return interpolate( {{coordinates...}} );
 	}
 
-	////////////////////////////////////////////////////////////////////////
-	// Wrapper
-	////////////////////////////////////////////////////////////////////////
-	class Wrapper : public Interpolant {
-		P p;
-		virtual Real interpolate(
-				const std::array<Real, Dimension> &coordinates)
-				const {
-			return p->interpolate(coordinates);
-		}
-	public:
-		template <typename ...Ts>
-		Real operator()(Ts ...coordinates) const {
-			return (*p)(coordinates...);
-		}
-		QUANT_PDE_CORE_WRAPPER_BODY(P, p)
-	};
-	////////////////////////////////////////////////////////////////////////
-
 	/**
 	 * @return A clone of this interpolant.
 	 */
 	virtual P clone() const = 0;
+
+	template <Index> friend class InterpolantWrapper;
+
+};
+
+template <Index Dimension>
+class InterpolantWrapper : public Interpolant<Dimension> {
+
+	typedef typename Interpolant<Dimension>::P P;
+	P p;
+
+	virtual Real interpolate(
+			const std::array<Real, Dimension> &coordinates)
+			const {
+		return p->interpolate(coordinates);
+	}
+
+public:
+
+	template <typename ...Ts>
+	Real operator()(Ts ...coordinates) const {
+		return (*p)(coordinates...);
+	}
+
+	QUANT_PDE_CORE_WRAPPER_BODY(Interpolant)
 
 };
 
@@ -81,7 +87,7 @@ typedef Interpolant<3> Interpolant3;
 template <Index Dimension>
 class InterpolantFactory {
 
-	typedef typename Interpolant<Dimension>::Wrapper WI;
+	typedef InterpolantWrapper<Dimension> WI;
 	typedef std::unique_ptr<InterpolantFactory> P;
 
 public:
@@ -100,27 +106,33 @@ public:
 	virtual WI make(const Vector &vector) const = 0;
 	virtual WI make(Vector &&vector) const = 0;
 
-	////////////////////////////////////////////////////////////////////////
-	// Wrapper
-	////////////////////////////////////////////////////////////////////////
-	class Wrapper : public InterpolantFactory {
-		P p;
-	public:
-		virtual WI make(const Vector &vector) const {
-			return p->make(vector);
-		}
-		virtual WI make(Vector &&vector) const {
-			return p->make(std::move(vector));
-		}
-		QUANT_PDE_CORE_WRAPPER_BODY(P, p)
-	};
-	////////////////////////////////////////////////////////////////////////
-
 	/**
 	 * @return A clone of this factory.
 	 */
 	virtual P clone() const = 0;
 
+	template <Index> friend class InterpolantFactoryWrapper;
+
+};
+
+template <Index Dimension>
+class InterpolantFactoryWrapper : public InterpolantFactory<Dimension> {
+
+	typedef typename InterpolantFactory<Dimension>::WI WI;
+	typedef typename InterpolantFactory<Dimension>::P P;
+	P p;
+
+public:
+
+	virtual WI make(const Vector &vector) const {
+		return p->make(vector);
+	}
+
+	virtual WI make(Vector &&vector) const {
+		return p->make(std::move(vector));
+	}
+
+	QUANT_PDE_CORE_WRAPPER_BODY(InterpolantFactory)
 };
 
 typedef InterpolantFactory<1> InterpolantFactory1;
@@ -143,7 +155,7 @@ class PiecewiseLinear : public Interpolant<Dimension> {
 
 	typedef std::unique_ptr<Interpolant<Dimension>> I;
 	typedef std::unique_ptr<InterpolantFactory<Dimension>> F;
-	typedef typename Interpolant<Dimension>::Wrapper WI;
+	typedef InterpolantWrapper<Dimension> WI;
 
 	const RectilinearGrid<Dimension> *grid;
 	Vector vector;
@@ -366,9 +378,9 @@ public:
 };
 
 template <Index Dimension>
-typename InterpolantFactory<Dimension>::Wrapper
+InterpolantFactoryWrapper<Dimension>
 		RectilinearGrid<Dimension>::defaultInterpolantFactory() const {
-	return typename InterpolantFactory<Dimension>::Wrapper(
+	return InterpolantFactoryWrapper<Dimension>(
 		std::unique_ptr<InterpolantFactory<Dimension>>(
 			new typename PiecewiseLinear<Dimension>::Factory(*this)
 		)

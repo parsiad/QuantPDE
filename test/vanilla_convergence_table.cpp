@@ -209,7 +209,7 @@ int main(int argc, char **argv) {
 	//auto payoff = QUANT_PDE_MODULES_PAYOFFS_PUT_FIXED_STRIKE(strike);
 
 	unsigned pow2l  = 1.; // 2^l
-	for(unsigned l = 0; l < refinement; l++) {
+	for(int l = 0; l < refinement; l++) {
 
 		///////////////////////////////////////////////////////////////
 		// Build spatial grid

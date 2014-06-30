@@ -274,20 +274,22 @@ public:
  * The above operator has a controllable interest rate and a local volatility
  * model.
  *
- * This flexibility is made possible by the WrapperFunction class, a wrapper for
+ * This flexibility is made possible by the MultiFunction class, a wrapper for
  * constants, functions of space and time, functions of space, and controls.
  *
  * @tparam Dimension The dimension of the associated spatial domain (not the
  *                   control domain)
  */
 template <Index Dimension>
-class WrapperFunction final {
+class MultiFunction final {
 
 	static_assert(Dimension > 0, "Dimension must be positive");
 
-	class Base; typedef std::unique_ptr<Base> B;
-	typedef typename Interpolant<Dimension>::Wrapper WI;
-	typedef typename InterpolantFactory<Dimension>::Wrapper WF;
+	class Base;
+	typedef std::unique_ptr<Base> B;
+
+	typedef InterpolantWrapper<Dimension> WI;
+	typedef InterpolantFactoryWrapper<Dimension> WF;
 
 	class Base {
 
@@ -515,71 +517,71 @@ public:
 	/**
 	 * Constructor for a constant.
 	 */
-	WrapperFunction(Real constant) noexcept {
+	MultiFunction(Real constant) noexcept {
 		base = B(new Constant(constant));
 	}
 
 	/**
 	 * Constructor for a function of space and time.
 	 */
-	WrapperFunction(const Function<Dimension + 1> &function) noexcept {
+	MultiFunction(const Function<Dimension + 1> &function) noexcept {
 		base = B(new FunctionST(function));
 	}
 
 	/**
 	 * Move constructor for a function of space and time.
 	 */
-	WrapperFunction(Function<Dimension + 1> &&function) noexcept {
+	MultiFunction(Function<Dimension + 1> &&function) noexcept {
 		base = B(new FunctionST(std::move(function)));
 	}
 
 	/**
 	 * Constructor for a function of space.
 	 */
-	WrapperFunction(const Function<Dimension> &function) noexcept {
+	MultiFunction(const Function<Dimension> &function) noexcept {
 		base = B(new FunctionS(function));
 	}
 
 	/**
 	 * Move constructor for a function of space.
 	 */
-	WrapperFunction(Function<Dimension> &&function) noexcept {
+	MultiFunction(Function<Dimension> &&function) noexcept {
 		base = B(new FunctionS(std::move(function)));
 	}
 
 	/**
 	 * Move constructor for a control.
 	 */
-	WrapperFunction(Control &&control) noexcept {
+	MultiFunction(Control &&control) noexcept {
 		base = B(new Control(std::move(control)));
 	}
-	WrapperFunction(const Control &control) = delete;
+	MultiFunction(const Control &control) = delete;
 
 	/**
 	 * Copy constructor.
 	 */
-	WrapperFunction(const WrapperFunction &that) noexcept
+	MultiFunction(const MultiFunction &that) noexcept
 			: base(that.base->clone()) {
 	}
 
 	/**
 	 * Move constructor.
 	 */
-	WrapperFunction(WrapperFunction &&that) noexcept
+	MultiFunction(MultiFunction &&that) noexcept
 			: base( std::move(that.base) ) {
 	}
 
 	/**
 	 * Copy assignment operator.
 	 */
-	WrapperFunction &operator=(const WrapperFunction &that) & noexcept {
+	MultiFunction &operator=(const MultiFunction &that) & noexcept {
 		base = that.base->clone();
 	}
 
 	/**
 	 * Move assignment operator.
 	 */
-	WrapperFunction &operator=(WrapperFunction &&that) & noexcept {
+	MultiFunction &operator=(MultiFunction &&that) & noexcept {
 		base = std::move(that.base);
 	}
 
@@ -620,13 +622,13 @@ public:
 
 };
 
-typedef WrapperFunction<1> WrapperFunction1;
-typedef WrapperFunction<2> WrapperFunction2;
-typedef WrapperFunction<3> WrapperFunction3;
+typedef MultiFunction<1> MultiFunction1;
+typedef MultiFunction<2> MultiFunction2;
+typedef MultiFunction<3> MultiFunction3;
 
 // Expose Control
 template <Index Dimension>
-using Control = typename WrapperFunction<Dimension>::Control;
+using Control = typename MultiFunction<Dimension>::Control;
 
 typedef Control<1> Control1;
 typedef Control<2> Control2;
@@ -676,12 +678,12 @@ public:
 
 /**
  * A controllable linear system using wrappers as the controls.
- * @see QuantPDE::WrapperFunction
+ * @see QuantPDE::MultiFunction
  */
 template <Index Dimension>
 class ControlledLinearSystem : public ControlledLinearSystemBase {
 
-	std::vector<WrapperFunction<Dimension> *> controls;
+	std::vector<MultiFunction<Dimension> *> controls;
 
 	virtual void setInputs(Vector *inputs) {
 		for(auto control : controls) {
@@ -701,7 +703,7 @@ protected:
 	 * @param wrapper The control.
 	 * @see QuantPDE::ControlledLinearSystem::setInputs
 	 */
-	void registerControl(WrapperFunction<Dimension> &wrapper) {
+	void registerControl(MultiFunction<Dimension> &wrapper) {
 		if(wrapper.isControllable()) {
 			controls.push_back(&wrapper);
 		}
@@ -962,7 +964,7 @@ public:
 	 * @see QuantPDE::Map
 	 */
 	template <typename F, Index Dimension>
-	typename Interpolant<Dimension>::Wrapper solve(
+	InterpolantWrapper<Dimension> solve(
 		const Map<Dimension> &map,
 		const InterpolantFactory<Dimension> &factory,
 		F &&initialCondition,
@@ -991,7 +993,7 @@ public:
 		} while(current);
 
 		// Map, iterate, interpolate
-		return typename Interpolant<Dimension>::Wrapper(
+		return InterpolantWrapper<Dimension>(
 			factory.make(
 				iterateUntilDone(
 					map(std::forward<F>(initialCondition)),
@@ -1014,7 +1016,7 @@ public:
 	 * @see QuantPDE::Map
 	 */
 	template <typename F, Index Dimension>
-	typename Interpolant<Dimension>::Wrapper solve(
+	InterpolantWrapper<Dimension> solve(
 		const Domain<Dimension> &domain,
 		F &&initialCondition,
 		IterationNode &root,

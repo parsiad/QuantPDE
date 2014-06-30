@@ -64,8 +64,8 @@ public:
 template <Index Dimension>
 class Event : public EventBase {
 
-	typedef typename InterpolantFactory<Dimension>::Wrapper In;
-	typedef typename Map<Dimension>::Wrapper Out;
+	typedef InterpolantFactoryWrapper<Dimension> In;
+	typedef MapWrapper<Dimension> Out;
 
 	Transform<Dimension> transform;
 
