@@ -7,14 +7,9 @@ namespace Modules {
 
 /**
 Represents the operator $L$ in
-\f$V_{t}+LV\equiv V_{t}+\frac{1}{2}\sigma^{2}S^{2}V_{SS}+\left(r-q-\lambda\kappa\right)SV_{S}-\left(r+\lambda\right)V+\lambda\int_{0}^{\infty}V\left(t,S\eta\right)g\left(\eta\right)d\eta.\f$
+\f$V_{t}+LV\equiv V_{t}+\frac{1}{2}\sigma^{2}S^{2}V_{SS}+\left(r-q\right)SV_{S}-rV\f$
 \f$r\f$, \f$\sigma\f$, and \f$q\f$ are the usual interest rate, volatility
-and (continuous) rate of dividends. \f$\lambda\f$ is the mean arrival
-time of the Poisson process responsible for generating the jumps.
-Assuming a jump has occured, \f$g\left(\eta\right)\f$ is the probability
-density of a jump of amplitude \f$\eta\f$, with
-\f$\kappa\equiv E\left[\eta\right]-1\f$ describing the expected relative change
-in the stock.
+and (continuous) rate of dividends.
 
 The boundary conditions imposed are \f$V_t - rV = 0\f$ at \f$S=0\f$ and
 \f$V_t - qV = 0\f$ at \f$S\rightarrow \infty\f$. The latter is derived by
@@ -23,9 +18,41 @@ asset.
 **/
 class BlackScholes : public ControlledLinearSystem1 {
 
+protected:
+
 	const RectilinearGrid1 &G;
 	WrapperFunction1 r, v, q, l;
-	Function1 g;
+
+	/**
+	 * Constructor for jump-diffusion process. Jumps occur according to a
+	 * Poisson process.
+	 * @param grid The underlying spatial grid.
+	 * @param interest The risk-free interest rate.
+	 * @param volatility The volatility of the underlying asset.
+	 * @param dividends The continuous dividend rate.
+	 * @param meanArrivalTime The mean arrival time of the Poisson process.
+	 */
+	template <typename G, typename F1, typename F2, typename F3,
+			typename F4>
+	BlackScholes(
+		G &grid,
+		F1 &&interest,
+		F2 &&volatility,
+		F3 &&dividends,
+		F4 &&meanArrivalTime
+	) noexcept :
+		G( grid ),
+		r( std::forward<F1>(interest) ),
+		v( std::forward<F2>(volatility) ),
+		q( std::forward<F3>(dividends) ),
+		l( std::forward<F4>(meanArrivalTime) ) {
+
+		registerControl(r);
+		registerControl(v);
+		registerControl(q);
+		registerControl(l);
+
+	}
 
 public:
 
@@ -52,40 +79,6 @@ public:
 		registerControl(r);
 		registerControl(v);
 		registerControl(q);
-
-	}
-
-	/**
-	 * Constructor for jump-diffusion process. Jumps occur according to a
-	 * Poisson process.
-	 * @param grid The underlying spatial grid.
-	 * @param interest The risk-free interest rate.
-	 * @param volatility The volatility of the underlying asset.
-	 * @param dividends The continuous dividend rate.
-	 * @param meanArrivalTime The mean arrival time of the Poisson process.
-	 * @param density The probability density of the jump amplitude.
-	 */
-	template <typename G, typename F1, typename F2, typename F3,
-			typename F4, typename F5>
-	BlackScholes(
-		G &grid,
-		F1 &&interest,
-		F2 &&volatility,
-		F3 &&dividends,
-		F4 &&meanArrivalTime,
-		F5 &&density
-	) noexcept :
-		G( grid ),
-		r( std::forward<F1>(interest) ),
-		v( std::forward<F2>(volatility) ),
-		q( std::forward<F3>(dividends) ),
-		l( std::forward<F4>(meanArrivalTime) ),
-		g( std::forward<F5>(density) ) {
-
-		registerControl(r);
-		registerControl(v);
-		registerControl(q);
-		registerControl(l);
 
 	}
 
@@ -163,31 +156,64 @@ public:
 
 };
 
-/*
-class BlackScholesConstantCoefficients final : public BlackScholes {
+/**
+Represents the operator $L$ in
+\f$V_{t}+LV\equiv V_{t}+\frac{1}{2}\sigma^{2}S^{2}V_{SS}+\left(r-q-\lambda\kappa\right)SV_{S}-\left(r+\lambda\right)V+\lambda\int_{0}^{\infty}V\left(t,S\eta\right)g\left(\eta\right)d\eta.\f$
+\f$r\f$, \f$\sigma\f$, and \f$q\f$ are the usual interest rate, volatility
+and (continuous) rate of dividends. \f$\lambda\f$ is the mean arrival
+time of the Poisson process responsible for generating the jumps.
+Assuming a jump has occured, \f$g\left(\eta\right)\f$ is the probability
+density of a jump of amplitude \f$\eta\f$, with
+\f$\kappa\equiv E\left[\eta\right]-1\f$ describing the expected relative change
+in the stock.
+
+The boundary conditions imposed are \f$V_t - rV = 0\f$ at \f$S=0\f$ and
+\f$V_t - qV = 0\f$ at \f$S\rightarrow \infty\f$. The latter is derived by
+assuming that the option is linear in the asset for large enough values of the
+asset.
+**/
+class BlackScholesJumpDiffusion final : public BlackScholes {
+
+	Function1 g;
 
 public:
 
-	template <typename G>
-	BlackScholesConstantCoefficients(
+	/**
+	 * Constructor for jump-diffusion process. Jumps occur according to a
+	 * Poisson process.
+	 * @param grid The underlying spatial grid.
+	 * @param interest The risk-free interest rate.
+	 * @param volatility The volatility of the underlying asset.
+	 * @param dividends The continuous dividend rate.
+	 * @param meanArrivalTime The mean arrival time of the Poisson process.
+	 * @param density The probability density of the jump amplitude.
+	 */
+	template <typename G, typename F1, typename F2, typename F3,
+			typename F4, typename F5>
+	BlackScholesJumpDiffusion(
 		G &grid,
-		Real interest,
-		Real volatility,
-		Real dividends
+		F1 &&interest,
+		F2 &&volatility,
+		F3 &&dividends,
+		F4 &&meanArrivalTime,
+		F5 &&density
 	) noexcept : BlackScholes(
 		grid,
-		[interest]   (Real, Real) { return interest; },
-		[volatility] (Real, Real) { return volatility; },
-		[dividends]  (Real, Real) { return dividends; }
-	) {
+		std::forward<F1>(interest),
+		std::forward<F2>(volatility),
+		std::forward<F3>(dividends),
+		std::forward<F4>(meanArrivalTime)
+	), g(std::forward<F5>(density)) {
 	}
 
-	virtual bool isATheSame() const {
-		return true;
+	virtual Vector b(Real) {
+		//const Vector &v = this->iterand(0);
+
+		// TODO: Explicit jump-diffusion
+		return G.zero();
 	}
 
 };
-*/
 
 } // Modules
 

@@ -1,18 +1,12 @@
 #ifndef QUANT_PDE_CORE_LINEAR_BDF
 #define QUANT_PDE_CORE_LINEAR_BDF
 
-// TODO: Cache A if constant
-
 namespace QuantPDE {
 
 template <bool Forward, size_t Lookback>
 class LinearBDFBase : public IterationNode {
 
 	const DomainBase *domain;
-
-	Real t[Lookback + 1];
-	Real h[Lookback];
-	Real hh;
 
 	inline Real difference(Real t1, Real t0) {
 		return Forward ? t1 - t0 : t0 - t1;
@@ -30,21 +24,27 @@ protected:
 		return isTimestepTheSame() && op->isATheSame();
 	}
 
-	inline Matrix _A1() {
-		t[1] = nextTime();
-		t[0] = time(0);
+#define QUANT_PDE_TMP \
+	const Real t0 = time(0); \
+	const Real h0 = difference(t1, t0);
 
-		h[0] = difference(t[1], t[0]);
+	inline Matrix _A1(Real t1) {
+		QUANT_PDE_TMP;
 
 		return
 			domain->identity()
-			+ op->A(t[1]) * h[0];
+			+ op->A(t1) * h0;
 	}
 
-	inline Vector _b1() {
+	inline Vector _b1(Real t1) {
+		QUANT_PDE_TMP;
+
 		const Vector &v0 = iterand(0);
-		return v0 + h[0] * op->b(t[1]);
+
+		return v0 + h0 * op->b(t1);
 	}
+
+#undef QUANT_PDE_TMP
 
 /*
 >>  A = [1 -1 -1;0 h1 h0;0 h1^2 h0^2]
@@ -64,31 +64,33 @@ ans =
  -h1/(h0*(h0 - h1))
 */
 
-	inline Matrix _A2() {
-		t[2] = nextTime();
-		t[1] = time(0);
-		t[0] = time(1);
+#define QUANT_PDE_TMP \
+	const Real t1 = time(0); \
+	const Real t0 = time(1); \
+	const Real h1 = difference(t2, t1); \
+	const Real h0 = difference(t2, t0); \
+	const Real hh = (h0*h1)/(h0 + h1); \
 
-		h[1] = difference(t[2], t[1]);
-		h[0] = difference(t[2], t[0]);
-
-		hh = (h[0]*h[1])/(h[0] + h[1]);
+	inline Matrix _A2(Real t2) {
+		QUANT_PDE_TMP;
 
 		return
 			domain->identity()
-			+ hh * op->A(t[2])
+			+ hh * op->A(t2)
 		;
 
 		// Constant timestep case:
 		/*
 		return
 			domain->identity()
-			- 2. / 3. * op->A(t[2]) * dt()
+			- 2. / 3. * op->A(t2) * dt()
 		;
 		*/
 	}
 
-	inline Vector _b2() {
+	inline Vector _b2(Real t2) {
+		QUANT_PDE_TMP;
+
 		const Vector
 			&v1 = iterand(0),
 			&v0 = iterand(1)
@@ -97,10 +99,10 @@ ans =
 		return
 			(
 				(
-					  h[0] / h[1] * v1
-					- h[1] / h[0] * v0
-				) / ( h[0] - h[1] )
-				+ op->b(t[2])
+					  h0 / h1 * v1
+					- h1 / h0 * v0
+				) / ( h0 - h1 )
+				+ op->b(t2)
 			) * hh
 		;
 
@@ -112,6 +114,8 @@ ans =
 		) / 3.;
 		*/
 	}
+
+#undef QUANT_PDE_TMP
 
 /*
 >> A = [1 -1 -1 -1;0 h2 h1 h0;0 h2^2 h1^2 h0^2;0 h2^3 h1^3 h0^3]
@@ -133,33 +137,35 @@ ans =
    (h1*h2)/(h0*(h0 - h1)*(h0 - h2))
 */
 
-	inline Matrix _A3() {
-		t[3] = nextTime();
-		t[2] = time(0);
-		t[1] = time(1);
-		t[0] = time(2);
+#define QUANT_PDE_TMP \
+	const Real t2 = time(0); \
+	const Real t1 = time(1); \
+	const Real t0 = time(2); \
+	const Real h2 = difference(t3, t2); \
+	const Real h1 = difference(t3, t1); \
+	const Real h0 = difference(t3, t0); \
+	const Real hh = (h0*h1*h2)/(h0*h1 + h0*h2 + h1*h2);
 
-		h[2] = difference(t[3], t[2]);
-		h[1] = difference(t[3], t[1]);
-		h[0] = difference(t[3], t[0]);
-
-		hh = (h[0]*h[1]*h[2])/(h[0]*h[1] + h[0]*h[2] + h[1]*h[2]);
+	inline Matrix _A3(Real t3) {
+		QUANT_PDE_TMP;
 
 		return
 			domain->identity()
-			+ hh * op->A(t[3])
+			+ hh * op->A(t3)
 		;
 
 		// Constant timestep case:
 		/*
 		return
 			domain->identity()
-			- 6. / 11. * op->A(t[3]) * dt()
+			- 6. / 11. * op->A(t3) * dt()
 		;
 		*/
 	}
 
-	inline Vector _b3() {
+	inline Vector _b3(Real t3) {
+		QUANT_PDE_TMP;
+
 		const Vector
 			&v2 = iterand(0),
 			&v1 = iterand(1),
@@ -168,10 +174,10 @@ ans =
 
 		return
 			(
-				  (h[0]*h[1])/(h[2]*(h[0] - h[2])*(h[1] - h[2])) * v2
-				- (h[0]*h[2])/(h[1]*(h[0] - h[1])*(h[1] - h[2])) * v1
-				+ (h[1]*h[2])/(h[0]*(h[0] - h[1])*(h[0] - h[2])) * v0
-				+ op->b(t[3])
+				  (h0*h1)/(h2*(h0 - h2)*(h1 - h2)) * v2
+				- (h0*h2)/(h1*(h0 - h1)*(h1 - h2)) * v1
+				+ (h1*h2)/(h0*(h0 - h1)*(h0 - h2)) * v0
+				+ op->b(t3)
 			) * hh
 		;
 
@@ -184,6 +190,8 @@ ans =
 		) / 11.;
 		*/
 	}
+
+#undef QUANT_PDE_TMP
 
 /*
 >> A = [1 -1 -1 -1 -1;0 h3 h2 h1 h0;0 h3^2 h2^2 h1^2 h0^2;0 h3^3 h2^3 h1^3 h0^3;0 h3^4 h2^4 h1^4 h0^4]
@@ -207,24 +215,23 @@ ans =
             -(h1*h2*h3)/(h0*(h0 - h1)*(h0 - h2)*(h0 - h3))
 */
 
-	inline Matrix _A4() {
+#define QUANT_PDE_TMP \
+	const Real t3 = time(0); \
+	const Real t2 = time(1); \
+	const Real t1 = time(2); \
+	const Real t0 = time(3); \
+	const Real h3 = difference(t4, t3); \
+	const Real h2 = difference(t4, t2); \
+	const Real h1 = difference(t4, t1); \
+	const Real h0 = difference(t4, t0); \
+	const Real hh = (h0*h1*h2*h3)/(h0*h1*h2 + h0*h1*h3 + h0*h2*h3 + h1*h2*h3);
 
-		t[4] = nextTime();
-		t[3] = time(0);
-		t[2] = time(1);
-		t[1] = time(2);
-		t[0] = time(3);
-
-		h[3] = difference(t[4], t[3]);
-		h[2] = difference(t[4], t[2]);
-		h[1] = difference(t[4], t[1]);
-		h[0] = difference(t[4], t[0]);
-
-		hh = (h[0]*h[1]*h[2]*h[3])/(h[0]*h[1]*h[2] + h[0]*h[1]*h[3] + h[0]*h[2]*h[3] + h[1]*h[2]*h[3]);
+	inline Matrix _A4(Real t4) {
+		QUANT_PDE_TMP;
 
 		return
 			domain->identity()
-			+ hh * op->A(t[4])
+			+ hh * op->A(t4)
 		;
 
 
@@ -232,11 +239,13 @@ ans =
 		/*
 		return
 			domain->identity()
-			- 12. / 25. * op->A(t[4]) * dt();
+			- 12. / 25. * op->A(t4) * dt();
 		*/
 	}
 
-	inline Vector _b4() {
+	inline Vector _b4(Real t4) {
+		QUANT_PDE_TMP;
+
 		const Vector
 			&v3 = iterand(0),
 			&v2 = iterand(1),
@@ -246,11 +255,11 @@ ans =
 
 		return
 			(
-				  (h[0]*h[1]*h[2])/(h[3]*(h[0] - h[3])*(h[1] - h[3])*(h[2] - h[3])) * v3
-				- (h[0]*h[1]*h[3])/(h[2]*(h[0] - h[2])*(h[1] - h[2])*(h[2] - h[3])) * v2
-				+ (h[0]*h[2]*h[3])/(h[1]*(h[0] - h[1])*(h[1] - h[2])*(h[1] - h[3])) * v1
-				- (h[1]*h[2]*h[3])/(h[0]*(h[0] - h[1])*(h[0] - h[2])*(h[0] - h[3])) * v0
-				+ op->b(t[4])
+				  (h0*h1*h2)/(h3*(h0 - h3)*(h1 - h3)*(h2 - h3)) * v3
+				- (h0*h1*h3)/(h2*(h0 - h2)*(h1 - h2)*(h2 - h3)) * v2
+				+ (h0*h2*h3)/(h1*(h0 - h1)*(h1 - h2)*(h1 - h3)) * v1
+				- (h1*h2*h3)/(h0*(h0 - h1)*(h0 - h2)*(h0 - h3)) * v0
+				+ op->b(t4)
 			) * hh
 		;
 
@@ -264,6 +273,8 @@ ans =
 		) / 25.;
 		*/
 	}
+
+#undef QUANT_PDE_TMP
 
 /*
 >> A = [1 -1 -1 -1 -1 -1;0 h4 h3 h2 h1 h0;0 h4^2 h3^2 h2^2 h1^2 h0^2;0 h4^3 h3^3 h2^3 h1^3 h0^3;0 h4^4 h3^4 h2^4 h1^4 h0^4;0 h4^5 h3^5 h2^5 h1^5 h0^5]
@@ -289,37 +300,39 @@ ans =
                              (h1*h2*h3*h4)/(h0*(h0 - h1)*(h0 - h2)*(h0 - h3)*(h0 - h4))
 */
 
-	inline Matrix _A5() {
-		t[5] = nextTime();
-		t[4] = time(0);
-		t[3] = time(1);
-		t[2] = time(2);
-		t[1] = time(3);
-		t[0] = time(4);
+#define QUANT_PDE_TMP \
+	const Real t4 = time(0); \
+	const Real t3 = time(1); \
+	const Real t2 = time(2); \
+	const Real t1 = time(3); \
+	const Real t0 = time(4); \
+	const Real h4 = difference(t5, t4); \
+	const Real h3 = difference(t5, t3); \
+	const Real h2 = difference(t5, t2); \
+	const Real h1 = difference(t5, t1); \
+	const Real h0 = difference(t5, t0); \
+	const Real hh = (h0*h1*h2*h3*h4)/(h0*h1*h2*h3 + h0*h1*h2*h4 + h0*h1*h3*h4 + h0*h2*h3*h4 + h1*h2*h3*h4);
 
-		h[4] = difference(t[5], t[4]);
-		h[3] = difference(t[5], t[3]);
-		h[2] = difference(t[5], t[2]);
-		h[1] = difference(t[5], t[1]);
-		h[0] = difference(t[5], t[0]);
-
-		hh = (h[0]*h[1]*h[2]*h[3]*h[4])/(h[0]*h[1]*h[2]*h[3] + h[0]*h[1]*h[2]*h[4] + h[0]*h[1]*h[3]*h[4] + h[0]*h[2]*h[3]*h[4] + h[1]*h[2]*h[3]*h[4]);
+	inline Matrix _A5(Real t5) {
+		QUANT_PDE_TMP;
 
 		return
 			domain->identity()
-			+ hh * op->A(t[5])
+			+ hh * op->A(t5)
 		;
 
 		// Constant timestep case:
 		/*
 		return
 			domain->identity()
-			- 60. / 137. * op->A(t[5]) * dt()
+			- 60. / 137. * op->A(t5) * dt()
 		;
 		*/
 	}
 
-	inline Vector _b5() {
+	inline Vector _b5(Real t5) {
+		QUANT_PDE_TMP;
+
 		const Vector
 			&v4 = iterand(0),
 			&v3 = iterand(1),
@@ -330,12 +343,12 @@ ans =
 
 		return
 			(
-				  (h[0]*h[1]*h[2]*h[3])/(h[4]*(h[0] - h[4])*(h[1] - h[4])*(h[2] - h[4])*(h[3] - h[4])) * v4
-				- (h[0]*h[1]*h[2]*h[4])/(h[3]*(h[0] - h[3])*(h[1] - h[3])*(h[2] - h[3])*(h[3] - h[4])) * v3
-				+ (h[0]*h[1]*h[3]*h[4])/(h[2]*(h[0] - h[2])*(h[1] - h[2])*(h[2] - h[3])*(h[2] - h[4])) * v2
-				- (h[0]*h[2]*h[3]*h[4])/(h[1]*(h[0] - h[1])*(h[1] - h[2])*(h[1] - h[3])*(h[1] - h[4])) * v1
-				+ (h[1]*h[2]*h[3]*h[4])/(h[0]*(h[0] - h[1])*(h[0] - h[2])*(h[0] - h[3])*(h[0] - h[4])) * v0
-				+ op->b(t[5])
+				  (h0*h1*h2*h3)/(h4*(h0 - h4)*(h1 - h4)*(h2 - h4)*(h3 - h4)) * v4
+				- (h0*h1*h2*h4)/(h3*(h0 - h3)*(h1 - h3)*(h2 - h3)*(h3 - h4)) * v3
+				+ (h0*h1*h3*h4)/(h2*(h0 - h2)*(h1 - h2)*(h2 - h3)*(h2 - h4)) * v2
+				- (h0*h2*h3*h4)/(h1*(h0 - h1)*(h1 - h2)*(h1 - h3)*(h1 - h4)) * v1
+				+ (h1*h2*h3*h4)/(h0*(h0 - h1)*(h0 - h2)*(h0 - h3)*(h0 - h4)) * v0
+				+ op->b(t5)
 			) * hh
 		;
 
@@ -350,6 +363,8 @@ ans =
 		) / 137.;
 		*/
 	}
+
+#undef QUANT_PDE_TMP
 
 /*
 >> A = [1 -1 -1 -1 -1 -1 -1;0 h5 h4 h3 h2 h1 h0;0 h5^2 h4^2 h3^2 h2^2 h1^2 h0^2;0 h5^3 h4^3 h3^3 h2^3 h1^3 h0^3;0 h5^4 h4^4 h3^4 h2^4 h1^4 h0^4;0 h5^5 h4^5 h3^5 h2^5 h1^5 h0^5;0 h5^6 h4^6 h3^6 h2^6 h1^6 h0^6]
@@ -377,27 +392,27 @@ ans =
                                                   -(h1*h2*h3*h4*h5)/(h0*(h0 - h1)*(h0 - h2)*(h0 - h3)*(h0 - h4)*(h0 - h5))
 */
 
-	inline Matrix _A6() {
-		t[6] = nextTime();
-		t[5] = time(0);
-		t[4] = time(1);
-		t[3] = time(2);
-		t[2] = time(3);
-		t[1] = time(4);
-		t[0] = time(5);
+#define QUANT_PDE_TMP \
+	const Real t5 = time(0); \
+	const Real t4 = time(1); \
+	const Real t3 = time(2); \
+	const Real t2 = time(3); \
+	const Real t1 = time(4); \
+	const Real t0 = time(5); \
+	const Real h5 = difference(t6, t5); \
+	const Real h4 = difference(t6, t4); \
+	const Real h3 = difference(t6, t3); \
+	const Real h2 = difference(t6, t2); \
+	const Real h1 = difference(t6, t1); \
+	const Real h0 = difference(t6, t0); \
+	const Real hh = (h0*h1*h2*h3*h4*h5)/(h0*h1*h2*h3*h4 + h0*h1*h2*h3*h5 + h0*h1*h2*h4*h5 + h0*h1*h3*h4*h5 + h0*h2*h3*h4*h5 + h1*h2*h3*h4*h5);
 
-		h[5] = difference(t[6], t[5]);
-		h[4] = difference(t[6], t[4]);
-		h[3] = difference(t[6], t[3]);
-		h[2] = difference(t[6], t[2]);
-		h[1] = difference(t[6], t[1]);
-		h[0] = difference(t[6], t[0]);
-
-		hh = (h[0]*h[1]*h[2]*h[3]*h[4]*h[5])/(h[0]*h[1]*h[2]*h[3]*h[4] + h[0]*h[1]*h[2]*h[3]*h[5] + h[0]*h[1]*h[2]*h[4]*h[5] + h[0]*h[1]*h[3]*h[4]*h[5] + h[0]*h[2]*h[3]*h[4]*h[5] + h[1]*h[2]*h[3]*h[4]*h[5]);
+	inline Matrix _A6(Real t6) {
+		QUANT_PDE_TMP;
 
 		return
 			domain->identity()
-			+ hh * op->A(t[6])
+			+ hh * op->A(t6)
 		;
 
 		// Constant timestep case:
@@ -409,7 +424,9 @@ ans =
 		*/
 	}
 
-	inline Vector _b6() {
+	inline Vector _b6(Real t6) {
+		QUANT_PDE_TMP;
+
 		const Vector
 			&v5 = iterand(0),
 			&v4 = iterand(1),
@@ -421,13 +438,13 @@ ans =
 
 		return
 			(
-				  (h[0]*h[1]*h[2]*h[3]*h[4])/(h[5]*(h[0] - h[5])*(h[1] - h[5])*(h[2] - h[5])*(h[3] - h[5])*(h[4] - h[5])) * v5
-				- (h[0]*h[1]*h[2]*h[3]*h[5])/(h[4]*(h[0] - h[4])*(h[1] - h[4])*(h[2] - h[4])*(h[3] - h[4])*(h[4] - h[5])) * v4
-				+ (h[0]*h[1]*h[2]*h[4]*h[5])/(h[3]*(h[0] - h[3])*(h[1] - h[3])*(h[2] - h[3])*(h[3] - h[4])*(h[3] - h[5])) * v3
-				- (h[0]*h[1]*h[3]*h[4]*h[5])/(h[2]*(h[0] - h[2])*(h[1] - h[2])*(h[2] - h[3])*(h[2] - h[4])*(h[2] - h[5])) * v2
-				+ (h[0]*h[2]*h[3]*h[4]*h[5])/(h[1]*(h[0] - h[1])*(h[1] - h[2])*(h[1] - h[3])*(h[1] - h[4])*(h[1] - h[5])) * v1
-				- (h[1]*h[2]*h[3]*h[4]*h[5])/(h[0]*(h[0] - h[1])*(h[0] - h[2])*(h[0] - h[3])*(h[0] - h[4])*(h[0] - h[5])) * v0
-				+ op->b(t[6])
+				  (h0*h1*h2*h3*h4)/(h5*(h0 - h5)*(h1 - h5)*(h2 - h5)*(h3 - h5)*(h4 - h5)) * v5
+				- (h0*h1*h2*h3*h5)/(h4*(h0 - h4)*(h1 - h4)*(h2 - h4)*(h3 - h4)*(h4 - h5)) * v4
+				+ (h0*h1*h2*h4*h5)/(h3*(h0 - h3)*(h1 - h3)*(h2 - h3)*(h3 - h4)*(h3 - h5)) * v3
+				- (h0*h1*h3*h4*h5)/(h2*(h0 - h2)*(h1 - h2)*(h2 - h3)*(h2 - h4)*(h2 - h5)) * v2
+				+ (h0*h2*h3*h4*h5)/(h1*(h0 - h1)*(h1 - h2)*(h1 - h3)*(h1 - h4)*(h1 - h5)) * v1
+				- (h1*h2*h3*h4*h5)/(h0*(h0 - h1)*(h0 - h2)*(h0 - h3)*(h0 - h4)*(h0 - h5)) * v0
+				+ op->b(t6)
 			) * hh
 		;
 
@@ -444,6 +461,8 @@ ans =
 		*/
 	}
 
+#undef QUANT_PDE_TMP
+
 public:
 
 	template <typename D>
@@ -458,12 +477,12 @@ public:
 template <bool Forward>
 class LinearBDFOne : public LinearBDFBase<Forward, 1> {
 
-	virtual Matrix A() {
-		return this->_A1();
+	virtual Matrix A(Real t) {
+		return this->_A1(t);
 	}
 
-	virtual Vector b() {
-		return this->_b1();
+	virtual Vector b(Real t) {
+		return this->_b1(t);
 	}
 
 public:
@@ -475,10 +494,6 @@ public:
 
 	virtual bool isATheSame() const {
 		return this->_isATheSame2();
-	}
-
-	virtual int minimumLookback() const {
-		return 1;
 	}
 
 };
@@ -496,8 +511,8 @@ template <bool Forward>
 class LinearBDFTwo : public LinearBDFBase<Forward, 2> {
 
 	bool   (LinearBDFTwo<Forward>::*_isATheSame)() const;
-	Matrix (LinearBDFTwo<Forward>::*_A)();
-	Vector (LinearBDFTwo<Forward>::*_b)();
+	Matrix (LinearBDFTwo<Forward>::*_A)(Real);
+	Vector (LinearBDFTwo<Forward>::*_b)(Real);
 	void   (LinearBDFTwo<Forward>::*_onIterationEnd)();
 
 	////////////////////////////////////////////////////////////////////////
@@ -527,12 +542,12 @@ class LinearBDFTwo : public LinearBDFBase<Forward, 2> {
 		(this->*_onIterationEnd)();
 	}
 
-	virtual Matrix A() {
-		return (this->*_A)();
+	virtual Matrix A(Real t) {
+		return (this->*_A)(t);
 	}
 
-	virtual Vector b() {
-		return (this->*_b)();
+	virtual Vector b(Real t) {
+		return (this->*_b)(t);
 	}
 
 	virtual int minimumLookback() const {
@@ -561,8 +576,8 @@ template <bool Forward>
 class LinearBDFThree : public LinearBDFBase<Forward, 3> {
 
 	bool   (LinearBDFThree<Forward>::*_isATheSame)() const;
-	Matrix (LinearBDFThree<Forward>::*_A)();
-	Vector (LinearBDFThree<Forward>::*_b)();
+	Matrix (LinearBDFThree<Forward>::*_A)(Real);
+	Vector (LinearBDFThree<Forward>::*_b)(Real);
 	void   (LinearBDFThree<Forward>::*_onIterationEnd)();
 
 	////////////////////////////////////////////////////////////////////////
@@ -598,12 +613,12 @@ class LinearBDFThree : public LinearBDFBase<Forward, 3> {
 		(this->*_onIterationEnd)();
 	}
 
-	virtual Matrix A() {
-		return (this->*_A)();
+	virtual Matrix A(Real t) {
+		return (this->*_A)(t);
 	}
 
-	virtual Vector b() {
-		return (this->*_b)();
+	virtual Vector b(Real t) {
+		return (this->*_b)(t);
 	}
 
 	virtual int minimumLookback() const {
@@ -632,8 +647,8 @@ template <bool Forward>
 class LinearBDFFour : public LinearBDFBase<Forward, 4> {
 
 	bool   (LinearBDFFour<Forward>::*_isATheSame)() const;
-	Matrix (LinearBDFFour<Forward>::*_A )();
-	Vector (LinearBDFFour<Forward>::*_b )();
+	Matrix (LinearBDFFour<Forward>::*_A)(Real);
+	Vector (LinearBDFFour<Forward>::*_b)(Real);
 	void   (LinearBDFFour<Forward>::*_onIterationEnd)();
 
 	////////////////////////////////////////////////////////////////////////
@@ -675,12 +690,12 @@ class LinearBDFFour : public LinearBDFBase<Forward, 4> {
 		(this->*_onIterationEnd)();
 	}
 
-	virtual Matrix A() {
-		return (this->*_A)();
+	virtual Matrix A(Real t) {
+		return (this->*_A)(t);
 	}
 
-	virtual Vector b() {
-		return (this->*_b)();
+	virtual Vector b(Real t) {
+		return (this->*_b)(t);
 	}
 
 	virtual int minimumLookback() const {
@@ -709,8 +724,8 @@ template <bool Forward>
 class LinearBDFFive : public LinearBDFBase<Forward, 5> {
 
 	bool   (LinearBDFFive<Forward>::*_isATheSame)() const;
-	Matrix (LinearBDFFive<Forward>::*_A )();
-	Vector (LinearBDFFive<Forward>::*_b )();
+	Matrix (LinearBDFFive<Forward>::*_A)(Real);
+	Vector (LinearBDFFive<Forward>::*_b)(Real);
 	void   (LinearBDFFive<Forward>::*_onIterationEnd)();
 
 	////////////////////////////////////////////////////////////////////////
@@ -758,12 +773,12 @@ class LinearBDFFive : public LinearBDFBase<Forward, 5> {
 		(this->*_onIterationEnd)();
 	}
 
-	virtual Matrix A() {
-		return (this->*_A)();
+	virtual Matrix A(Real t) {
+		return (this->*_A)(t);
 	}
 
-	virtual Vector b() {
-		return (this->*_b)();
+	virtual Vector b(Real t) {
+		return (this->*_b)(t);
 	}
 
 	virtual int minimumLookback() const {
@@ -792,8 +807,8 @@ template <bool Forward>
 class LinearBDFSix : public LinearBDFBase<Forward, 6> {
 
 	bool   (LinearBDFSix<Forward>::*_isATheSame)() const;
-	Matrix (LinearBDFSix<Forward>::*_A)();
-	Vector (LinearBDFSix<Forward>::*_b)();
+	Matrix (LinearBDFSix<Forward>::*_A)(Real);
+	Vector (LinearBDFSix<Forward>::*_b)(Real);
 	void   (LinearBDFSix<Forward>::*_onIterationEnd)();
 
 	////////////////////////////////////////////////////////////////////////
@@ -847,12 +862,12 @@ class LinearBDFSix : public LinearBDFBase<Forward, 6> {
 		(this->*_onIterationEnd)();
 	}
 
-	virtual Matrix A() {
-		return (this->*_A)();
+	virtual Matrix A(Real t) {
+		return (this->*_A)(t);
 	}
 
-	virtual Vector b() {
-		return (this->*_b)();
+	virtual Vector b(Real t) {
+		return (this->*_b)(t);
 	}
 
 	virtual int minimumLookback() const {

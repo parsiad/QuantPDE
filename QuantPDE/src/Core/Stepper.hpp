@@ -33,10 +33,9 @@ public:
 	ConstantStepper(
 		Real startTime,
 		Real endTime,
-		Real dt,
-		int lookback = DEFAULT_LOOKBACK
+		Real dt
 	) noexcept :
-		TimeIteration<Forward>(startTime, endTime, lookback),
+		TimeIteration<Forward>(startTime, endTime),
 		dt(dt)
 	{
 		assert(dt > 0);
@@ -92,6 +91,10 @@ class VariableStepper final : public TimeIteration<Forward> {
 		return (this->*_step)();
 	}
 
+	virtual int minimumLookback() const {
+		return 2;
+	}
+
 public:
 
 	/**
@@ -108,10 +111,9 @@ public:
 		Real endTime,
 		Real dt,
 		Real target,
-		Real scale = 1.,
-		int lookback = DEFAULT_LOOKBACK
+		Real scale = 1.
 	) noexcept :
-		TimeIteration<Forward>(startTime, endTime, lookback),
+		TimeIteration<Forward>(startTime, endTime),
 		dt(dt),
 		target(target),
 		scale(scale)

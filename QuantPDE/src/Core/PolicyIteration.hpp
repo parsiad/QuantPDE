@@ -99,16 +99,12 @@ public:
 			system(&system) {
 	}
 
-	virtual Matrix A() {
-		return system->A( nextTime() );
+	virtual Matrix A(Real t) {
+		return system->A(t);
 	}
 
-	virtual Vector b() {
-		return system->b( nextTime() );
-	}
-
-	virtual int minimumLookback() const {
-		return 1;
+	virtual Vector b(Real t) {
+		return system->b(t);
 	}
 
 	// TODO: Explicit discretizations

@@ -52,16 +52,12 @@ public:
 		assert(tolerance > 0);
 	}
 
-	virtual Matrix A() {
-		return left->A( nextTime() ) + P * rA;
+	virtual Matrix A(Real t) {
+		return left->A(t) + P * rA;
 	}
 
-	virtual Vector b() {
-		return left->b( nextTime() ) + P * rb;
-	}
-
-	virtual int minimumLookback() const {
-		return 1;
+	virtual Vector b(Real t) {
+		return left->b(t) + P * rb;
 	}
 
 	// TODO: Explicit discretizations
@@ -242,6 +238,8 @@ class PenaltyMethodDifference : public PenaltyMethod {
 			}
 			return v;
 		}
+
+		// TODO: Can we get rid of parent?
 
 	};
 

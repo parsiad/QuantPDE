@@ -12,8 +12,6 @@
 
 namespace QuantPDE {
 
-const int DEFAULT_LOOKBACK = 6;
-
 /**
  * A pure virtual class representing a solver for equations of type \f$Ax=b\f$.
  */
@@ -755,21 +753,14 @@ class IterationNode : public LinearSystem {
 	}
 
 	/**
-	 * @return The left-hand-side matrix (A).
-	 */
-	virtual Matrix A() = 0;
-
-	/**
-	 * @return The right-hand-side vector (b).
-	 */
-	virtual Vector b() = 0;
-
-	/**
 	 * @return The minimum number of previous iterands required to function
 	 *         properly.
 	 * @see QuantPDE::CircularBuffer
 	 */
-	virtual int minimumLookback() const = 0;
+	virtual int minimumLookback() const {
+		// Default is 1
+		return 1;
+	}
 
 protected:
 
@@ -806,18 +797,6 @@ public:
 	IterationNode() noexcept : LinearSystem(), iteration(nullptr) {
 	}
 
-	virtual Matrix A(Real) {
-		// TODO: Save A
-		Matrix _A = A();
-		return _A;
-	}
-
-	virtual Vector b(Real) {
-		// TODO: Save b
-		Vector _b = b();
-		return _b;
-	}
-
 	/**
 	 * Associates with this linear system an iterative method.
 	 * @param iteration The iterative method.
@@ -836,6 +815,8 @@ public:
  * An iterative method.
  */
 class Iteration {
+
+	typedef CircularBuffer<std::tuple<Real, Vector>> CB;
 
 	virtual Vector iterateUntilDone(
 		Vector iterand,
@@ -863,15 +844,20 @@ class Iteration {
 		}
 	}
 
-	inline void solveLinearSystem(IterationNode &root, LinearSolver &solver,
-			bool initialized) {
+	inline void solveLinearSystemAndSaveResult(
+		IterationNode &root,
+		LinearSolver &solver,
+		bool initialized
+	) {
+		assert(implicitTime >= 0.);
 		if(!initialized || !root.isATheSame()) {
-			solver.initialize(root.A());
+			solver.initialize( root.A(implicitTime) );
 		}
-		this->history.push(std::make_tuple(
+
+		this->history->push(std::make_tuple(
 			this->implicitTime,
 			solver.solve(
-				root.b(),
+				root.b(implicitTime),
 				this->iterand(0)
 			)
 		));
@@ -879,11 +865,16 @@ class Iteration {
 
 	virtual bool isTimestepTheSame() const = 0;
 
+	virtual int minimumLookback() const {
+		// Default is 1
+		return 1;
+	}
+
 protected:
 
 	Iteration *child;
 	std::forward_list<IterationNode *> nodes;
-	CircularBuffer<std::tuple<Real, Vector>> history;
+	CB *history;
 	Real implicitTime;
 	std::vector<size_t> its;
 
@@ -893,7 +884,7 @@ protected:
 	 * @see QuantPDE::CircularBuffer
 	 */
 	Real time(int index) const {
-		return std::get<0>(history[index]);
+		return std::get<0>( (*history)[index] );
 	}
 
 	/**
@@ -903,7 +894,7 @@ protected:
 	* @see QuantPDE::CircularBuffer
 	*/
 	const Vector &iterand(int index) const {
-		return std::get<1>(history[index]);
+		return std::get<1>( (*history)[index] );
 	}
 
 public:
@@ -911,15 +902,14 @@ public:
 	/**
 	 * Constructor.
 	 */
-	Iteration(int lookback) noexcept : child(nullptr), history(lookback) {
-		assert(lookback >= 2); // Guarantee at least two iterands are
-		                       // saved
+	Iteration() noexcept : child(nullptr), history(nullptr) {
 	}
 
 	/**
 	 * Destructor.
 	 */
 	virtual ~Iteration() {
+		delete history;
 	}
 
 	/**
@@ -982,7 +972,21 @@ public:
 		// Clear iteration count
 		Iteration *current = this;
 		do {
+			// Initialize history
+			int lookback = current->minimumLookback();
+			for(auto node : current->nodes) {
+				int tmp = node->minimumLookback();
+				if(tmp > lookback) {
+					lookback = tmp;
+				}
+				delete current->history;
+				current->history = new CB(lookback);
+			}
+
+			// Clear number of iterations
 			current->its.clear();
+
+			// Go to the next iterative method
 			current = current->child;
 		} while(current);
 
@@ -1040,7 +1044,6 @@ void IterationNode::setIteration(Iteration &iteration) {
 	this->iteration = &iteration;
 
 	iteration.nodes.push_front(this);
-	assert(minimumLookback() <= iteration.history.lookback());
 }
 
 Real IterationNode::time(int index) const {
@@ -1094,8 +1097,8 @@ bool IterationNode::isTimestepTheSame() const {
 		QUANT_PDE_TMP_SET_TIME; \
 		this->its.push_back(0); \
 		this->clearNodes(); \
-		this->history.clear(); \
-		this->history.push(std::make_tuple( \
+		this->history->clear(); \
+		this->history->push(std::make_tuple( \
 			this->implicitTime, \
 			std::move(iterand) \
 		)); \
@@ -1104,7 +1107,7 @@ bool IterationNode::isTimestepTheSame() const {
 			do { \
 				QUANT_PDE_TMP_TIMESTEP; \
 				QUANT_PDE_TMP_HEAD; \
-				this->history.push(std::make_tuple( \
+				this->history->push(std::make_tuple( \
 					this->implicitTime, \
 					this->child->iterateUntilDone( \
 						this->iterand(0), \
@@ -1122,8 +1125,8 @@ bool IterationNode::isTimestepTheSame() const {
 			do { \
 				QUANT_PDE_TMP_TIMESTEP; \
 				QUANT_PDE_TMP_HEAD; \
-				this->solveLinearSystem(root, solver, \
-						initialized); \
+				this->solveLinearSystemAndSaveResult(root, \
+						solver, initialized); \
 				QUANT_PDE_TMP_TAIL; \
 			} while(QUANT_PDE_TMP_NOT_DONE); \
 			QUANT_PDE_TMP_OUTER_TAIL; \
@@ -1154,6 +1157,10 @@ class ToleranceIteration final : public Iteration {
 
 	Real tolerance, scale;
 
+	virtual int minimumLookback() const {
+		return 2;
+	}
+
 public:
 
 	/**
@@ -1164,10 +1171,8 @@ public:
 	 */
 	ToleranceIteration(
 		Real tolerance = 1e-6,
-		Real scale = 1,
-		int lookback = DEFAULT_LOOKBACK
+		Real scale = 1
 	) noexcept :
-		Iteration(lookback),
 		tolerance(tolerance),
 		scale(scale)
 	{
@@ -1211,8 +1216,8 @@ public:
 			current = &transformed; \
 		} \
 		this->clearNodes(); \
-		this->history.clear(); \
-		this->history.push(std::make_tuple( \
+		this->history->clear(); \
+		this->history->push(std::make_tuple( \
 			this->implicitTime, \
 			std::move(transformed) \
 		)); \
@@ -1318,9 +1323,8 @@ public:
 	/**
 	 * Constructor.
 	 */
-	TimeIteration(Real startTime, Real endTime, int lookback) noexcept
-			: Iteration(lookback), id(0), startTime(startTime),
-			endTime(endTime) {
+	TimeIteration(Real startTime, Real endTime) noexcept : id(0),
+			startTime(startTime), endTime(endTime) {
 		assert(startTime >= 0.);
 		assert(startTime < endTime);
 	}
