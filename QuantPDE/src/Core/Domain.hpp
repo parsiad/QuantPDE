@@ -461,7 +461,7 @@ public:
 			domain,
 			std::shared_ptr<Vector>(new Vector(std::move(vector)))
 		);
-	};
+	}
 
 	template <typename D>
 	friend VectorAccessor<Ownership::NON_CONST> accessor(D &domain,

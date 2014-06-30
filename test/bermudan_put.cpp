@@ -199,7 +199,7 @@ int main(int argc, char **argv) {
 	// Exercise events
 	////////////////////////////////////////////////////////////////////////
 
-	for(unsigned m = 0; m < e; m++) {
+	for(int m = 0; m < e; m++) {
 		stepper.add<1>(
 			// Time at which the event takes place
 			T / e * m,
