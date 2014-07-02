@@ -9,20 +9,18 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <QuantPDE/Core>
-#include <QuantPDE/Modules/Payoffs>
-
-// TODO: Change these includes; shouldn't include src directory explicitly
-#include <QuantPDE/src/Modules/BlackScholes.hpp>
+#include <QuantPDE/Modules/Lambdas>
+#include <QuantPDE/Modules/Operators>
 
 using namespace QuantPDE;
 using namespace QuantPDE::Modules;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-#include <iostream>  // cout, cerr
-#include <iomanip>   // setw
-#include <memory>    // unique_ptr
-#include <unistd.h>  // getopt
+#include <iostream> // cout, cerr
+#include <iomanip>  // setw
+#include <memory>   // unique_ptr
+#include <unistd.h> // getopt
 
 using namespace std;
 
@@ -198,11 +196,7 @@ int main(int argc, char **argv) {
 	);
 
 	// Payoff function
-	Function1 payoff = bind(
-		call ? Payoffs::call : Payoffs::put,
-		placeholders::_1,
-		strike
-	);
+	Function1 payoff = call ? callPayoff(strike) : putPayoff(strike);
 
 	// Alternatively, we could have used...
 	//auto payoff = QUANT_PDE_MODULES_PAYOFFS_CALL_FIXED_STRIKE(strike);

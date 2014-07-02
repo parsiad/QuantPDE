@@ -274,14 +274,15 @@ public:
  * The above operator has a controllable interest rate and a local volatility
  * model.
  *
- * This flexibility is made possible by the MultiFunction class, a wrapper for
+ * This flexibility is made possible by the Coefficient class, a wrapper for
  * constants, functions of space and time, functions of space, and controls.
  *
  * @tparam Dimension The dimension of the associated spatial domain (not the
  *                   control domain)
  */
-template <Index Dimension>
-class MultiFunction final {
+template <Index Dimension, bool CanConstant = true, bool CanControl = true,
+		bool CanFunctionST = true, bool CanFunctionS = true>
+class Coefficient final {
 
 	static_assert(Dimension > 0, "Dimension must be positive");
 
@@ -517,71 +518,81 @@ public:
 	/**
 	 * Constructor for a constant.
 	 */
-	MultiFunction(Real constant) noexcept {
+	Coefficient(Real constant) noexcept {
+		static_assert(CanConstant, "Cannot use this as a constant");
 		base = B(new Constant(constant));
 	}
 
 	/**
 	 * Constructor for a function of space and time.
 	 */
-	MultiFunction(const Function<Dimension + 1> &function) noexcept {
+	Coefficient(const Function<Dimension + 1> &function) noexcept {
+		static_assert(CanFunctionST, "Cannot use this as a function of "
+				"space and time");
 		base = B(new FunctionST(function));
 	}
 
 	/**
 	 * Move constructor for a function of space and time.
 	 */
-	MultiFunction(Function<Dimension + 1> &&function) noexcept {
+	Coefficient(Function<Dimension + 1> &&function) noexcept {
+		static_assert(CanFunctionST, "Cannot use this as a function of "
+				"space and time");
 		base = B(new FunctionST(std::move(function)));
 	}
 
 	/**
 	 * Constructor for a function of space.
 	 */
-	MultiFunction(const Function<Dimension> &function) noexcept {
+	Coefficient(const Function<Dimension> &function) noexcept {
+		static_assert(CanFunctionS, "Cannot use this as a function of "
+				"space");
 		base = B(new FunctionS(function));
 	}
 
 	/**
 	 * Move constructor for a function of space.
 	 */
-	MultiFunction(Function<Dimension> &&function) noexcept {
+	Coefficient(Function<Dimension> &&function) noexcept {
+		static_assert(CanFunctionS, "Cannot use this as a function of "
+				"space");
 		base = B(new FunctionS(std::move(function)));
 	}
 
 	/**
 	 * Move constructor for a control.
 	 */
-	MultiFunction(Control &&control) noexcept {
+	Coefficient(Control &&control) noexcept {
+		static_assert(CanControl, "Cannot use this as a control");
 		base = B(new Control(std::move(control)));
 	}
-	MultiFunction(const Control &control) = delete;
+	Coefficient(const Control &control) = delete;
 
 	/**
 	 * Copy constructor.
 	 */
-	MultiFunction(const MultiFunction &that) noexcept
+	Coefficient(const Coefficient &that) noexcept
 			: base(that.base->clone()) {
 	}
 
 	/**
 	 * Move constructor.
 	 */
-	MultiFunction(MultiFunction &&that) noexcept
+	Coefficient(Coefficient &&that) noexcept
 			: base( std::move(that.base) ) {
 	}
 
 	/**
 	 * Copy assignment operator.
 	 */
-	MultiFunction &operator=(const MultiFunction &that) & noexcept {
+	Coefficient &operator=(const Coefficient &that) & noexcept {
 		base = that.base->clone();
 	}
 
 	/**
 	 * Move assignment operator.
 	 */
-	MultiFunction &operator=(MultiFunction &&that) & noexcept {
+	Coefficient &operator=(Coefficient &&that) & noexcept {
 		base = std::move(that.base);
 	}
 
@@ -594,6 +605,9 @@ public:
 	 */
 	template <typename ...Ts>
 	Real operator()(Real time, Ts ...coordinates) const {
+		static_assert(Dimension == sizeof...(Ts),
+				"The number of arguments must be "
+				"consistent with the dimensions");
 		return base->value( {{time, coordinates...}} );
 	}
 
@@ -622,17 +636,24 @@ public:
 
 };
 
-typedef MultiFunction<1> MultiFunction1;
-typedef MultiFunction<2> MultiFunction2;
-typedef MultiFunction<3> MultiFunction3;
+typedef Coefficient<1> Coefficient1;
+typedef Coefficient<2> Coefficient2;
+typedef Coefficient<3> Coefficient3;
 
 // Expose Control
 template <Index Dimension>
-using Control = typename MultiFunction<Dimension>::Control;
+using Control = typename Coefficient<Dimension>::Control;
 
 typedef Control<1> Control1;
 typedef Control<2> Control2;
 typedef Control<3> Control3;
+
+template <Index Dimension>
+using MultiFunction = Coefficient<Dimension, false, false, true, true>;
+
+typedef MultiFunction<1> MultiFunction1;
+typedef MultiFunction<2> MultiFunction2;
+typedef MultiFunction<3> MultiFunction3;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -678,12 +699,12 @@ public:
 
 /**
  * A controllable linear system using wrappers as the controls.
- * @see QuantPDE::MultiFunction
+ * @see QuantPDE::Coefficient
  */
 template <Index Dimension>
 class ControlledLinearSystem : public ControlledLinearSystemBase {
 
-	std::vector<MultiFunction<Dimension> *> controls;
+	std::vector<Coefficient<Dimension> *> controls;
 
 	virtual void setInputs(Vector *inputs) {
 		for(auto control : controls) {
@@ -703,7 +724,7 @@ protected:
 	 * @param wrapper The control.
 	 * @see QuantPDE::ControlledLinearSystem::setInputs
 	 */
-	void registerControl(MultiFunction<Dimension> &wrapper) {
+	void registerControl(Coefficient<Dimension> &wrapper) {
 		if(wrapper.isControllable()) {
 			controls.push_back(&wrapper);
 		}
@@ -1049,18 +1070,22 @@ void IterationNode::setIteration(Iteration &iteration) {
 }
 
 Real IterationNode::time(int index) const {
+	assert(iteration);
 	return iteration->time(index);
 }
 
 const Vector &IterationNode::iterand(int index) const {
+	assert(iteration);
 	return iteration->iterand(index);
 }
 
 Real IterationNode::nextTime() const {
+	assert(iteration);
 	return iteration->implicitTime;
 }
 
 bool IterationNode::isTimestepTheSame() const {
+	assert(iteration);
 	return iteration->isTimestepTheSame();
 }
 

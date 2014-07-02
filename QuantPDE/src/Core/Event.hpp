@@ -7,8 +7,6 @@
 
 namespace QuantPDE {
 
-namespace Metafunctions {
-
 namespace NaryFunctionSignatureHelpers {
 
 template <typename R, typename ...Ts>
@@ -17,13 +15,11 @@ using TransformTarget = R (const Interpolant<sizeof...(Ts)> &, Ts...);
 template <unsigned N>
 using TransformSignature = Type<TransformTarget, Real, N, Real>;
 
-} // NaryFunctionSignatureHelpers
-
 } // Metafunctions
 
 template <unsigned N>
-using Transform = std::function< Metafunctions::NaryFunctionSignatureHelpers
-		::TransformSignature<N> >;
+using Transform = std::function<
+		NaryFunctionSignatureHelpers::TransformSignature<N>>;
 
 typedef Transform<1> Transform1;
 typedef Transform<2> Transform2;

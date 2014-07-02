@@ -18,6 +18,7 @@
 #include "src/Core/Axis.hpp"
 #include "src/Core/Domain.hpp"
 
+#include "src/Core/Integral.hpp"
 #include "src/Core/Interpolant.hpp"
 #include "src/Core/Map.hpp"
 

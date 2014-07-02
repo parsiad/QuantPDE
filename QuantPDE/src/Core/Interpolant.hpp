@@ -2,6 +2,7 @@
 #define QUANT_PDE_CORE_INTERPOLANT
 
 #include <array>   // std::array
+#include <cstdint> // std::intmax_t
 #include <memory>  // std::unique_ptr
 #include <utility> // std::forward, std::move
 
@@ -150,7 +151,7 @@ typedef InterpolantFactory<3> InterpolantFactory3;
  * \f$\sim \sum_i \lg m_i \leq n \lg m\f$, where
  * \f$m \equiv \max\left\{m_i\right\}\f$.
  */
-template <Index Dimension>
+template <Index Dimension, typename V = Vector>
 class PiecewiseLinear : public Interpolant<Dimension> {
 
 	typedef std::unique_ptr<Interpolant<Dimension>> I;
@@ -158,7 +159,7 @@ class PiecewiseLinear : public Interpolant<Dimension> {
 	typedef InterpolantWrapper<Dimension> WI;
 
 	const RectilinearGrid<Dimension> *grid;
-	Vector vector;
+	V vector;
 
 	/*
 	Real interpolate(Index *indices, const Real *weights, Index shift,
@@ -180,11 +181,10 @@ class PiecewiseLinear : public Interpolant<Dimension> {
 
 	virtual Real interpolate(const std::array<Real, Dimension> &coordinates)
 			const {
-		typedef IntegerPower<2, Dimension> dimpow;
-		static_assert(!dimpow::overflow, "Overflow detected");
+		typedef IntegerPower<2, Dimension> TwoToTheDimension;
 
 		Real weights[Dimension];
-		Index indices[dimpow::value];
+		Index indices[TwoToTheDimension::value];
 
 		// For the i-th coordinate, find the ticks on the i-th axis that
 		// it lies between along with the distance from the leftmost
@@ -233,7 +233,8 @@ class PiecewiseLinear : public Interpolant<Dimension> {
 		// Recursive version
 		////////////////////////////////////////////////////////////////
 
-		// return interpolate(indices, weights, dimpow::value / 2);
+		// return interpolate(indices, weights,
+		// 	TwoToTheDimension::value / 2);
 
 		////////////////////////////////////////////////////////////////
 		// Nonrecursive version
@@ -252,7 +253,7 @@ class PiecewiseLinear : public Interpolant<Dimension> {
 		Real interpolated = 0.;
 
 		// TODO: Optimize (loop unroll)
-		for(Index i = 0; i < dimpow::value; i++) {
+		for(std::intmax_t i = 0; i < TwoToTheDimension::value; i++) {
 			Real factor = 1.;
 
 			// Unroll loop
@@ -281,7 +282,7 @@ class PiecewiseLinear : public Interpolant<Dimension> {
 					&RectilinearGrid<Dimension>::index;
 			Index k = packAndCall<Dimension>(*grid, tmp, idxs);
 
-			interpolated += factor * vector(k);
+			interpolated += factor * vector[k];
 		};
 
 		return interpolated;
@@ -334,9 +335,9 @@ public:
 	/**
 	 * Constructor.
 	 */
-	template <typename G, typename V>
-	PiecewiseLinear(G &grid, V &&vector) noexcept : grid(&grid),
-			vector( std::forward<V>(vector) ) {
+	template <typename G, typename V1>
+	PiecewiseLinear(G &grid, V1 &&vector) noexcept : grid(&grid),
+			vector( std::forward<V1>(vector) ) {
 	}
 
 	/**

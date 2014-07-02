@@ -1,0 +1,6 @@
+#ifndef QUANT_PDE_MODULES_OPERATORS
+#define QUANT_PDE_MODULES_OPERATORS
+
+#include "../src/Modules/Operators/BlackScholes.hpp"
+
+#endif

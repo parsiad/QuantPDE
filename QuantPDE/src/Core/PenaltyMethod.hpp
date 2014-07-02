@@ -1,8 +1,6 @@
 #ifndef QUANT_PDE_CORE_PENALTY_METHOD
 #define QUANT_PDE_CORE_PENALTY_METHOD
 
-// TODO: Cache A if constant
-
 namespace QuantPDE {
 
 /**
@@ -90,51 +88,19 @@ class PenaltyMethodDifference : public PenaltyMethod {
 
 	class DifferenceSystem : public LinearSystem {
 
-		/*
-		template <typename R, typename ...Ts>
-		using Target = R (const Domain<Dimension> &, const Vector &,
-				Real, Ts...);
-
-		typedef std::function<
-			Metafunctions::NaryFunctionSignatureHelpers::Type<
-				Target,
-				Real,
-				Dimension, Real
-			>
-		> Predicate;
-		*/
-
 		typedef Function<Dimension + 1> F;
 
 		////////////////////////////////////////////////////////////////
 
 		template <int ...Indices>
-		static inline Real packAndCall(
-			const F &V_0,
-			//const Domain<Dimension> &domain,
-			//const Vector &iterand,
+		inline Real packAndCall(
 			Real time,
 			const Real *array,
-			Metafunctions::Sequence<Indices...>
-		) {
-			return V_0( time, array[Indices]... );
+			Sequence<Indices...>
+		) const {
+			return function(time, array[Indices]...);
 		}
 
-		template <int N>
-		static inline Real packAndCall(
-			const F &V_0,
-			//const Domain<Dimension> &domain,
-			//const Vector &iterand,
-			Real time,
-			const Real *array
-		) {
-			return packAndCall(
-				V_0,
-				time,
-				array,
-				GenerateSequence<N>()
-			);
-		}
 		////////////////////////////////////////////////////////////////
 
 		template <Index N, typename T, typename ...Ts>
@@ -167,57 +133,48 @@ class PenaltyMethodDifference : public PenaltyMethod {
 
 		////////////////////////////////////////////////////////////////
 
-		const PenaltyMethodDifference *parent;
 		const Domain<Dimension> *domain;
 		F function;
 
 	public:
 
-		template <typename P, typename D>
+		template <typename D>
 		DifferenceSystem(
-			P &parent,
 			D &domain,
 			const Function<Dimension> &function
 		) noexcept :
-			parent(&parent),
 			domain(&domain),
 			function( TimeWrapper<Dimension, Real>::function(
 					function) )
 		{
 		}
 
-		template <typename P, typename D>
+		template <typename D>
 		DifferenceSystem(
-			P &parent,
 			D &domain,
 			Function<Dimension> &&function
 		) noexcept :
-			parent(&parent),
 			domain(&domain),
 			function( TimeWrapper<Dimension, Real>::function(
 					std::move(function)) )
 		{
 		}
 
-		template <typename P, typename D>
+		template <typename D>
 		DifferenceSystem(
-			P &parent,
 			D &domain,
 			const Function<Dimension + 1> &function
 		) noexcept :
-			parent(&parent),
 			domain(&domain),
 			function(function)
 		{
 		}
 
-		template <typename P, typename D>
+		template <typename D>
 		DifferenceSystem(
-			P &parent,
 			D &domain,
 			Function<Dimension + 1> &&function
 		) noexcept :
-			parent(&parent),
 			domain(&domain),
 			function( std::move(function) )
 		{
@@ -227,19 +184,17 @@ class PenaltyMethodDifference : public PenaltyMethod {
 			return domain->identity();
 		}
 
-		virtual Vector b(Real) {
+		virtual Vector b(Real t) {
 			Vector v = domain->vector();
 			for(auto node : accessor(*domain, v)) {
-				*node = packAndCall<Dimension> (
-					function,
-					parent->nextTime(),
-					(&node).data()
+				*node = packAndCall(
+					t,
+					(&node).data(),
+					GenerateSequence<Dimension>()
 				);
 			}
 			return v;
 		}
-
-		// TODO: Can we get rid of parent?
 
 	};
 
@@ -254,7 +209,7 @@ public:
 		Real tolerance = 1e-6
 	) noexcept :
 		PenaltyMethod( domain, constraint, penalty, tolerance ),
-		penalty( *this, domain, std::forward<F>(function) ) {
+		penalty( domain, std::forward<F>(function) ) {
 	}
 
 };

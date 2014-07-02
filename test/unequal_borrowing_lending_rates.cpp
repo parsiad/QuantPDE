@@ -20,19 +20,17 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <QuantPDE/Core>
-#include <QuantPDE/Modules/Payoffs>
-
-// TODO: Change these includes; shouldn't include src directory explicitly
-#include <QuantPDE/src/Modules/BlackScholes.hpp>
+#include <QuantPDE/Modules/Lambdas>
+#include <QuantPDE/Modules/Operators>
 
 using namespace QuantPDE;
 using namespace QuantPDE::Modules;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#include <iostream>  // cout, cerr
-#include <memory>    // unique_ptr
-#include <unistd.h>  // getopt
+#include <iostream> // cout, cerr
+#include <memory>   // unique_ptr
+#include <unistd.h> // getopt
 
 using namespace std;
 
@@ -200,7 +198,7 @@ int main(int argc, char **argv) {
 	// };
 	////////////////////////////////////////////////////////////////////////
 
-	auto payoff = QUANT_PDE_MODULES_PAYOFFS_STRADDLE_FIXED_STRIKE( K );
+	auto payoff = straddlePayoff(K);
 
 	////////////////////////////////////////////////////////////////////////
 	// Iteration tree

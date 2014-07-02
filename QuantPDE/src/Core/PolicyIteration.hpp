@@ -7,26 +7,6 @@
 
 namespace QuantPDE {
 
-namespace Metafunctions {
-
-namespace PolicyIterationHelpers {
-
-/*
-template <bool Max>
-struct Initial {
-	static constexpr Real value = std::numeric_limits<Real>::infinity();
-};
-
-template <>
-struct Initial<true> {
-	static constexpr Real value = -std::numeric_limits<Real>::infinity();
-};
-*/
-
-} // PolicyIterationHelpers
-
-} // Metafunctions
-
 template <Index Dimension, Index ControlDimension, bool Max>
 class PolicyIteration : public IterationNode {
 
@@ -56,11 +36,9 @@ class PolicyIteration : public IterationNode {
 		}
 
 		// Best configuration; initialize to plus-minus infinity
-		//Vector best = domain->ones() * Metafunctions
-		//		::PolicyIterationHelpers::Initial<Max>::value;
 		Vector best = domain->ones() * std::numeric_limits<Real>
 				::infinity();
-		if(Max) {
+		if(Max) { // TODO: Optimize
 			best *= -1;
 		}
 

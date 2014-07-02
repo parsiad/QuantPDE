@@ -8,7 +8,7 @@ namespace QuantPDE {
 /**
  * @see QuantPDE::NaryFunctionSignature
  */
-template<Index N>
+template <unsigned N>
 using NRealToReal = NaryFunctionSignature<Real, N, Real>;
 
 typedef std::function< NRealToReal<1> > Function1;
@@ -16,15 +16,14 @@ typedef std::function< NRealToReal<2> > Function2;
 typedef std::function< NRealToReal<3> > Function3;
 typedef std::function< NRealToReal<4> > Function4;
 
-template <Index N> // TODO: Check if nonnegative
+template <unsigned N>
 using Function = std::function< NRealToReal<N> >;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 #define QUANT_PDE_TMP ( std::forward<F>(function) )( array[Indices]... )
 template <typename F, typename T, int ...Indices>
-inline auto packAndCall(F &&function, const T *array,
-		Metafunctions::Sequence<Indices...>)
+inline auto packAndCall(F &&function, const T *array, Sequence<Indices...>)
 		-> decltype( QUANT_PDE_TMP ) {
 	return QUANT_PDE_TMP;
 }
@@ -50,8 +49,7 @@ inline auto packAndCall(F &&function, const T *array)
 #define QUANT_PDE_TMP \
 		( std::forward<F>(function) )( std::move(array[Indices])... )
 template <typename F, typename T, int ...Indices>
-inline auto packMoveAndCall(F &&function, T *array,
-		Metafunctions::Sequence<Indices...>)
+inline auto packMoveAndCall(F &&function, T *array, Sequence<Indices...>)
 		-> decltype( QUANT_PDE_TMP ) {
 	return QUANT_PDE_TMP;
 }
@@ -78,8 +76,7 @@ inline auto packMoveAndCall(F &&function, T *array)
 #define QUANT_PDE_TMP ( std::forward<C>(caller).*method )( array[Indices]... )
 template <typename C, typename M, typename T, int ...Indices>
 inline auto packAndCall(C &&caller, M method, const T *array,
-		Metafunctions::Sequence<Indices...>)
-		-> decltype( QUANT_PDE_TMP ) {
+		Sequence<Indices...>) -> decltype( QUANT_PDE_TMP ) {
 	return QUANT_PDE_TMP;
 }
 #undef QUANT_PDE_TMP
@@ -106,8 +103,7 @@ inline auto packAndCall(C &&caller, M method, const T *array)
 		(std::forward<C>(caller).*method)(std::move(array[Indices])...)
 template <typename C, typename M, typename T, int ...Indices>
 inline auto packMoveAndCall(C &&caller, M method, T *array,
-		Metafunctions::Sequence<Indices...>)
-		-> decltype( QUANT_PDE_TMP ) {
+		Sequence<Indices...>) -> decltype( QUANT_PDE_TMP ) {
 	return QUANT_PDE_TMP;
 }
 #undef QUANT_PDE_TMP

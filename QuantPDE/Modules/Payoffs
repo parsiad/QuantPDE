@@ -1,7 +1,0 @@
-#ifndef QUANT_PDE_MODULES_PAYOFFS
-#define QUANT_PDE_MODULES_PAYOFFS
-
-#include "../src/Modules/Payoffs/Vanilla.hpp"
-
-#endif
-

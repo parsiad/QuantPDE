@@ -169,9 +169,9 @@ public:
 	}
 
 	/**
-	 * Creates an axis with evenly spaced ticks. Similar to MATLAB's colon
-	 * notation with begin:step:end.
-	 * @param begin The first tick (included in the axis).
+	 * Creates an axis with uniformly-spaced ticks.
+	 * Similar to MATLAB's colon notation with begin:step:end.
+	 * @param begin The first tick (inclusive).
 	 * @param step The spacing.
 	 * @param end The last tick (included if and only if end - begin is
 	 *            divisible by step).
@@ -180,7 +180,22 @@ public:
 	static Axis range(Real begin, Real step, Real end) {
 		Axis axis( (Index) std::floor( (end - begin) / step ) + 1 );
 		for(Index i = 0; i < axis.length; i++) {
-			axis[i] = begin + step * i;
+			axis.n[i] = begin + step * i;
+		}
+		return axis;
+	}
+
+	/**
+	 * Creates an axis with uniformly-spaced ticks.
+	 * @param begin The first tick (inclusive).
+	 * @param end The last tick (inclusive).
+	 * @param points The total number of points.
+	 */
+	static Axis uniform(Real begin, Real end, Index points) {
+		const Real dx = (end - begin) / (points - 1);
+		Axis axis(points);
+		for(Index i = 0; i < points; i++) {
+			axis.n[i] = begin + dx * i;
 		}
 		return axis;
 	}

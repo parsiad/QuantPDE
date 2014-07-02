@@ -1086,7 +1086,7 @@ public:
 	RectilinearGrid(RectilinearGrid &&that) noexcept : vsize(that.vsize) {
 		// TODO: Optimize (loop unroll)
 		for(Index i = 0; i < Dimension; i++) {
-			axes[i] = std::move(that.axis[i]);
+			axes[i] = std::move(that.axes[i]);
 		};
 	}
 

@@ -1,0 +1,8 @@
+#ifndef QUANT_PDE_MODULES_LAMBDAS
+#define QUANT_PDE_MODULES_LAMBDAS
+
+#include "../src/Modules/Lambdas/Densities.hpp"
+#include "../src/Modules/Lambdas/Payoffs.hpp"
+
+#endif
+

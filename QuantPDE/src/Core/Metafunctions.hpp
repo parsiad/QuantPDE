@@ -2,14 +2,19 @@
 #define QUANT_PDE_CORE_METAFUNCTIONS
 
 #include <cstdint> // std::intmax_t
+#include <cstdlib> // std::size_t
 #include <utility> // std::forward
 
 namespace QuantPDE {
 
+// TODO: Clean this file up; perhaps remove Metafunctions namespace
+
 // TODO: To intmax_t or not to intmax_t?
 
 /**
- * Used to compute an integer powers as constant expressions.
+ * Computes integer powers.
+ * @tparam Base The base.
+ * @tparam Exponent The exponent.
  */
 template <std::intmax_t Base, std::intmax_t Exponent>
 struct IntegerPower {
@@ -24,39 +29,134 @@ struct IntegerPower {
 			(temporary > std::numeric_limits<intmax_t>::max() /
 			(temporary * (Exponent % 2 == 1 ? Base : 1)) ? true
 			: false);
+
+	static_assert(!overflow, "Overflow detected");
 };
 
 template <std::intmax_t Base>
-struct IntegerPower<Base, 0>
-{
+struct IntegerPower<Base, 0> {
 	static constexpr std::intmax_t value = 1;
 	static constexpr bool overflow = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace Metafunctions {
-
-template <int ...Is>
-struct Sequence {
-};
-
-} // Metafunctions
-
 /**
- * Used to generate a sequence of integers.
+ * Computes the integer product of factors.
+ * @tparam Factor The first factor.
+ * @tparam Factors The remaining factors.
  */
-template <int N, int ...Is>
-struct GenerateSequence : GenerateSequence<N - 1, N - 1, Is...> {
+template <std::intmax_t Factor, std::intmax_t ...Factors>
+struct IntegerProduct {
+	static constexpr std::intmax_t value = IntegerProduct<Factors...>::value
+			* Factor;
 };
 
-template <int ...Is>
-struct GenerateSequence<0, Is...> : Metafunctions::Sequence<Is...> {
+template <std::intmax_t Factor>
+struct IntegerProduct<Factor> {
+	static constexpr std::intmax_t value = Factor;
+	//static constexpr bool overflow = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace Metafunctions {
+/**
+ * Selects the N-th type out of a parameter pack or the N-th argument of a
+ * variadic template function.
+ *
+ * \code{.cpp}
+ * template <typename ...Ts>
+ * void f(Ts ...args) {
+ * 	Select<0, Ts...>::type firstType;
+ * 	Select<1, Ts...>::type secondType;
+ *
+ * 	firstType arg1  = Select<0, Ts...>::get(args...);
+ * 	secondType arg2 = Select<1, Ts...>::get(args...);
+ * }
+ * \endcode
+ *
+ * @tparam N A nonnegative integer.
+ * @tparam Args The parameter pack.
+ */
+template <std::size_t N, typename ...Args>
+struct Select {
+	static_assert(N < sizeof...(Args), "Index out of bounds");
+	typedef void type;
+};
+
+template <std::size_t N, typename T, typename ...Args>
+struct Select<N, T, Args...> {
+	typedef typename Select<N - 1, Args...>::type type;
+
+	static inline const type &get(const T &, const Args &...args) {
+		return Select<N - 1, Args...>::get(args...);
+	}
+};
+
+template <typename T, typename ...Args>
+struct Select<0, T, Args...> {
+	typedef T type;
+
+	static inline const type &get(const T &a, const Args &...) {
+		return a;
+	}
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Selects the N-th value of a parameter pack (of values).
+ *
+ * \code{.cpp}
+ * template <int ...Is>
+ * void f(Is ...args) {
+ * 	int firstValue  = SelectValue<int, 0, Is...>::get(args...);
+ * 	int secondValue = SelectValue<int, 1, Is...>::get(args...);
+ * }
+ * \endcode
+ *
+ * @tparam N A nonnegative integer.
+ * @tparam Args The parameter pack.
+ */
+template <typename T, std::size_t N, T ...Args>
+struct SelectValue {
+	static_assert(N < sizeof...(Args), "Index out of bounds");
+};
+
+template <typename T, std::size_t N, T Arg, T ...Args>
+struct SelectValue<T, N, Arg, Args...> {
+	static constexpr T value = SelectValue<T, N - 1, Args...>::value;
+};
+
+template <typename T, T Arg, T ...Args>
+struct SelectValue<T, 0, Arg, Args...> {
+	static constexpr T value = Arg;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * A sequence of integers.
+ * @tparam Integers The sequence.
+ */
+template <int ...Integers>
+struct Sequence {
+};
+
+/**
+ * Generates the integers 0 to N - 1.
+ * @tparam N The last integer (exclusive).
+ * @see QuantPDE::Sequence
+ */
+template <int N, int ...Integers>
+struct GenerateSequence : GenerateSequence<N - 1, N - 1, Integers...> {
+};
+
+template <int ...Integers>
+struct GenerateSequence<0, Integers...> : Sequence<Integers...> {
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace NaryFunctionSignatureHelpers {
 
@@ -103,32 +203,31 @@ using TargetConst = R (C::*)(Ts...) const;
 
 } // NaryFunctionSignatureHelpers
 
-} // Metafunctions
-
 /**
  * Type definition for `R(T, ..., T)`, where `T` appears `N` times.
  */
 template<class R, unsigned N, class T>
-using NaryFunctionSignature = Metafunctions::NaryFunctionSignatureHelpers::Type<
-		Metafunctions::NaryFunctionSignatureHelpers::Target, R, N, T>;
+using NaryFunctionSignature = NaryFunctionSignatureHelpers::Type<
+	NaryFunctionSignatureHelpers::Target, R, N, T
+>;
 
 /**
  * Type definition for `R (C::*)(T, ..., T)` where `T` appears `N` times.
  */
 template<class R, class C, unsigned N, class T>
-using NaryMethodNonConst = Metafunctions::NaryMethodHelpers::Type<
-		Metafunctions::NaryMethodHelpers::TargetNonConst, R, C, N, T>;
+using NaryMethodNonConst = NaryMethodHelpers::Type<
+	NaryMethodHelpers::TargetNonConst, R, C, N, T
+>;
 
 /**
  * Type definition for `R (C::*)(T, ..., T) const` where `T` appears `N` times.
  */
 template<class R, class C, unsigned N, class T>
-using NaryMethodConst = Metafunctions::NaryMethodHelpers::Type<
-		Metafunctions::NaryMethodHelpers::TargetConst, R, C, N, T>;
+using NaryMethodConst = NaryMethodHelpers::Type<
+		NaryMethodHelpers::TargetConst, R, C, N, T
+>;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace Metafunctions {
 
 namespace IsLValueHelpers {
 
@@ -144,18 +243,10 @@ char (& Helper(T&, typename Nondeducible<const volatile T&>::type))[2];
 
 } // IsLValueHelpers
 
-} // Metafunctions
-
 #define QUANT_PDE_IS_LVALUE(X) \
-		(sizeof(QuantPDE::Metafunctions::IsLValueHelpers::Helper((X), \
-		(X))) == 2)
-
-#define QUANT_PDE_ASSERT_LVALUE(X) static_assert(QUANT_PDE_IS_LVALUE(X), \
-		"Passing by rvalue is not supported")
+	(sizeof(QuantPDE::IsLValueHelpers::Helper((X), (X))) == 2)
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace Metafunctions {
 
 /**
  * This class (and the corresponding function makeRRef) are used as a workaround
@@ -164,9 +255,7 @@ namespace Metafunctions {
  * \code{.cpp}
  * std::unique_ptr<int> p{new int(0)};
  * auto rref = makeRRef( std::move(p) );
- * auto lambda = [rref]() mutable {
- * 	return rref.get();
- * };
+ * auto lambda = [rref]() mutable { return rref.get(); };
  * \endcode
  */
 template <typename T>
@@ -210,11 +299,12 @@ public:
 
 };
 
-} // Metafunctions
-
+/**
+ * @see QuantPDE::RRef
+ */
 template <typename T>
-Metafunctions::RRef<T> makeRRef(T &&x) {
-	return Metafunctions::RRef<T>{ std::move(x) };
+RRef<T> makeRRef(T &&x) {
+	return RRef<T>{ std::move(x) };
 }
 
 } // QuantPDE
