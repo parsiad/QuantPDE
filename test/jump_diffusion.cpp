@@ -3,7 +3,7 @@
 // ------------------
 //
 // Computes the price of a European call with jump-diffusion driven by a Poisson
-// process. The jump amplitude is assumed to be log-normally distributed.
+// process. The jump amplitude is assumed to be lognormally distributed.
 //
 // Author: Parsiad Azimzadeh
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,7 +31,7 @@ void help() {
 	cerr <<
 "jump_diffusion [OPTIONS]" << endl << endl <<
 "Computes the price of a European put with jump-diffusion driven by a Poisson " << endl <<
-"process. The jump amplitude is assumed to be log-normally distributed." << endl <<
+"process. The jump amplitude is assumed to be lognormally distributed." << endl <<
 "unequal borrowing/lending rates." << endl <<
 endl <<
 "-d REAL" << endl <<
@@ -69,16 +69,18 @@ endl <<
 
 int main(int argc, char **argv) {
 
-	Real K  = 100.;
-	Real T  = 1.;
-	Real r  = .05;
-	Real v  = .3;
-	Real q  = 0.;
-	Real dt = .01;
-	Real l  = 0.05;
+	Real K  = 100.; // Strike
+	Real T  = 1.;   // Expiry
+	Real r  = .05;  // Interest
+	Real v  = .3;   // Volatility
+	Real q  = 0.;   // Dividend rate
 
-	int N = 100;
-	int R = 0;
+	Real l     = 0.05; // Mean jump arrival time
+	Real mu    = -.8;  // Mean jump amplitude
+	Real gamma = .42;  // Jump amplitude standard deviation
+
+	int N = 100; // Number of timesteps
+	int R = 0;   // Level of refinement
 
 	// Setting options with getopt
 	{ char c;
@@ -117,14 +119,6 @@ int main(int argc, char **argv) {
 				if(R < 0) {
 					cerr <<
 "error: the maximum level of refinement must be nonnegative" << endl;
-					return 1;
-				}
-				break;
-			case 't':
-				dt = atof(optarg);
-				if(dt <= 0.) {
-					cerr <<
-"error: the timestep size must be positive" << endl;
 					return 1;
 				}
 				break;
@@ -218,8 +212,9 @@ int main(int argc, char **argv) {
 		q, // Dividend rate
 
 		l, // Mean arrival time (once every ten years)
-		lognormalDensity(-.8, .42)
+		lognormalDensity(mu, gamma)
 	);
+
 	bs.setIteration(stepper);
 
 	ReverseLinearBDFTwo bdf2(grid, (IterationNode &) bs);

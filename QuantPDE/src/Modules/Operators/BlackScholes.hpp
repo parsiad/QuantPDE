@@ -21,10 +21,31 @@ namespace Modules {
 **/
 class BlackScholes : public ControlledLinearSystem1 {
 
+	Coefficient1 r, v, q;
+	Real kappa;
+
+	void (BlackScholes::*_computeKappa)(Real);
+
 protected:
 
+	// Integration rule
+	typedef AdaptiveQuadrature1<TrapezoidalRule1<>> Integral;
+
 	const RectilinearGrid1 &G;
-	Coefficient1 r, v, q, l;
+	Coefficient1 l;
+	MultiFunction1 g;
+
+	void pass(Real) {
+	}
+
+	inline void computeKappa(Real t) {
+		// Computes (E[y]-1) where y is an r.v. with probability density
+		// g : [0, Infinity) -> [0, Infinity)
+		kappa = Integral(
+			[=] (Real y) { return exp(2 * y) * g(t, exp(y)); },
+			-std::numeric_limits<Real>::infinity()
+		)( std::numeric_limits<Real>::infinity() ) - 1.;
+	}
 
 	/**
 	 * Constructor for jump-diffusion process. Jumps occur according to a
@@ -34,26 +55,37 @@ protected:
 	 * @param volatility The volatility of the underlying asset.
 	 * @param dividends The continuous dividend rate.
 	 * @param meanArrivalTime The mean arrival time of the Poisson process.
+	 * @param jumpAmplitudeDensity The jump amplitude probability density.
 	 */
 	template <typename G1, typename F1, typename F2, typename F3,
-			typename F4>
+			typename F4, typename F5>
 	BlackScholes(
 		G1 &grid,
 		F1 &&interest,
 		F2 &&volatility,
 		F3 &&dividends,
-		F4 &&meanArrivalTime
+		F4 &&meanArrivalTime,
+		F5 &&jumpAmplitudeDensity
 	) noexcept :
-		G( grid ),
 		r( std::forward<F1>(interest) ),
 		v( std::forward<F2>(volatility) ),
 		q( std::forward<F3>(dividends) ),
-		l( std::forward<F4>(meanArrivalTime) )
+		G( grid ),
+		l( std::forward<F4>(meanArrivalTime) ),
+		g( std::forward<F5>(jumpAmplitudeDensity) )
 	{
 		registerControl(r);
 		registerControl(v);
 		registerControl(q);
 		registerControl(l);
+		// g is not controllable
+
+		if(g.isConstantInTime()) {
+			computeKappa(-1.);
+			_computeKappa = &BlackScholes::pass;
+		} else {
+			_computeKappa = &BlackScholes::computeKappa;
+		}
 	}
 
 public:
@@ -72,11 +104,12 @@ public:
 		F2 &&volatility,
 		F3 &&dividends
 	) noexcept :
-		G( grid ),
 		r( std::forward<F1>(interest) ),
 		v( std::forward<F2>(volatility) ),
 		q( std::forward<F3>(dividends) ),
-		l( 0. )
+		G( grid ),
+		l( 0. ),
+		g( [] (Real S) { return 0.; } )
 	{
 		registerControl(r);
 		registerControl(v);
@@ -89,6 +122,8 @@ public:
 		const Axis &S = G[0];
 		const Index n = S.size();
 
+		(this->*_computeKappa)(t);
+
 		// Interior points
 		// alpha_i dt V_{i-1}^{n+1} + (1 + (alpha_i + beta_i + r) dt)
 		// 		V_i^{n+1} + beta_i dt V_{i+1}^{n+1} = V_i^n
@@ -99,8 +134,6 @@ public:
 			const Real v_i = v( t, S[i] );
 			const Real q_i = q( t, S[i] );
 			const Real l_i = l( t, S[i] );
-
-			const Real kappa = 0.;
 
 			const Real
 				dSb = S[i]     - S[i - 1],
@@ -214,13 +247,7 @@ class BlackScholesJumpDiffusion final : public IterationNode,
 		return RectilinearGrid1( Axis::uniform(x0, xf, N) );
 	}
 
-	void pass(Real) {
-	}
-
 	void computeDensityFFT(Real t) {
-		// Integration rule
-		typedef AdaptiveQuadrature1<TrapezoidalRule1<1>> Integral;
-
 		// Transformed density
 		auto fbar = [&] (Real x) {
 			return g(t, std::exp(x)) * std::exp(x);
@@ -247,8 +274,6 @@ class BlackScholesJumpDiffusion final : public IterationNode,
 
 	Eigen::FFT<Real> fft;
 
-	MultiFunction1 g;
-
 	Index N;
 	Real x0, dx;
 	RectilinearGrid1 F;
@@ -267,7 +292,7 @@ public:
 	 * @param volatility The volatility of the underlying asset.
 	 * @param dividends The continuous dividend rate.
 	 * @param meanArrivalTime The mean arrival time of the Poisson process.
-	 * @param density The probability density of the jump amplitude.
+	 * @param jumpAmplitudeDensity The jump amplitude probability density.
 	 */
 	template <typename G, typename F1, typename F2, typename F3,
 			typename F4, typename F5>
@@ -277,16 +302,16 @@ public:
 		F2 &&volatility,
 		F3 &&dividends,
 		F4 &&meanArrivalTime,
-		F5 &&density
+		F5 &&jumpAmplitudeDensity
 	) noexcept :
 		BlackScholes(
 			grid,
 			std::forward<F1>(interest),
 			std::forward<F2>(volatility),
 			std::forward<F3>(dividends),
-			std::forward<F4>(meanArrivalTime)
+			std::forward<F4>(meanArrivalTime),
+			std::forward<F5>(jumpAmplitudeDensity)
 		),
-		g( std::forward<F5>(density) ),
 		F( initializeGrid() )
 	{
 		if(g.isConstantInTime()) {

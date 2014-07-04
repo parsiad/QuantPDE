@@ -13,6 +13,7 @@ namespace Modules {
  * @return Lambda function for a lognormal density.
  */
 Function1 lognormalDensity(Real mu = 0., Real sigma = 1.) {
+	assert(sigma > 0.);
 	return [mu, sigma] (Real x) {
 		return 1. / (x * sigma * std::sqrt(2. * M_PI))
 				* std::exp( -((std::log(x)-mu)*(std::log(x)-mu))

@@ -4,7 +4,10 @@
 #include <array>   // std::array
 #include <cstdint> // std::intmax_t
 #include <cstdlib> // std::abs
+#include <limits>  // std::numeric_limits
 #include <utility> // std::forward, std::move
+
+// TODO: static integrate method
 
 namespace QuantPDE {
 
@@ -20,12 +23,61 @@ class Integral {
 
 	/**
 	 * Performs the integration.
-	 * @param x The upper coordinates of the integral.
-	 * @return The integral evaluated at x.
+	 * @param a Lower bounds of integration.
+	 * @param x Upper bounds of integration.
+	 * @return The result.
 	 */
-	virtual Real integrate(const std::array<Real, Dimension> &x) const = 0;
+	virtual Real compute(const std::array<Real, Dimension> &a,
+			const std::array<Real, Dimension> &x) const = 0;
+
+protected:
+
+	const std::array<Real, Dimension> a;
+	const Function<Dimension> function;
 
 public:
+
+	/**
+	 * Constructor.
+	 * @param function Function to integrate.
+	 * @param a Lower bounds of integration.
+	 */
+	template <typename F, typename ...Ts>
+	Integral(F &&function, Ts ...a) noexcept
+			: a( {{a...}} ), function(std::forward<F>(function)) {
+	}
+
+	/**
+	 * Copy constructor.
+	 */
+	Integral(const Integral &that) noexcept : a(that.a),
+			function(that.function) {
+	}
+
+	/**
+	 * Move constructor.
+	 */
+	Integral(Integral &&that) noexcept : a(std::move(that.a)),
+			function(std::move(that.function)) {
+	}
+
+	/**
+	 * Copy assignment operator.
+	 */
+	Integral &operator=(const Integral &that) noexcept {
+		a = that.a;
+		function = that.function;
+		return *this;
+	}
+
+	/**
+	 * Move assignment operator.
+	 */
+	Integral &operator=(Integral &&that) noexcept {
+		a = std::move(that.a);
+		function = std::move(that.function);
+		return *this;
+	}
 
 	/**
 	 * Destructor.
@@ -35,12 +87,101 @@ public:
 
 	/**
 	 * Performs the integration.
-	 * @param x The upper coordinates of the integral.
+	 * @param x Upper bounds of integration.
 	 * @return The integral evaluated at x.
 	 */
 	template <typename ...Ts>
 	Real operator()(Ts ...x) const {
-		return integrate( {{x...}} );
+		// TODO: Optimize; inefficient to figure out whether an integral
+		// is finite at run-time
+
+		const Real tolerance = 1e-6; // TODO: Make this a parameter
+
+		// Buffers for lower and upper bounds of integration
+		std::array<Real, Dimension> aa(a);
+		std::array<Real, Dimension> xx {{x...}};
+
+		// neginf[i] == true => i-th lower bound is -infinity
+		// posinf[i] == true => i-th upper bound is +infinity
+		bool neginf[Dimension], posinf[Dimension];
+
+		// The integral consists of only finite lower and upper bounds
+		bool finite = true;
+
+		// Used to expand the region of integration on each axis
+		Real m[Dimension];
+
+		for(Index i = 0; i < Dimension; i++) {
+			neginf[i] = a[i]  ==
+					-std::numeric_limits<Real>::infinity();
+			posinf[i] = xx[i] ==
+					std::numeric_limits<Real>::infinity();
+
+			if(neginf[i]) {
+				if(posinf[i]) {
+					// (-inf, inf)
+					aa[i] = -1.;
+					xx[i] =  1.;
+					m[i]  =  0.;
+
+					finite = false;
+				} else {
+					// (-inf, x]
+					aa[i] = xx[i] - 1.;
+					m[i]  = xx[i];
+
+					finite = false;
+				}
+			} else if(posinf[i]) {
+				// [a, inf)
+				xx[i] = aa[i] + 1.;
+				m[i]  = aa[i];
+
+				finite = false;
+			}
+		}
+
+		// No need to integrate more than once if the region of
+		// integration does not change
+		if(finite) {
+			return compute(aa, xx);
+		}
+
+		// TODO: Currently, we are reintegrating over the whole region
+		//       of integration at every iteration. This is redundant!
+		//       Can save roughly 1/2^N of the time if we reuse the
+		//       integral over the subregion. This is particularly
+		//       noticeable when N = 1 (one dimension).
+
+		// Keep expanding the region of integration until convergence is
+		// attained
+		Real previous = compute(aa, xx);
+		Real integral;
+		while(true) {
+			// Expand the region of integration
+			for(Index i = 0; i < Dimension; i++) {
+				if(neginf[i]) {
+					aa[i] += aa[i] - m[i];
+				}
+
+				if(posinf[i]) {
+					xx[i] += xx[i] - m[i];
+				}
+			}
+
+			// Recompute the integral
+			integral = compute(aa, xx);
+
+			// Break when the relative error is low enough
+			if(std::abs( (integral - previous) / integral )
+					< tolerance) {
+				break;
+			}
+
+			previous = integral;
+		}
+
+		return integral;
 	}
 
 };
@@ -63,25 +204,25 @@ struct TrapezoidalRuleSubroutine<N, I, Is...> {
 	static_assert(I > 0, "The number of intervals must be positive");
 
 	template <typename F>
-	static inline Real integrate(const F &function, const Real *a,
+	static inline Real compute(const F &function, const Real *a,
 			const Real *x) {
 		Real sum;
 
 		// Left endpoint
 		sum = function(*a) * TrapezoidalRuleSubroutine<N-1, Is...>
-				::integrate(function, a+1, x+1);
+				::compute(function, a+1, x+1);
 
 		// Interior points
 		const Real dx = (*x - *a) / I;
 		for(int i = 1; i <= I - 1; i++) {
 			sum += 2 * function(*a + i * dx)
 					* TrapezoidalRuleSubroutine<N-1, Is...>
-					::integrate(function, a+1, x+1);
+					::compute(function, a+1, x+1);
 		}
 
 		// Right endpoint
 		sum += function(*x) * TrapezoidalRuleSubroutine<N-1, Is...>
-				::integrate(function, a+1, x+1);
+				::compute(function, a+1, x+1);
 
 		return sum;
 	}
@@ -90,7 +231,7 @@ struct TrapezoidalRuleSubroutine<N, I, Is...> {
 template <>
 struct TrapezoidalRuleSubroutine<0> {
 	template <typename F>
-	static inline Real integrate(const F &, const Real *, const Real *) {
+	static inline Real compute(const F &, const Real *, const Real *) {
 		return 1.;
 	}
 };
@@ -111,7 +252,8 @@ class TrapezoidalRule : public Integral<Dimension> {
 			"The number of arguments must be consistent with the "
 			"dimensions");
 
-	virtual Real integrate(const std::array<Real, Dimension> &x) const {
+	virtual Real compute(const std::array<Real, Dimension> &a,
+			const std::array<Real, Dimension> &x) const {
 		// 2^n
 		typedef IntegerPower<2, Dimension> Power;
 
@@ -124,65 +266,59 @@ class TrapezoidalRule : public Integral<Dimension> {
 		}
 
 		return scale*TrapezoidalRuleSubroutine<Dimension, Intervals...>
-				::integrate(function, a.data(), x.data());
+				::compute(this->function, a.data(), x.data());
 	}
-
-	const Function<Dimension> function;
-	const std::array<Real, Dimension> a;
 
 public:
 
 	/**
 	 * Constructor.
-	 * @param function The function to integrate.
-	 * @param a The lower coordinates of the integral.
 	 */
 	template <typename F, typename ...Ts>
 	TrapezoidalRule(F &&function, Ts ...a) noexcept
-			: function(std::forward<F>(function)), a( {{a...}} ) {
+			: Integral<Dimension>(std::forward<F>(function), a...) {
 	}
 
 	/**
 	 * Copy constructor.
 	 */
 	TrapezoidalRule(const TrapezoidalRule &that) noexcept
-			: function(that.function), a(that.a) {
+			: Integral<Dimension>(that) {
 	}
 
 	/**
 	 * Move constructor.
 	 */
 	TrapezoidalRule(TrapezoidalRule &&that) noexcept
-			: function(std::move(that.function)),
-			a(std::move(that.a)) {
+			: Integral<Dimension>(std::move(that)) {
 	}
 
 	/**
-	 * Copy assignment.
+	 * Copy assignment operator.
 	 */
 	TrapezoidalRule &operator=(const TrapezoidalRule &that) noexcept {
-		function = that.function;
-		a = that.a;
+		Integral<Dimension>::operator=(that);
+		return *this;
 	}
 
 	/**
-	 * Move assignment.
+	 * Move assignment operator.
 	 */
 	TrapezoidalRule &operator=(TrapezoidalRule &&that) noexcept {
-		function = std::move(that.function);
-		a = std::move(that.a);
+		Integral<Dimension>::operator=(std::move(that));
+		return *this;
 	}
 
 };
 
-template <size_t ...Intervals>
-using TrapezoidalRule1 = TrapezoidalRule<1, Intervals...>;
+template <int Intervals1 = 1>
+using TrapezoidalRule1 = TrapezoidalRule<1, Intervals1>;
 
-template <size_t ...Intervals>
-using TrapezoidalRule2 = TrapezoidalRule<2, Intervals...>;
+template <int Intervals1 = 1, int Intervals2 = 1>
+using TrapezoidalRule2 = TrapezoidalRule<2, Intervals1, Intervals2>;
 
-template <size_t ...Intervals>
-using TrapezoidalRule3 = TrapezoidalRule<3, Intervals...>;
+template <int Intervals1 = 1, int Intervals2 = 1, int Intervals3 = 1>
+using TrapezoidalRule3 = TrapezoidalRule<3, Intervals1, Intervals2, Intervals3>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -194,28 +330,15 @@ class AdaptiveQuadrature : public Integral<Dimension> {
 	////////////////////////////////////////////////////////////////////////
 
 	template <int ...Indices>
-	inline Real packAndCall(
-		const Real *array,
-		Sequence<Indices...>
-	) const {
-		return T(function, array[Indices]...)(
+	inline Real packAndCall(const Real *array, Sequence<Indices...>) const {
+		return T(this->function, array[Indices]...)(
 				array[Indices + Dimension]...);
 	}
 
 	////////////////////////////////////////////////////////////////////////
 
-	// The buffer Real *p is recycled by each call to adapt
 	Real refine(Real previous, Real *p, int n = maxDepth) const {
-		/*
-		for(int i = 0; i < maxDepth - n; i++) {
-			std::cout << "\t";
-		}
-		std::cout << "Integrating cell ";
-		for(Index i = 0; i < Dimension; i++) {
-			std::cout << p[i] << " -> " << p[i+Dimension] << " ";
-		}
-		std::cout << "(" << previous << ")" << std::endl;
-		*/
+		// The buffer Real *p is recycled by each call to adapt
 
 		// 2^Dimension
 		typedef IntegerPower<2, Dimension> Power;
@@ -224,7 +347,7 @@ class AdaptiveQuadrature : public Integral<Dimension> {
 		Real integrals[Power::value];
 		Real sum = 0.;
 
-		// Indicies 0 to 2^N - 1
+		// Indices 0 to 2^N - 1
 		for(std::intmax_t i = 0; i < Power::value - 1; i++) {
 			// Build array
 			for(Index j = 0; j < Dimension; j++) {
@@ -273,39 +396,7 @@ class AdaptiveQuadrature : public Integral<Dimension> {
 			sum += integrals[Power::value - 1];
 		}
 
-		/*
-		for(std::intmax_t i = 0; i < Power::value - 1; i++) {
-			for(Index j = 0; j < Dimension; j++) {
-				for(int k = 0; k < maxDepth - n; k++) {
-					std::cout << "\t";
-				}
-				std::cout << pp[i][j] << " -> "
-						<< pp[i][j+Dimension] << " ";
-			}
-			std::cout << "(" << integrals[i] << ")" << std::endl;
-		}
-		for(Index j = 0; j < Dimension; j++) {
-			for(int k = 0; k < maxDepth - n; k++) {
-				std::cout << "\t";
-			}
-			std::cout << p[j] << " -> " << p[j+Dimension] << " " ;
-		}
-		std::cout << "(" << integrals[Power::value - 1] << ")"
-				<< std::endl;
-		for(int k = 0; k < maxDepth - n; k++) {
-			std::cout << "\t";
-		}
-		std::cout << "Sum: " << sum << std::endl;
-
-		for(int k = 0; k < maxDepth - n; k++) {
-			std::cout << "\t";
-		}
-		*/
-
 		const Real error = std::abs((sum - previous)/sum);
-
-		//std::cout << "Error: " << error << " "
-		//		<< (error > tolerance) << std::endl;
 
 		if( n > 0 && error > tolerance ) {
 			sum = 0.;
@@ -318,24 +409,12 @@ class AdaptiveQuadrature : public Integral<Dimension> {
 			// Top-right cell
 			sum += refine(integrals[Power::value - 1], p, n - 1);
 		}
-		/*
-		else {
-			for(int k = 0; k < maxDepth - n; k++) {
-				std::cout << "\t";
-			}
-			std::cout << "Match" << std::endl;
-		}
-
-		for(int i = 0; i < maxDepth - n; i++) {
-			std::cout << "\t";
-		}
-		std::cout << "Result: " << sum << std::endl << std::endl;
-		*/
 
 		return sum;
 	}
 
-	virtual Real integrate(const std::array<Real, Dimension> &x) const {
+	virtual Real compute(const std::array<Real, Dimension> &a,
+			const std::array<Real, Dimension> &x) const {
 		// Outermost integration
 		Real p[Dimension * 2];
 		for(Index j = 0; j < Dimension; j++) {
@@ -349,59 +428,51 @@ class AdaptiveQuadrature : public Integral<Dimension> {
 		return refine(integral, p);
 	}
 
-	const Function<Dimension> function;
-	const std::array<Real, Dimension> a;
 	const Real tolerance;
 
 public:
 
-	// TODO: Use SFINAE to pass in tolerance
-
 	/**
 	 * Constructor.
-	 * @param function The function to integrate.
-	 * @param a The lower coordinates of the integral.
 	 */
 	template <typename F, typename ...Ts>
-	AdaptiveQuadrature(F &&function, Ts ...a) noexcept :
-		function(std::forward<F>(function)),
-		a( {{a...}} ),
-		tolerance(1e-6)
-	{
+	AdaptiveQuadrature(F &&function, Ts ...a) noexcept
+			: Integral<Dimension>(std::forward<F>(function), a...),
+			tolerance(1e-6) {
+		// TODO: Use SFINAE to pass in tolerance
 	}
 
 	/**
 	 * Copy constructor.
 	 */
 	AdaptiveQuadrature(const AdaptiveQuadrature &that) noexcept
-			: function(that.function), a(that.a),
-			tolerance(that.tolerance) {
+			: Integral<Dimension>(that) {
 	}
 
 	/**
 	 * Move constructor.
 	 */
-	AdaptiveQuadrature(AdaptiveQuadrature &&that) noexcept
-			: function(std::move(that.function)),
-			a(std::move(that.a)), tolerance(that.tolerance) {
+	AdaptiveQuadrature(AdaptiveQuadrature &&that) noexcept :
+			Integral<Dimension>(std::move(that)),
+			tolerance(that.tolerance) {
 	}
 
 	/**
 	 * Copy assignment.
 	 */
 	AdaptiveQuadrature &operator=(const AdaptiveQuadrature &that) noexcept {
-		function = that.function;
-		a = that.a;
+		Integral<Dimension>::operator=(that);
 		tolerance = that.tolerance;
+		return *this;
 	}
 
 	/**
 	 * Move assignment.
 	 */
 	AdaptiveQuadrature &operator=(AdaptiveQuadrature &&that) noexcept {
-		function = std::move(that.function);
-		a = std::move(that.a);
+		Integral<Dimension>::operator=(std::move(that));
 		tolerance = that.tolerance;
+		return *this;
 	}
 
 };

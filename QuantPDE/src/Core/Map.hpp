@@ -1,8 +1,8 @@
 #ifndef QUANT_PDE_CORE_MAP
 #define QUANT_PDE_CORE_MAP
 
-#include <memory>      // std::unique_ptr
-#include <utility>     // std::forward, std::move
+#include <memory>  // std::unique_ptr
+#include <utility> // std::forward, std::move
 
 namespace QuantPDE {
 
@@ -120,9 +120,11 @@ typedef PointwiseMap<1> PointwiseMap1;
 typedef PointwiseMap<2> PointwiseMap2;
 typedef PointwiseMap<3> PointwiseMap3;
 
-/*
+#if 0
+/**
  * Performs a convolution with \f$\varphi\left(x/epsilon\right)/\epsilon\f$
  * and maps the result to the grid.
+ */
 class MollifierConvolution1 : public Map1 {
 
 	const RectilinearGrid1 *grid;
@@ -217,26 +219,34 @@ class MollifierConvolution1 : public Map1 {
 
 public:
 
+	/**
 	 * Constructor.
+	 */
 	template <typename G, typename F>
 	MollifierConvolution1(G &grid, F &&mollifier, Real epsilon) noexcept
 			: grid(&grid), mollifier( std::forward<F>(mollifier) ),
 			epsilon(epsilon) {
 	}
 
+	/**
 	 * Copy constructor.
+	 */
 	MollifierConvolution1(const MollifierConvolution1 &that) noexcept
 			: grid(that.grid), mollifier(that.mollifier),
 			epsilon(that.epsilon) {
 	}
 
+	/**
 	 * Move constructor.
+	 */
 	MollifierConvolution1(MollifierConvolution1 &&that) noexcept
 			: grid(that.grid), mollifier(std::move(that.mollifier)),
 			epsilon(that.epsilon) {
 	}
 
+	/**
 	 * Copy assignment operator.
+	 */
 	MollifierConvolution1 &operator=(const MollifierConvolution1 &that) &
 			noexcept {
 		grid = that.grid;
@@ -245,7 +255,9 @@ public:
 		return *this;
 	}
 
+	/**
 	 * Move assignment operator.
+	 */
 	MollifierConvolution1 &operator=(MollifierConvolution1 &&that) &
 			noexcept {
 		grid = that.grid;
@@ -254,8 +266,10 @@ public:
 		return *this;
 	}
 
+	/**
 	 * Sets the value of \f$\epsilon\f$ to be used in the convolution.
 	 * @param epsilon The new value of \f$\epsilon\f$.
+	 */
 	void setEpsilon(Real epsilon) {
 		this->epsilon = epsilon;
 	}
@@ -270,16 +284,20 @@ public:
 
 };
 
+/**
  * Uses the function \f$\varphi\left(x\right)\equiv e^{-x^2}/\sqrt{\pi}\f$ as a
  * mollifier.
  * Note that technically, this is not a mollifier (it does not have compact
  * support).
  * @see QuantPDE::MollifierConvolution1
+ */
 class DiracConvolution1 final : public MollifierConvolution1 {
 
 public:
 
+	/**
 	 * Constructor.
+	 */
 	template <typename G>
 	DiracConvolution1(G &grid, Real epsilon) noexcept
 			: MollifierConvolution1(
@@ -294,7 +312,7 @@ public:
 	}
 
 };
-*/
+#endif
 
 // TODO: Generalize this for n-dimensions
 class L2ProjectOnLagrangeBases1 final : public Map1 {
@@ -319,8 +337,9 @@ class L2ProjectOnLagrangeBases1 final : public Map1 {
 
 		F(0) =
 			(S[1] - S[0]) / 2. * (
-				  4. / 6. * f( (S[0] + S[1]) / 2. )
-				+ 1. / 3. * f( S[0] )
+				  4. / 6. * std::forward<F1>(f)(
+				  		(S[0] + S[1]) / 2.)
+				+ 1. / 3. * std::forward<F1>(f)( S[0] )
 			)
 		;
 
@@ -333,12 +352,16 @@ class L2ProjectOnLagrangeBases1 final : public Map1 {
 			//       (Currently just Simpson's rule)
 			F(i) =
 				  (S[i] - S[i - 1]) / 2. * (
-					  4. / 6. * f( (S[i - 1] + S[i]) / 2. )
-					+ 1. / 3. * f( S[i] - epsilon )
+					  4. / 6. * std::forward<F1>(f)(
+					  		(S[i - 1] + S[i]) / 2.)
+					+ 1. / 3. * std::forward<F1>(f)(
+							S[i] - epsilon)
 				)
 				+ (S[i + 1] - S[i]) / 2. * (
-					  4. / 6. * f( (S[i] + S[i + 1]) / 2. )
-					+ 1. / 3. * f( S[i] + epsilon )
+					  4. / 6. * std::forward<F1>(f)(
+					  		(S[i] + S[i + 1]) / 2.)
+					+ 1. / 3. * std::forward<F1>(f)(
+							S[i] + epsilon)
 				)
 			;
 		}
@@ -348,8 +371,9 @@ class L2ProjectOnLagrangeBases1 final : public Map1 {
 
 		F(n - 1) =
 			(S[n - 1] - S[n - 2]) / 2. * (
-				  4. / 6. * f( (S[n - 2] + S[n - 1]) / 2. )
-				+ 1. / 3. * f( S[n - 1] )
+				  4. / 6. * std::forward<F1>(f)(
+				  		(S[n - 2] + S[n - 1]) / 2.)
+				+ 1. / 3. * std::forward<F1>(f)( S[n - 1] )
 			)
 		;
 
