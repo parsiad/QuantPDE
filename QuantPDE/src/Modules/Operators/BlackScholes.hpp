@@ -74,6 +74,9 @@ protected:
 		l( std::forward<F4>(meanArrivalTime) ),
 		g( std::forward<F5>(jumpAmplitudeDensity) )
 	{
+		// Check if the first node is >= 0
+		assert( G[0][0] >= 0. );
+
 		registerControl(r);
 		registerControl(v);
 		registerControl(q);
@@ -111,9 +114,14 @@ public:
 		l( 0. ),
 		g( [] (Real S) { return 0.; } )
 	{
+		// Check if the first node is >= 0
+		assert( G[0][0] >= 0. );
+
 		registerControl(r);
 		registerControl(v);
 		registerControl(q);
+
+		_computeKappa = &BlackScholes::pass;
 	}
 
 	virtual Matrix A(Real t) {

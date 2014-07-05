@@ -38,6 +38,10 @@ endl <<
 endl <<
 "    Sets the dividend rate (default is 0.)." << endl <<
 endl <<
+"-g REAL" << endl <<
+endl <<
+"    Sets the jump amplitude standard deviation (default is 0.42)." << endl <<
+endl <<
 "-K REAL" << endl <<
 endl <<
 "    Sets the strike price (default is 100.)." << endl <<
@@ -45,6 +49,10 @@ endl <<
 "-l NONNEGATIVE_REAL" << endl <<
 endl <<
 "    Sets the mean arrival time for the jump process (default is 0.05)." << endl <<
+endl <<
+"-m REAL" << endl <<
+endl <<
+"    Sets the mean jump amplitude (default is -0.8)." << endl <<
 endl <<
 "-N POSITIVE_REAL" << endl <<
 endl <<
@@ -75,19 +83,22 @@ int main(int argc, char **argv) {
 	Real v  = .3;   // Volatility
 	Real q  = 0.;   // Dividend rate
 
-	Real l     = 0.05; // Mean jump arrival time
-	Real mu    = -.8;  // Mean jump amplitude
-	Real gamma = .42;  // Jump amplitude standard deviation
+	Real l = 0.05;  // Mean jump arrival time
+	Real m = -.8;   // Mean jump amplitude
+	Real g = .42;   // Jump amplitude standard deviation
 
-	int N = 100; // Number of timesteps
-	int R = 0;   // Level of refinement
+	int N = 100;    // Number of timesteps
+	int R = 0;      // Level of refinement
 
 	// Setting options with getopt
 	{ char c;
-	while((c = getopt(argc, argv, "d:hK:N:r:R:T:v:")) != -1) {
+	while((c = getopt(argc, argv, "d:g:hK:m:N:r:R:T:v:")) != -1) {
 		switch(c) {
 			case 'd':
 				q = atof(optarg);
+				break;
+			case 'g':
+				g = atof(optarg);
 				break;
 			case 'h':
 				help();
@@ -102,6 +113,9 @@ int main(int argc, char **argv) {
 "error: the mean arrival time must be nonnegative" << endl;
 					return 1;
 				}
+				break;
+			case 'm':
+				m = atof(optarg);
 				break;
 			case 'N':
 				N = atoi(optarg);
@@ -212,7 +226,7 @@ int main(int argc, char **argv) {
 		q, // Dividend rate
 
 		l, // Mean arrival time (once every ten years)
-		lognormalDensity(mu, gamma)
+		lognormalDensity(m, g) // Log-normal probability density
 	);
 
 	bs.setIteration(stepper);
