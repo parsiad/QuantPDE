@@ -256,6 +256,8 @@ class BlackScholesJumpDiffusion final : public IterationNode,
 	}
 
 	void computeDensityFFT(Real t) {
+		// Tested 2014-07-05
+
 		// Transformed density
 		auto fbar = [&] (Real x) {
 			return g(t, std::exp(x)) * std::exp(x);
@@ -266,14 +268,14 @@ class BlackScholesJumpDiffusion final : public IterationNode,
 		fprime.reserve(N);
 		for(Index i = 0; i <= N/2; i++) {
 			// Integrate around x_i
-			const Real a = x0 + dx * (-.5 + i);
-			const Real b = x0 + dx * ( .5 + i);
+			const Real a = dx * (-.5 + i);
+			const Real b = dx * ( .5 + i);
 			fprime.push_back( Integral(fbar, a)(b) );
 		}
 		for(Index i = N/2+1; i < N; i++) {
 			// Integrate around x_{i - N}
-			const Real a = x0 + dx * (-.5 + i - N);
-			const Real b = x0 + dx * ( .5 + i - N);
+			const Real a = dx * (-.5 + i - N);
+			const Real b = dx * ( .5 + i - N);
 			fprime.push_back( Integral(fbar, a)(b) );
 		}
 		fprimeFFT.reserve(N);
@@ -347,16 +349,19 @@ public:
 		(this->*_computeDensityFFT)(t0);
 
 		// Transformed solution
-		PiecewiseLinear1 V(G, this->iterand(0));
+		Vector v = this->iterand(0);
+		PiecewiseLinear1 V(G, v);
 		auto Vbar = [&] (Real x) { return V( std::exp(x) ); };
 
-		// Build FFT vectors
+		// Buffers
 		std::vector<Real> buffer;
+		std::vector<std::complex<Real>> bufferFFT;
+
+		// Build FFT vectors
 		buffer.reserve(N);
 		for(Index i = 0; i < N; i++) {
 			buffer.push_back( Vbar(x0 + i * dx) );
 		}
-		std::vector<std::complex<Real>> bufferFFT;
 		bufferFFT.reserve(N);
 		fft.fwd(bufferFFT, buffer);
 
@@ -385,9 +390,16 @@ public:
 			std::move(buffer) // Data points
 		);
 
-		return G.image([&] (Real S) {
+		Vector b = G.image([&] (Real S) {
 			return l(t0, S) * h(std::log(S));
-		}) * dx;
+		});
+
+		// Adjustment at S = 0. (the integral becomes trivial here)
+		/*if(G[0][0] == 0.) {
+			b(0) = l(t0, 0.) * v(0);
+		}*/
+
+		return b;
 	}
 
 };
