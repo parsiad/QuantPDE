@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_CORE_AXIS
-#define QUANT_PDE_CORE_AXIS
+#ifndef QUANT_PDE_CORE_AXIS_HPP
+#define QUANT_PDE_CORE_AXIS_HPP
 
 #include <cassert>          // assert
 #include <cmath>            // std::floor

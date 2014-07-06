@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_CORE_DATETIME
-#define QUANT_PDE_CORE_DATETIME
+#ifndef QUANT_PDE_CORE_DATETIME_HPP
+#define QUANT_PDE_CORE_DATETIME_HPP
 
 #include <cstring>  // std::strlen
 #include <ctime>    // std::time_t, std::tm, gmtime_r, timegm, asctime_r

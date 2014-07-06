@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_CORE_ITERATIVE_METHOD
-#define QUANT_PDE_CORE_ITERATIVE_METHOD
+#ifndef QUANT_PDE_CORE_ITERATIVE_METHOD_HPP
+#define QUANT_PDE_CORE_ITERATIVE_METHOD_HPP
 
 #include <array>        // std::array
 #include <cstdlib>      // std:abs, size_t

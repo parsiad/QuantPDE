@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_CORE_POLICY_ITERATION
-#define QUANT_PDE_CORE_POLICY_ITERATION
+#ifndef QUANT_PDE_CORE_POLICY_ITERATION_HPP
+#define QUANT_PDE_CORE_POLICY_ITERATION_HPP
 
 #include <array>      // std::array
 #include <functional> // std::greater, std::less

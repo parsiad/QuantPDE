@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_CORE_METAFUNCTIONS
-#define QUANT_PDE_CORE_METAFUNCTIONS
+#ifndef QUANT_PDE_CORE_METAFUNCTIONS_HPP
+#define QUANT_PDE_CORE_METAFUNCTIONS_HPP
 
 #include <cstdint> // std::intmax_t
 #include <cstdlib> // std::size_t

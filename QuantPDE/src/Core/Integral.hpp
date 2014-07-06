@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_CORE_INTEGRAL
-#define QUANT_PDE_CORE_INTEGRAL
+#ifndef QUANT_PDE_CORE_INTEGRAL_HPP
+#define QUANT_PDE_CORE_INTEGRAL_HPP
 
 #include <array>   // std::array
 #include <cstdint> // std::intmax_t

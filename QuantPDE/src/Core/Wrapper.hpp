@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_CORE_WRAPPER
-#define QUANT_PDE_CORE_WRAPPER
+#ifndef QUANT_PDE_CORE_WRAPPER_HPP
+#define QUANT_PDE_CORE_WRAPPER_HPP
 
 #define QUANT_PDE_CORE_WRAPPER_BODY(CLASS_NAME)                                \
 		CLASS_NAME##Wrapper(P p) noexcept : p( std::move(p) ) {        \

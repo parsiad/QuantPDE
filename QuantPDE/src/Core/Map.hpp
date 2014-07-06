@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_CORE_MAP
-#define QUANT_PDE_CORE_MAP
+#ifndef QUANT_PDE_CORE_MAP_HPP
+#define QUANT_PDE_CORE_MAP_HPP
 
 #include <memory>  // std::unique_ptr
 #include <utility> // std::forward, std::move

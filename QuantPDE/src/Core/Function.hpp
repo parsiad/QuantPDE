@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_CORE_FUNCTION
-#define QUANT_PDE_CORE_FUNCTION
+#ifndef QUANT_PDE_CORE_FUNCTION_HPP
+#define QUANT_PDE_CORE_FUNCTION_HPP
 
 #include <functional> // std::function
 

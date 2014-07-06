@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_MODULES_BLACK_SCHOLES
-#define QUANT_PDE_MODULES_BLACK_SCHOLES
+#ifndef QUANT_PDE_MODULES_BLACK_SCHOLES_HPP
+#define QUANT_PDE_MODULES_BLACK_SCHOLES_HPP
 
 #include <complex> // std::complex, std::conj
 #include <vector>  // std::vector

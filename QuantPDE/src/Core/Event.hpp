@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_CORE_EVENT
-#define QUANT_PDE_CORE_EVENT
+#ifndef QUANT_PDE_CORE_EVENT_HPP
+#define QUANT_PDE_CORE_EVENT_HPP
 
 #include <functional> // std::function
 #include <memory>     // std::unique_ptr

@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_CORE_TYPES
-#define QUANT_PDE_CORE_TYPES
+#ifndef QUANT_PDE_CORE_TYPES_HPP
+#define QUANT_PDE_CORE_TYPES_HPP
 
 #include <cmath> // M_PI
 

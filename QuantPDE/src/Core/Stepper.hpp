@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_CORE_STEPPER
-#define QUANT_PDE_CORE_STEPPER
+#ifndef QUANT_PDE_CORE_STEPPER_HPP
+#define QUANT_PDE_CORE_STEPPER_HPP
 
 #include <functional> // std::greater
 #include <memory>     // std::unique_ptr

@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_CORE_DOMAIN
-#define QUANT_PDE_CORE_DOMAIN
+#ifndef QUANT_PDE_CORE_DOMAIN_HPP
+#define QUANT_PDE_CORE_DOMAIN_HPP
 
 #include <array>       // std::array
 #include <cassert>     // assert
