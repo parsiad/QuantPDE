@@ -28,9 +28,6 @@ class BlackScholes : public ControlledLinearSystem1 {
 
 protected:
 
-	// Integration rule
-	typedef AdaptiveQuadrature1<TrapezoidalRule1<>> Integral;
-
 	const RectilinearGrid1 &G;
 	Coefficient1 l;
 	MultiFunction1 g;
@@ -39,6 +36,8 @@ protected:
 	}
 
 	inline void computeKappa(Real t) {
+		typedef AdaptiveQuadrature1<TrapezoidalRule1<>> Integral;
+
 		// Computes (E[y]-1) where y is an r.v. with probability density
 		// g : [0, Infinity) -> [0, Infinity)
 		kappa = Integral(
@@ -245,6 +244,8 @@ class BlackScholesJumpDiffusion final : public IterationNode,
 	void computeDensityFFT(Real t) {
 		// Tested 2014-07-05
 
+		typedef TrapezoidalRule1<> Integral;
+
 		// Transformed density
 		auto fbar = [&] (Real x) {
 			return g(t, std::exp(x)) * std::exp(x);
@@ -370,19 +371,19 @@ public:
 
 		// Copy results to vector so that we can use existing
 		// interpolation methods
-		Vector correlation = F.vector();
+		/*Vector correlation = F.vector();
 		for(Index i = 0; i < N; i++) {
 			correlation(i) = buffer[i];
 		}
-		PiecewiseLinear1 h(F, std::move(correlation));
+		PiecewiseLinear1 h(F, std::move(correlation));*/
 
 		// No need to do the above any longer since PiecewiseLinear
 		// is templated to accept any structure indexable by operator[]
 		// (slightly more efficient)
-		/*PiecewiseLinear< 1, std::vector<Real> > h(
+		PiecewiseLinear< 1, std::vector<Real> > h(
 			F,                // Frequency grid
 			std::move(buffer) // Data points
-		);*/
+		);
 
 		Vector b = G.vector();
 
