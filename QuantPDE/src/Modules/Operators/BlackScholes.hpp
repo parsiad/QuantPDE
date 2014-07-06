@@ -74,9 +74,6 @@ protected:
 		l( std::forward<F4>(meanArrivalTime) ),
 		g( std::forward<F5>(jumpAmplitudeDensity) )
 	{
-		// Check if the first node is >= 0
-		assert( G[0][0] >= 0. );
-
 		registerControl(r);
 		registerControl(v);
 		registerControl(q);
@@ -114,9 +111,6 @@ public:
 		l( 0. ),
 		g( [] (Real S) { return 0.; } )
 	{
-		// Check if the first node is >= 0
-		assert( G[0][0] >= 0. );
-
 		registerControl(r);
 		registerControl(v);
 		registerControl(q);
@@ -181,7 +175,7 @@ public:
 		// Left:  (1 + r dt) V_i^{n+1} = V_i^n
 		// Right:              V(t, S) = g(t) S (linearity assumption)
 
-		M_G(0, 0) = r(t, S[0]);
+		M_G(0,   0  ) = r(t, S[0  ]);
 		M_G(n-1, n-1) = q(t, S[n-1]);
 
 		return M_G.matrix();
@@ -236,19 +230,12 @@ class BlackScholesJumpDiffusion final : public IterationNode,
 			N *= 2;
 		}
 
-		// Find leftmost point
-		int left = 0;
-		for(Index i = 0; i < n; i++) {
-			if( S[i] > 0. ) {
-				left = i;
-				break;
-			}
-		}
-		assert( left < n - 1 );
+		// TODO: Make this a parameter?
+		const Real epsilon = 1e-6;
 
 		// Min:Step:Max
-		x0 = std::log( S[left] );
-		const Real xf = std::log( S[n-1] );
+		x0 = std::log( S[0] + epsilon );
+		const Real xf = std::log( S[n-2] );
 		dx = (xf - x0) / (N - 1);
 
 		// Create and return grid
@@ -263,7 +250,7 @@ class BlackScholesJumpDiffusion final : public IterationNode,
 			return g(t, std::exp(x)) * std::exp(x);
 		};
 
-		// Compute FFT of transformed density
+		// Integrate density around grid points
 		std::vector<Real> fprime;
 		fprime.reserve(N);
 		for(Index i = 0; i <= N/2; i++) {
@@ -278,6 +265,8 @@ class BlackScholesJumpDiffusion final : public IterationNode,
 			const Real b = dx * ( .5 + i - N);
 			fprime.push_back( Integral(fbar, a)(b) );
 		}
+
+		// Compute FFT of transformed density
 		fprimeFFT.reserve(N);
 		fft.fwd(fprimeFFT, fprime);
 	}
@@ -340,6 +329,10 @@ public:
 	}
 
 	virtual Vector b(Real) {
+		// Spatial axis
+		const Axis &S = G[0];
+		const Index n = S.size();
+
 		// Discretize the jump term explicitly using [1]
 
 		// Explicit time
@@ -357,17 +350,19 @@ public:
 		std::vector<Real> buffer;
 		std::vector<std::complex<Real>> bufferFFT;
 
-		// Build FFT vectors
+		// Evaluate Vbar at the grid points
 		buffer.reserve(N);
 		for(Index i = 0; i < N; i++) {
 			buffer.push_back( Vbar(x0 + i * dx) );
 		}
+
+		// Forward transform
 		bufferFFT.reserve(N);
 		fft.fwd(bufferFFT, buffer);
 
 		// Multiplication (overwrite bufferFFT to save space)
 		for(Index i = 0; i < N; i++) {
-			bufferFFT[i] = bufferFFT[i]*std::conj(fprimeFFT[i]);
+			bufferFFT[i] *= std::conj(fprimeFFT[i]);
 		}
 
 		// Inverse fft (overwrite buffer to save space)
@@ -375,29 +370,32 @@ public:
 
 		// Copy results to vector so that we can use existing
 		// interpolation methods
-		// Vector correlation = F.vector();
-		//for(Index i = 0; i < N; i++) {
-		//	correlation(i) = buffer[i];
-		//}
-		//return G.image(PiecewiseLinear1(F, correlation));
+		Vector correlation = F.vector();
+		for(Index i = 0; i < N; i++) {
+			correlation(i) = buffer[i];
+		}
+		PiecewiseLinear1 h(F, std::move(correlation));
 
 		// No need to do the above any longer since PiecewiseLinear
 		// is templated to accept any structure indexable by operator[]
 		// (slightly more efficient)
-
-		PiecewiseLinear< 1, std::vector<Real> > h(
+		/*PiecewiseLinear< 1, std::vector<Real> > h(
 			F,                // Frequency grid
 			std::move(buffer) // Data points
-		);
+		);*/
 
-		Vector b = G.image([&] (Real S) {
-			return l(t0, S) * h(std::log(S));
-		});
+		Vector b = G.vector();
 
-		// Adjustment at S = 0. (the integral becomes trivial here)
-		/*if(G[0][0] == 0.) {
-			b(0) = l(t0, 0.) * v(0);
-		}*/
+		// Left
+		b(0) = 0.;
+
+		// Interior points
+		for(Index i = 1; i < n - 1; i++) {
+			b(i) = l(t0, S[i]) * h(std::log(S[i]));
+		}
+
+		// Right
+		b(n - 1) = 0.;
 
 		return b;
 	}

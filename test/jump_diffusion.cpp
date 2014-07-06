@@ -226,7 +226,7 @@ int main(int argc, char **argv) {
 		q, // Dividend rate
 
 		l, // Mean arrival time (once every ten years)
-		lognormalDensity(m, g) // Log-normal probability density
+		lognormal(m, g) // Log-normal probability density
 	);
 
 	bs.setIteration(stepper);
