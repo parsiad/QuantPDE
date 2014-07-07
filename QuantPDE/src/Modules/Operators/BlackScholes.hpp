@@ -229,11 +229,14 @@ class BlackScholesJumpDiffusion final : public IterationNode,
 			N *= 2;
 		}
 
+		assert(S[0] >= 0.); // Can we take its log?
+
 		// TODO: Make this a parameter?
 		const Real epsilon = 1e-6;
+		const Real x0_0 = std::log( S[0] + epsilon );
 
 		// Min:Step:Max
-		x0 = std::log( S[0] + epsilon );
+		x0 = S[1] < x0_0 ? S[1] : x0_0;
 		const Real xf = std::log( S[n-2] );
 		dx = (xf - x0) / (N - 1);
 
