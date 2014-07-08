@@ -198,7 +198,7 @@ int main(int argc, char **argv) {
 	////////////////////////////////////////////////////////////////////////
 
 	for(int m = 0; m < e; m++) {
-		stepper.add<1>(
+		stepper.add(
 			// Time at which the event takes place
 			T / e * m,
 

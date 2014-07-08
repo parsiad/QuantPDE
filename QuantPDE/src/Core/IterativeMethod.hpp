@@ -1371,8 +1371,6 @@ public:
 		// TODO: Test to see if this works
 	}
 
-	// TODO: Infer Dimension
-
 	/**
 	 * Adds an event to be processed.
 	 * @param time The time at which the event occurs.
@@ -1381,10 +1379,6 @@ public:
 	 */
 	template <Index Dimension, typename ...Ts>
 	void add(Real time, Ts &&...args) {
-		// TODO: Does not work with clang-503.0.40 with -std=c++1y.
-		//       Tries to use Event's copy constructor.
-		//       Is this a Clang bug?
-
 		assert(time >= startTime);
 		assert(time <= endTime);
 		assert(time != initialTime());
@@ -1399,6 +1393,52 @@ public:
 			)
 		);
 	}
+
+	// TODO: Trying to use Transform<Dimension> to infer Dimension does not
+	//       work (at least in Clang). Fix this.
+	//       Currently, we simply hard-code dimensions 1, 2, and 3 below
+	//       using a macro
+
+#define QUANT_PDE_TMP(DIMENSION) \
+	template <typename ...Ts> \
+	void add(Real time, Transform##DIMENSION &&transform, Ts &&...args) { \
+		assert(time >= startTime); \
+		assert(time <= endTime); \
+		assert(time != initialTime()); \
+		events.emplace( \
+			id++, \
+			time, \
+			std::shared_ptr<EventBase>( \
+				new Event##DIMENSION( \
+					std::move(transform), \
+					std::forward<Ts>(args)... \
+				) \
+			) \
+		); \
+	} \
+	template <typename ...Ts> \
+	void add(Real time, const Transform##DIMENSION &transform, \
+			Ts &&...args) { \
+		assert(time >= startTime); \
+		assert(time <= endTime); \
+		assert(time != initialTime()); \
+		events.emplace( \
+			id++, \
+			time, \
+			std::shared_ptr<EventBase>( \
+				new Event##DIMENSION( \
+					transform, \
+					std::forward<Ts>(args)... \
+				) \
+			) \
+		); \
+	}
+
+	QUANT_PDE_TMP(1)
+	QUANT_PDE_TMP(2)
+	QUANT_PDE_TMP(3)
+
+#undef QUANT_PDE_TMP
 
 };
 

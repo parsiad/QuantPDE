@@ -21,6 +21,7 @@
 #include "src/Core/Integral.hpp"
 #include "src/Core/Interpolant.hpp"
 #include "src/Core/Map.hpp"
+#include "src/Core/ProbabilityDistribution.hpp"
 
 #include "src/Core/Event.hpp"
 #include "src/Core/IterativeMethod.hpp"
