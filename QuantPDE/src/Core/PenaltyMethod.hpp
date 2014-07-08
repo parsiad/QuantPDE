@@ -117,15 +117,9 @@ class PenaltyMethodDifference : public PenaltyMethod {
 
 			template <typename F1>
 			static inline Function<Dimension + 1> function(
-				F1 &&function
-			) {
-				// TODO: Use C++1y move-capture in the future;
-				//       currently we perform an unconditional
-				//       capture-by-value
-
-				// [ function(std::forward<F1>(function)) ]
-
-				return [function] (Real t, Ts ...coordinates) {
+					F1 &&function) {
+				return [ QUANT_PDE_MOVE_CAPTURE(F1, function) ]
+						(Real t, Ts ...coordinates) {
 					return function(coordinates...);
 				};
 			}

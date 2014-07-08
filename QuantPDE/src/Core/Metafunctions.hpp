@@ -271,7 +271,7 @@ public:
 
 	RRef() = delete;
 
-	RRef(T && x) noexcept : x{std::move(x)} {
+	RRef(T &&x) noexcept : x{std::move(x)} {
 	}
 
 	RRef(RRef &that) noexcept : x{std::move(that.x)} {
@@ -281,7 +281,7 @@ public:
 		assert(that.copied == false);
 	}
 
-	RRef(RRef && that) noexcept : x{std::move(that.x)} {
+	RRef(RRef &&that) noexcept : x{std::move(that.x)} {
 		#ifndef NDEBUG
 		copied = that.copied;
 		#endif

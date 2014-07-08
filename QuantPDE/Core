@@ -6,7 +6,7 @@
 #include "src/Bindings/Eigen.hpp"
 #endif
 
-#include "src/Core/Types.hpp"
+#include "src/Core/Macros.hpp"
 
 #include "src/Core/Wrapper.hpp"
 #include "src/Core/Metafunctions.hpp"
