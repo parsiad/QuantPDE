@@ -3,5 +3,4 @@ QuantPDE
 
 A high-performance, open-source, C++ library for pricing derivatives.
 
-Run `make doc` to generate documentation.
-
+Read the [Getting Started](http://example.com/ "Getting Started with QuantPDE") section of the wiki to learn how to use QuantPDE.
