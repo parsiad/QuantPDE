@@ -1,7 +1,8 @@
 #ifndef QUANT_PDE_CORE_PROBABILITY_DISTRIBUTION_HPP
 #define QUANT_PDE_CORE_PROBABILITY_DISTRIBUTION_HPP
 
-#include <array>
+#include <array>  // std::array
+#include <memory> // std::unique_ptr
 
 namespace QuantPDE {
 
@@ -12,12 +13,14 @@ template <Index Dimension>
 class ProbabilityDistribution {
 
 	/*
-	Function<Dimension + 1> _cdf() const {
-		Function<Dimension + 1> pdf = pdf();
-		return [ QUANT_PDE_MOVE_CAPTURE(Function<Dimension + 1>, pdf) ]
-				(Real t, Ts ...coordinates) {
+	template <typename F, int ...Indices>
+	static inline Real integrate(F &&function, const Real *array,
+			Sequence<Indices...>) const {
+		typedef TrapezoidalRule<Dimension, 1> T;
+		typedef AdaptiveQuadrature<Dimension, T> Integral;
 
-		}
+		return Integral(function, array[Indices]...)(
+				array[Indices + Dimension]...);
 	}
 	*/
 
@@ -40,35 +43,69 @@ public:
 	 * Returns the associated probability density function.
 	 * @return A lambda function whose first argument is time.
 	 */
-	virtual Function<Dimension + 1> pdf() const = 0;
+	virtual Function<Dimension> pdf() const = 0;
+
+	// TODO: Default behaviour for cdf. mean, variance, and median using
+	//       support() and pdf()
 
 	/**
 	 * Returns the associated cumulative distribution function.
 	 * @return A lambda function whose first argument is time.
 	 */
-	virtual Function<Dimension + 1> cdf() const {
-		// TODO
+	//virtual Function<Dimension + 1> cdf() const = 0;
+
+	/**
+	 * @return The mean.
+	 */
+	virtual Real mean() const = 0;
+
+	/**
+	 * @return The variance.
+	 */
+	//virtual Real variance() const = 0;
+
+	/**
+	 * @return The median.
+	 */
+	//virtual Real median() const = 0;
+
+};
+
+// TODO: Probability distribution that changes with time
+
+class Lognormal1 : public ProbabilityDistribution<1> {
+
+	Real mu, sigma;
+
+public:
+
+	Lognormal1(Real mu, Real sigma) noexcept : mu(mu), sigma(sigma) {
+		assert(sigma > 0.);
 	}
 
+	virtual std::array<Real, 2> support() const {
+		return {{ 0., std::numeric_limits<Real>::infinity() }};
+	}
+
+	virtual Function1 pdf() const {
+		return [this] (Real x) -> Real {
+			assert(x > 0.);
+
+			if(x == 0.) {
+				return 0;
+			}
+
+			const Real y = std::log(x) - mu;
+
+			return 1. / (x * sigma * std::sqrt(2. * M_PI))
+					* std::exp( -y * y )
+					/ (2. * sigma * sigma);
+		};
+	}
 
 	virtual Real mean() const {
-		auto sup = support();
-
-		// TODO: Unroll
-		for(Index i = 0; i < Dimension; i++) {
-
-		}
+		return std::exp( mu * sigma * sigma / 2. );
 	}
-
-	virtual Real variance() const {
-		// TODO: Integrate
-	}
-
-	virtual Real median() const {
-		// TODO: Bisection to find where CDF = 1/2
-	}
-
-
 
 };
 

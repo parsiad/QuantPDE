@@ -450,7 +450,7 @@ public:
 
 	public:
 
-		Control(WF factory) noexcept
+		explicit Control(WF factory) noexcept
 				: factory(std::move(factory)),
 				interpolant(nullptr) {
 		}
@@ -461,7 +461,7 @@ public:
 		// (WF factory) constructor from the one above, hence the
 		// following workaround with templates:
 		template <typename G>
-		Control(G &grid) noexcept
+		explicit Control(G &grid) noexcept
 				: factory(grid.defaultInterpolantFactory()),
 				interpolant(nullptr) {
 		}
