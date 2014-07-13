@@ -100,7 +100,7 @@ const Real r = 0.04;
 
 // Local volatility function
 const Real alpha = 20.;
-auto v = [alpha] (Real t, Real S) {
+auto v = [alpha] (Real S) {
     return alpha / S;
 };
 
