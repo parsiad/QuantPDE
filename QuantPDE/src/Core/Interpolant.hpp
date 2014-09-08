@@ -190,7 +190,7 @@ class PiecewiseLinear : public Interpolant<Dimension> {
 		// it lies between along with the distance from the leftmost
 		// tick
 		// TODO: Optimize (loop unroll)
-		for(Index i = 0; i < Dimension; i++) {
+		for(Index i = 0; i < Dimension; ++i) {
 
 			const Axis &x = (*grid)[i];
 			Index length = x.size();
@@ -253,11 +253,11 @@ class PiecewiseLinear : public Interpolant<Dimension> {
 		Real interpolated = 0.;
 
 		// TODO: Optimize (loop unroll)
-		for(std::intmax_t i = 0; i < TwoToTheDimension::value; i++) {
+		for(std::intmax_t i = 0; i < TwoToTheDimension::value; ++i) {
 			Real factor = 1.;
 
 			// Unroll loop
-			for(Index j = 0; j < Dimension; j++) {
+			for(Index j = 0; j < Dimension; ++j) {
 				if(i && (1 << j)) {
 					// j-th bit of i is 1
 					factor *= weights[j];

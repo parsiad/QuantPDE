@@ -44,7 +44,7 @@ const Real K = 100.;
 
 // Payoff for a put option
 auto payoff = [K] (Real S) {
-    return max( {K - S, 0.} );
+    return max( K - S, 0. );
 };
 
 // Initial time
@@ -68,11 +68,11 @@ const Real D = 1.;
 
 // Relates the value of V- to V (see the above derivation)
 auto dividendEvent = [D] (const Interpolant1 &V, Real S) {
-    return V( max( {S - D, 0.} ) );
+    return V( max( S - D, 0. ) );
 };
 
 // Create uniformly spaced dividend payouts
-for(int e = 0; e < E; e++) {
+for(int e = 0; e < E; ++e) {
     // Time at which the event takes place
     const Real te = T / E * e;
 
@@ -87,7 +87,7 @@ auto exerciseEvent = [K] (const Interpolant1 &V, Real S) {
 };
 
 // Create uniformly spaced exercise times
-for(int e = 0; e < E; e++) {
+for(int e = 0; e < E; ++e) {
     // Time at which the event takes place
     const Real te = T / E * e;
 

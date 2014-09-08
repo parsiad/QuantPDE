@@ -412,7 +412,7 @@ class Domain : public DomainBase {
 			std::array<Real, Dimension> coordinates; \
 			for(auto v_n : accessor) { \
 				coordinates = &v_n; \
-				for(Index i = 0; i < Dimension; i++) { \
+				for(Index i = 0; i < Dimension; ++i) { \
 					os << coordinates[i] << '\t'; \
 				} \
 				os << *v_n << std::endl; \
@@ -505,7 +505,7 @@ public:
 	 * for(auto v_x : accessor(D, v)) {
 	 * 	auto x = &v_x; // x is of type std::array<Real, Dimension>
 	 * 	Real product = 1.;
-	 * 	for(Index i = 0; i < Dimension; i++) {
+	 * 	for(Index i = 0; i < Dimension; ++i) {
 	 * 		product *= x[i];
 	 * 	}
 	 * 	*v = product;
@@ -994,7 +994,7 @@ class RectilinearGrid : public Domain<Dimension> {
 		vsize = 1;
 
 		// TODO: Optimize (loop unroll)
-		for(Index i = 0; i < Dimension; i++) {
+		for(Index i = 0; i < Dimension; ++i) {
 			assert(this->axes[i].size() > 0);
 			vsize *= this->axes[i].size();
 		}
@@ -1034,7 +1034,7 @@ public:
 					*pointer);
 
 			// TODO: Optimize (loop unroll)
-			for(Index k = 0; k < Dimension; k++) {
+			for(Index k = 0; k < Dimension; ++k) {
 				// Refine k-th axis
 
 				const Axis &n = original[k];
@@ -1076,7 +1076,7 @@ public:
 	RectilinearGrid(const RectilinearGrid &that) noexcept
 			: vsize(that.vsize) {
 		// TODO: Optimize (loop unroll)
-		for(Index i = 0; i < Dimension; i++) {
+		for(Index i = 0; i < Dimension; ++i) {
 			axes[i] = that.axes[i];
 		};
 	}
@@ -1085,7 +1085,7 @@ public:
 	 */
 	RectilinearGrid(RectilinearGrid &&that) noexcept : vsize(that.vsize) {
 		// TODO: Optimize (loop unroll)
-		for(Index i = 0; i < Dimension; i++) {
+		for(Index i = 0; i < Dimension; ++i) {
 			axes[i] = std::move(that.axes[i]);
 		};
 	}
@@ -1097,7 +1097,7 @@ public:
 		vsize = that.vsize;
 
 		// TODO: Optimize (loop unroll)
-		for(Index i = 0; i < Dimension; i++) {
+		for(Index i = 0; i < Dimension; ++i) {
 			axes[i] = that.axes[i];
 		};
 
@@ -1111,7 +1111,7 @@ public:
 		vsize = that.vsize;
 
 		// TODO: Optimize (loop unroll)
-		for(Index i = 0; i < Dimension; i++) {
+		for(Index i = 0; i < Dimension; ++i) {
 			axes[i] = std::move(that.axes[i]);
 		};
 
@@ -1137,8 +1137,8 @@ public:
 	 * Vector v = G.vector();
 	 *
 	 * auto indexer = G.indexer(v);
-	 * for(Index m = 0; m < X.size(); m++) {
-	 * 	for(Index n = 0; n < Y.size(); n++) {
+	 * for(Index m = 0; m < X.size(); ++m) {
+	 * 	for(Index n = 0; n < Y.size(); ++n) {
 	 * 		indexer(m, n) = X[m] * Y[n];
 	 * 	}
 	 * }
@@ -1185,8 +1185,8 @@ public:
 	 *
 	 * // Branching inside the loop is expensive and should be eliminated
 	 * // in production code
-	 * for(Index i = 0; i < X.size(); i++) {
-	 * 	for(Index j = 0; j < Y.size(); j++) {
+	 * for(Index i = 0; i < X.size(); ++i) {
+	 * 	for(Index j = 0; j < Y.size(); ++j) {
 	 * 		if(i > 0)     indexer(i, j, i - 1, j    ) = -1.;
 	 * 		if(j > 0)     indexer(i, j, i,     j - 1) = -1.;
 	 * 		              indexer(i, j, i,     j    ) =  4.;
@@ -1226,8 +1226,8 @@ public:
 	 *
 	 * // Branching inside the loop is expensive and should be eliminated in
 	 * // production code
-	 * for(Index i = 0; i < m; i++) {
-	 * 	for(Index j = 0; j < n; j++) {
+	 * for(Index i = 0; i < m; ++i) {
+	 * 	for(Index j = 0; j < n; ++j) {
 	 * 		if(i > 0)     builder(i, j, i - 1, j    ) = -1.;
 	 * 		if(j > 0)     builder(i, j, i,     j - 1) = -1.;
 	 * 		              builder(i, j, i,     j    ) =  4.;
@@ -1293,7 +1293,7 @@ public:
 		index = idxs[0];
 
 		// TODO: Optimize (loop unroll)
-		for(Index i = 0; i < Dimension - 1; i++) {
+		for(Index i = 0; i < Dimension - 1; ++i) {
 			horner *= axes[i].size();
 			index += horner * idxs[i + 1];
 		};
@@ -1317,7 +1317,7 @@ public:
 	friend std::ostream &operator<<(std::ostream &os,
 			const RectilinearGrid<Dimension> &grid) {
 		os << grid[0];
-		for(Index i = 1; i < Dimension; i++) {
+		for(Index i = 1; i < Dimension; ++i) {
 			os << " x " << grid[i];
 		};
 		return os;
@@ -1340,7 +1340,7 @@ public:
 		Index m = 1;
 
 		// TODO: Optimize (loop unroll)
-		for(Index i = 0; i < Dimension - 1; i++) {
+		for(Index i = 0; i < Dimension - 1; ++i) {
 			m *= axes[i].size();
 		}
 
@@ -1361,7 +1361,7 @@ public:
 		std::array<Index, Dimension> tmp = indices(index);
 
 		// TODO: Optimize (loop unroll)
-		for(Index i = 0; i < Dimension; i++) {
+		for(Index i = 0; i < Dimension; ++i) {
 			array[i] = axes[i][tmp[i]];
 		};
 

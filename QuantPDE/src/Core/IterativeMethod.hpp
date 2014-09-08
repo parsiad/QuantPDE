@@ -157,7 +157,7 @@ public:
 
 		#ifndef NDEBUG
 		if(size < n) {
-			size++;
+			++size;
 		}
 		#endif
 	}
@@ -967,7 +967,7 @@ public:
 	 */
 	Real meanIterations() const {
 		Real mean = its[0];
-		for(size_t i = 1; i < its.size(); i++) {
+		for(size_t i = 1; i < its.size(); ++i) {
 			mean = (i * mean + its[i]) / (i + 1);
 		}
 		return mean;
@@ -1108,7 +1108,7 @@ bool IterationNode::isTimestepTheSame() const {
 #define QUANT_PDE_TMP_TAIL \
 	do { \
 		initialized = true; \
-		this->its.back()++; \
+		++this->its.back(); \
 		this->endNodes(); \
 	} while(0)
 

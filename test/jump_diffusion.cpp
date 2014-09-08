@@ -177,7 +177,7 @@ int main(int argc, char **argv) {
 	);
 
 	// Refine grid
-	for(int i = 0; i < R; i++) {
+	for(int i = 0; i < R; ++i) {
 		grid.refine( RectilinearGrid1::NewTickBetweenEachPair() );
 	}
 
@@ -200,7 +200,7 @@ int main(int argc, char **argv) {
 	// --------------
 	//
 	// Sets up the loop structure:
-	// for(int n = 0; n < N; n++) {
+	// for(int n = 0; n < N; ++n) {
 	// 	// Solve a linear system
 	// }
 	////////////////////////////////////////////////////////////////////////

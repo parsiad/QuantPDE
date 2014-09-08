@@ -31,7 +31,7 @@ class PolicyIteration : public IterationNode {
 
 		// We cannot template a virtual function, so we are stuck
 		// initializing this array the old-fashioned way
-		for(Index i = 0; i < ControlDimension; i++) {
+		for(Index i = 0; i < ControlDimension; ++i) {
 			optimal[i] = domain->vector();
 		}
 
@@ -44,7 +44,7 @@ class PolicyIteration : public IterationNode {
 
 		for(auto node : *controlDomain) {
 			Vector inputs[ControlDimension];
-			for(Index i = 0; i < ControlDimension; i++) {
+			for(Index i = 0; i < ControlDimension; ++i) {
 				inputs[i] = domain->ones() * node[i];
 			}
 			packMoveAndCall<Dimension>(*system, setInputs, inputs);
@@ -54,11 +54,11 @@ class PolicyIteration : public IterationNode {
 					* iterand(0)
 					- system->b( nextTime() );
 
-			for(Index i = 0; i < domain->size(); i++) {
+			for(Index i = 0; i < domain->size(); ++i) {
 				if( Order()(candidate(i), best(i)) ) {
 					best(i) = candidate(i);
 					for(Index j = 0; j < ControlDimension;
-							j++) {
+							++j) {
 						optimal[j](i) = node[j];
 					}
 				}

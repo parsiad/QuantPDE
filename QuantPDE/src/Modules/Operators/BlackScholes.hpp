@@ -129,7 +129,7 @@ public:
 		// alpha_i dt V_{i-1}^{n+1} + (1 + (alpha_i + beta_i + r) dt)
 		// 		V_i^{n+1} + beta_i dt V_{i+1}^{n+1} = V_i^n
 
-		for(Index i = 1; i < n - 1; i++) {
+		for(Index i = 1; i < n - 1; ++i) {
 
 			const Real r_i = r( t, S[i] );
 			const Real v_i = v( t, S[i] );
@@ -257,13 +257,13 @@ class BlackScholesJumpDiffusion final : public IterationNode,
 		// Integrate density around grid points
 		std::vector<Real> fprime;
 		fprime.reserve(N);
-		for(Index i = 0; i <= N/2; i++) {
+		for(Index i = 0; i <= N/2; ++i) {
 			// Integrate around x_i
 			const Real a = dx * (-.5 + i);
 			const Real b = dx * ( .5 + i);
 			fprime.push_back( Integral(fbar, a)(b) );
 		}
-		for(Index i = N/2+1; i < N; i++) {
+		for(Index i = N/2+1; i < N; ++i) {
 			// Integrate around x_{i - N}
 			const Real a = dx * (-.5 + i - N);
 			const Real b = dx * ( .5 + i - N);
@@ -356,7 +356,7 @@ public:
 
 		// Evaluate Vbar at the grid points
 		buffer.reserve(N);
-		for(Index i = 0; i < N; i++) {
+		for(Index i = 0; i < N; ++i) {
 			buffer.push_back( Vbar(x0 + i * dx) );
 		}
 
@@ -365,7 +365,7 @@ public:
 		fft.fwd(bufferFFT, buffer);
 
 		// Multiplication (overwrite bufferFFT to save space)
-		for(Index i = 0; i < N; i++) {
+		for(Index i = 0; i < N; ++i) {
 			bufferFFT[i] *= std::conj(fprimeFFT[i]);
 		}
 
@@ -375,7 +375,7 @@ public:
 		// Copy results to vector so that we can use existing
 		// interpolation methods
 		/*Vector correlation = F.vector();
-		for(Index i = 0; i < N; i++) {
+		for(Index i = 0; i < N; ++i) {
 			correlation(i) = buffer[i];
 		}
 		PiecewiseLinear1 h(F, std::move(correlation));*/
@@ -394,7 +394,7 @@ public:
 		b(0) = 0.;
 
 		// Interior points
-		for(Index i = 1; i < n - 1; i++) {
+		for(Index i = 1; i < n - 1; ++i) {
 			b(i) = l(t0, S[i]) * h(std::log(S[i]));
 		}
 

@@ -111,7 +111,7 @@ public:
 		// Used to expand the region of integration on each axis
 		Real m[Dimension];
 
-		for(Index i = 0; i < Dimension; i++) {
+		for(Index i = 0; i < Dimension; ++i) {
 			neginf[i] = a[i]  ==
 					-std::numeric_limits<Real>::infinity();
 			posinf[i] = xx[i] ==
@@ -159,7 +159,7 @@ public:
 		Real integral;
 		while(true) {
 			// Expand the region of integration
-			for(Index i = 0; i < Dimension; i++) {
+			for(Index i = 0; i < Dimension; ++i) {
 				if(neginf[i]) {
 					aa[i] += aa[i] - m[i];
 				}
@@ -214,7 +214,7 @@ struct TrapezoidalRuleSubroutine<N, I, Is...> {
 
 		// Interior points
 		const Real dx = (*x - *a) / I;
-		for(int i = 1; i <= I - 1; i++) {
+		for(int i = 1; i <= I - 1; ++i) {
 			sum += 2 * function(*a + i * dx)
 					* TrapezoidalRuleSubroutine<N-1, Is...>
 					::compute(function, a+1, x+1);
@@ -261,7 +261,7 @@ class TrapezoidalRule : public Integral<Dimension> {
 		typedef IntegerProduct<Intervals...> Product;
 
 		double scale = 1. / Power::value;
-		for(int i = 0; i < Dimension; i++) {
+		for(int i = 0; i < Dimension; ++i) {
 			scale *= (x[i] - a[i]) / Product::value;
 		}
 
@@ -348,9 +348,9 @@ class AdaptiveQuadrature : public Integral<Dimension> {
 		Real sum = 0.;
 
 		// Indices 0 to 2^N - 1
-		for(std::intmax_t i = 0; i < Power::value - 1; i++) {
+		for(std::intmax_t i = 0; i < Power::value - 1; ++i) {
 			// Build array
-			for(Index j = 0; j < Dimension; j++) {
+			for(Index j = 0; j < Dimension; ++j) {
 				const Real a = p[j];
 				const Real x = p[j+Dimension];
 
@@ -376,7 +376,7 @@ class AdaptiveQuadrature : public Integral<Dimension> {
 
 		// Index Power::value - 1
 		{
-			for(Index j = 0; j < Dimension; j++) {
+			for(Index j = 0; j < Dimension; ++j) {
 				const Real a = p[j];
 				const Real x = p[j+Dimension];
 
@@ -402,7 +402,7 @@ class AdaptiveQuadrature : public Integral<Dimension> {
 			sum = 0.;
 
 			// Most of the cells
-			for(std::intmax_t i = 0; i < Power::value - 1; i++) {
+			for(std::intmax_t i = 0; i < Power::value - 1; ++i) {
 				sum += refine(integrals[i], pp[i], n - 1);
 			}
 
@@ -417,7 +417,7 @@ class AdaptiveQuadrature : public Integral<Dimension> {
 			const std::array<Real, Dimension> &x) const {
 		// Outermost integration
 		Real p[Dimension * 2];
-		for(Index j = 0; j < Dimension; j++) {
+		for(Index j = 0; j < Dimension; ++j) {
 			p[j] = a[j];
 			p[j+Dimension] = x[j];
 		}

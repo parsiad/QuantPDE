@@ -43,7 +43,7 @@ class Axis final {
 		p = n;
 		while(p < n + length - 1) {
 			assert(*p < *(p+1));
-			p++;
+			++p;
 		}
 		#endif
 	}
@@ -179,7 +179,7 @@ public:
 	 */
 	static Axis range(Real begin, Real step, Real end) {
 		Axis axis( (Index) std::floor( (end - begin) / step ) + 1 );
-		for(Index i = 0; i < axis.length; i++) {
+		for(Index i = 0; i < axis.length; ++i) {
 			axis.n[i] = begin + step * i;
 		}
 		return axis;
@@ -194,7 +194,7 @@ public:
 	static Axis uniform(Real begin, Real end, Index points) {
 		const Real dx = (end - begin) / (points - 1);
 		Axis axis(points);
-		for(Index i = 0; i < points; i++) {
+		for(Index i = 0; i < points; ++i) {
 			axis.n[i] = begin + dx * i;
 		}
 		return axis;
@@ -211,7 +211,7 @@ public:
  */
 std::ostream &operator<<(std::ostream &os, const Axis &axis) {
 	os << '(' << axis[0];
-	for(Index i = 1; i < axis.size(); i++) {
+	for(Index i = 1; i < axis.size(); ++i) {
 		os << ' ' << axis[i];
 	}
 	os << ')';

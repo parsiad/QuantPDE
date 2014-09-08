@@ -156,7 +156,7 @@ class MollifierConvolution1 : public Map1 {
 
 		// Build it
 		Real *ticks = new Real[n];
-		for(size_t i = 0; i < n; i++) {
+		for(size_t i = 0; i < n; ++i) {
 			ticks[i] = left + i * epsilon;
 		}
 		RectilinearGrid1 tmp( Axis(ticks, n) );
@@ -179,13 +179,13 @@ class MollifierConvolution1 : public Map1 {
 		Eigen::FFT<Real> fft;
 
 		std::vector<Real> u0, v0;
-		for(size_t i = 0; i < n; i++) {
+		for(size_t i = 0; i < n; ++i) {
 			u0.push_back( (u.data())[i] );
 			v0.push_back( (v.data())[i] );
 		}
 
 		// Pad with zeros
-		for(size_t i = 0; i < n - 1; i++) {
+		for(size_t i = 0; i < n - 1; ++i) {
 			u0.push_back( 0. );
 			v0.push_back( 0. );
 		}
@@ -197,7 +197,7 @@ class MollifierConvolution1 : public Map1 {
 		fft.fwd(vk, v0);
 
 		// Component-wise multiplication
-		for(size_t i = 0; i < uk.size(); i++) {
+		for(size_t i = 0; i < uk.size(); ++i) {
 			uk[i] = uk[i] * vk[i];
 		}
 
@@ -206,7 +206,7 @@ class MollifierConvolution1 : public Map1 {
 
 		// Transfer data to a vector
 		Vector w = tmp.vector();
-		for(size_t i = 0; i < n; i++) {
+		for(size_t i = 0; i < n; ++i) {
 			w(i) = u0[i + n/2];
 		}
 
@@ -343,7 +343,7 @@ class L2ProjectOnLagrangeBases1 final : public Map1 {
 			)
 		;
 
-		for(Index i = 1; i < n - 1; i++) {
+		for(Index i = 1; i < n - 1; ++i) {
 			M_G(i, i - 1) =      (S[i    ] - S[i - 1]) / 6.;
 			M_G(i, i    ) = 2. * (S[i + 1] - S[i - 1]) / 6.;
 			M_G(i, i + 1) =      (S[i + 1] - S[i    ]) / 6.;

@@ -159,7 +159,7 @@ int main(int argc, char **argv) {
 	);
 
 	// Refine grid
-	for(int i = 0; i < R; i++) {
+	for(int i = 0; i < R; ++i) {
 		grid.refine( RectilinearGrid1::NewTickBetweenEachPair() );
 	}
 
@@ -182,7 +182,7 @@ int main(int argc, char **argv) {
 	// --------------
 	//
 	// Sets up the loop structure:
-	// for(int n = 0; n < N; n++) {
+	// for(int n = 0; n < N; ++n) {
 	// 	// Solve a linear system
 	// }
 	////////////////////////////////////////////////////////////////////////
@@ -197,7 +197,7 @@ int main(int argc, char **argv) {
 	// Exercise events
 	////////////////////////////////////////////////////////////////////////
 
-	for(int m = 0; m < e; m++) {
+	for(int m = 0; m < e; ++m) {
 		stepper.add(
 			// Time at which the event takes place
 			T / e * m,
