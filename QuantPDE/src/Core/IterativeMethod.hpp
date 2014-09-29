@@ -824,7 +824,7 @@ public:
 	 * Associates with this linear system an iterative method.
 	 * @param iteration The iterative method.
 	 */
-	void setIteration(Iteration &iteration);
+	virtual void setIteration(Iteration &iteration);
 
 	friend Iteration;
 

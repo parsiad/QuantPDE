@@ -26,6 +26,7 @@
 #include "src/Core/Event.hpp"
 #include "src/Core/IterativeMethod.hpp"
 #include "src/Core/Stepper.hpp"
+#include "src/Core/LinearSystemSum.hpp"
 
 #include "src/Core/PenaltyMethod.hpp"
 #include "src/Core/PolicyIteration.hpp"
