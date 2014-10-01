@@ -228,7 +228,7 @@ int main(int argc, char **argv) {
 	// Makes the linear system to solve at each iteration
 	////////////////////////////////////////////////////////////////////////
 
-	BlackScholes bs(
+	BlackScholes1 bs(
 		grid,
 
 		// Interest rate (passed as a control)

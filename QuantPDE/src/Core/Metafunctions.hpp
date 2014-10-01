@@ -229,6 +229,49 @@ using NaryMethodConst = NaryMethodHelpers::Type<
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <int N>
+struct NaryFunctionPlaceholder {
+	static NaryFunctionPlaceholder ph;
+};
+
+/*
+template <class R, class T, class ...Types, class U, int ...Indices>
+std::function<R (Types...)> curry(std::function<R (T, Types...)> f, U val,
+		Sequence<Indices...>) {
+	return std::bind(f, val, NaryFunctionPlaceholder<Indices+1>::ph...);
+}
+
+template <class R, class T, class ...Types, class U>
+std::function<R (Types...)> curry(std::function<R (T, Types...)> f, U val)
+		{
+	return curry(f, val, GenerateSequence<sizeof...(Types)>());
+}
+*/
+
+#define QUANT_PDE_TMP ( std::bind( std::forward<F>(f), \
+		value, NaryFunctionPlaceholder<Indices+1>::ph... ) )
+template <int ...Indices, typename F, typename U>
+auto curry(F &&f, U value, Sequence<Indices...>) -> decltype(QUANT_PDE_TMP) {
+	return QUANT_PDE_TMP;
+}
+#undef QUANT_PDE_TMP
+
+#define QUANT_PDE_TMP ( curry( std::forward<F>(f), value, \
+		GenerateSequence<N-1>() ) )
+/**
+ * Binds the first value of a function-like object to a particular value.
+ * @param f The function-like object.
+ * @param value The value.
+ * @tparam N The total number of arguments to the function-like object.
+ */
+template <int N, typename F, typename U>
+auto curry(F &&f, U value) -> decltype(QUANT_PDE_TMP) {
+	return QUANT_PDE_TMP;
+}
+#undef QUANT_PDE_TMP
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace IsLValueHelpers {
 
 template <typename T>
@@ -308,6 +351,18 @@ RRef<T> makeRRef(T &&x) {
 }
 
 } // QuantPDE
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Note: adding members to the std namespace is not standards-compliant
+namespace std {
+
+template <int N>
+struct is_placeholder<::QuantPDE::NaryFunctionPlaceholder<N>> :
+		std::integral_constant<int, N>
+{};
+
+} // std
 
 #endif
 

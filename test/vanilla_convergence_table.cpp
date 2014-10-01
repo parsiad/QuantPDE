@@ -222,7 +222,7 @@ int main(int argc, char **argv) {
 		Real value;
 		{
 			// Black-Scholes operator (L in V_t = LV)
-			BlackScholes bs(
+			BlackScholes1 bs(
 				grid,
 				interest, volatility, dividends
 			);

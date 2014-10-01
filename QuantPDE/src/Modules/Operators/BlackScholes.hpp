@@ -18,19 +18,28 @@ namespace Modules {
  * \f$V_t - qV = 0\f$ at \f$S\rightarrow \infty\f$. The latter is derived by
  * assuming that the option is linear in the asset for large enough values of
  * the asset.
+ *
+ * @tparam SIndex The index of the risky asset.
 **/
+template <Index Dimension, Index SIndex>
 class BlackScholes : public ControlledLinearSystem1 {
 
-	Coefficient1 r, v, q;
+	static_assert(Dimension > 0, "Dimension must be positive");
+	static_assert(SIndex >=0 && SIndex < Dimension,
+			"The asset index must be between 0 (inclusive) and Dimension (exclusive)");
+
+	Coefficient<Dimension> r, v, q;
 	Real kappa;
 
 	void (BlackScholes::*_computeKappa)(Real);
 
 protected:
 
-	const RectilinearGrid1 &G;
-	Coefficient1 l;
-	MultiFunction1 g;
+	const RectilinearGrid<Dimension> &G;
+
+	// TODO: Increase dimensions
+	Coefficient<Dimension> l;
+	MultiFunction<Dimension> g;
 
 	void pass(Real) {
 	}
@@ -118,66 +127,91 @@ public:
 	}
 
 	virtual Matrix A(Real t) {
-		auto M_G = G.builder( IntegerVector::Constant(G.size(), 3) );
+		// 3 nonzeros per row
+		Matrix M(G.size(), G.size());
+		M.reserve( IntegerVector::Constant(G.size(), 3) );
 
-		const Axis &S = G[0];
+		// S axis
+		const Axis &S = G[SIndex];
 		const Index n = S.size();
 
 		(this->*_computeKappa)(t);
+
+		// Take the images of curried coefficient functions
+		auto rvec = G.image( curry<Dimension+1>(r, t) );
+		auto vvec = G.image( curry<Dimension+1>(v, t) );
+		auto qvec = G.image( curry<Dimension+1>(q, t) );
+		auto lvec = G.image( curry<Dimension+1>(l, t) );
 
 		// Interior points
 		// alpha_i dt V_{i-1}^{n+1} + (1 + (alpha_i + beta_i + r) dt)
 		// 		V_i^{n+1} + beta_i dt V_{i+1}^{n+1} = V_i^n
 
-		for(Index i = 1; i < n - 1; ++i) {
-
-			const Real r_i = r( t, S[i] );
-			const Real v_i = v( t, S[i] );
-			const Real q_i = q( t, S[i] );
-			const Real l_i = l( t, S[i] );
-
-			const Real
-				dSb = S[i]     - S[i - 1],
-				dSc = S[i + 1] - S[i - 1],
-				dSf = S[i + 1] - S[i]
-			;
-
-			const Real alpha_common = v_i * v_i * S[i] * S[i]
-					/ dSb / dSc;
-			const Real  beta_common = v_i * v_i * S[i] * S[i]
-					/ dSf / dSc;
-
-			// Central
-			Real alpha_i = alpha_common - (r_i - q_i - l_i * kappa)
-					* S[i] / dSc;
-			Real beta_i  =  beta_common + (r_i - q_i - l_i * kappa)
-					* S[i] / dSc;
-			if(alpha_i < 0) {
-				// Forward
-				alpha_i = alpha_common;
-				beta_i  =  beta_common + (r_i - q_i
-						- l_i * kappa) * S[i] / dSf;
-			} else if(beta_i < 0) {
-				// Backward
-				alpha_i = alpha_common - (r_i - q_i
-						- l_i * kappa) * S[i] / dSb;
-				beta_i  =  beta_common;
-			}
-
-			M_G(i, i - 1) = -alpha_i;
-			M_G(i, i)     = alpha_i + beta_i + r_i + l_i;
-			M_G(i, i + 1) = -beta_i;
-
-		}
-
 		// Boundaries
 		// Left:  (1 + r dt) V_i^{n+1} = V_i^n
 		// Right:              V(t, S) = g(t) S (linearity assumption)
 
-		M_G(0,   0  ) = r(t, S[0  ]);
-		M_G(n-1, n-1) = q(t, S[n-1]);
+		// Space between S ticks
+		Index offset = 1;
+		for(Index d = 0; d < SIndex; ++d) {
+			offset *= G[d].size();
+		}
 
-		return M_G.matrix();
+		// Iterate through nodes on the grid
+		for(Index idx = 0; idx < G.size(); ++idx) {
+			// Retrieve index of S tick
+			Index i = idx / offset;
+
+			// TODO: Remove branching
+			if(i == 0) {
+				// Left boundary
+				// M(0, 0) = r(t, S[0]);
+				M.insert(idx, idx) = rvec[idx];
+			} else if(i == n-1) {
+				// Right boundary
+				// M(n-1, n-1) = q(t, S[n-1]);
+				M.insert(idx, idx) = qvec[idx];
+			} else {
+				// Interior point
+				const Real r_i = rvec[idx];
+				const Real v_i = vvec[idx];
+				const Real q_i = qvec[idx];
+				const Real l_i = lvec[idx];
+
+				const Real
+					dSb = S[i]     - S[i - 1],
+					dSc = S[i + 1] - S[i - 1],
+					dSf = S[i + 1] - S[i]
+				;
+
+				const Real alpha_common = v_i * v_i * S[i] * S[i] / dSb / dSc;
+				const Real  beta_common = v_i * v_i * S[i] * S[i] / dSf / dSc;
+
+				// Central
+				Real alpha_i = alpha_common - (r_i - q_i - l_i * kappa) * S[i] / dSc;
+				Real beta_i  =  beta_common + (r_i - q_i - l_i * kappa) * S[i] / dSc;
+				if(alpha_i < 0) {
+					// Forward
+					alpha_i = alpha_common;
+					beta_i  =  beta_common + (r_i - q_i - l_i * kappa) * S[i] / dSf;
+				} else if(beta_i < 0) {
+					// Backward
+					alpha_i = alpha_common - (r_i - q_i - l_i * kappa) * S[i] / dSb;
+					beta_i  =  beta_common;
+				}
+
+				// M(i, i - 1) = -alpha_i;
+				// M(i, i)     = alpha_i + beta_i + r_i + l_i;
+				// M(i, i + 1) = -beta_i;
+
+				M.insert(idx, idx - offset) = -alpha_i;
+				M.insert(idx, idx)          =  alpha_i + beta_i + r_i + l_i;
+				M.insert(idx, idx + offset) = -beta_i;
+			}
+		}
+
+		M.makeCompressed();
+		return M;
 	}
 
 	virtual Vector b(Real) {
@@ -190,6 +224,8 @@ public:
 	}
 
 };
+
+typedef BlackScholes<1, 0> BlackScholes1;
 
 /**
  * Represents the operator $L$ in
@@ -215,7 +251,8 @@ public:
  * Journal of Numerical Analysis 25.1 (2005): 87-112.
 **/
 class BlackScholesJumpDiffusion final : public IterationNode,
-		public BlackScholes {
+		public BlackScholes1 {
+		// TODO: Extend this to "multidimensional"
 
 	inline RectilinearGrid1 initializeGrid() {
 		// Spatial axis

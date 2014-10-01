@@ -18,7 +18,7 @@ $(BINARIES_DIRECTORY)/% : %.cpp
 	$(CXX) \
 			-Wall -pedantic                  \
 			-msse2                           \
-			-std=c++11                       \
+			-std=c++14                       \
 			-I ../                           \
 			$(EIGEN) $(DIRECTIVES) -o $@ $<
 

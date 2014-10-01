@@ -111,7 +111,7 @@ auto v = [alpha] (Real S) {
 const Real q = 0.;
 
 // Black-Scholes operator
-BlackScholes bs(grid, r, v, q);
+BlackScholes1 bs(grid, r, v, q);
 
 // Backward-differentiation formula of order two
 ReverseLinearBDFTwo bdf2(grid, bs);

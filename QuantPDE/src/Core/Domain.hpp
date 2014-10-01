@@ -364,6 +364,8 @@ class Domain : public DomainBase {
 	};
 	*/
 
+public:
+
 #define QUANT_PDE_TMP(OWNERSHIP) \
 	class VectorAccessor##OWNERSHIP final { \
 		const Domain *domain; \
@@ -427,8 +429,6 @@ QUANT_PDE_TMP(NON_CONST)
 
 #undef QUANT_PDE_TMP
 
-public:
-
 	/**
 	 * Returns an iterator pointing to the first node in the domain.
 	 *
@@ -463,91 +463,6 @@ public:
 
 	Iterator end() const {
 		return Iterator(*this, size());
-	}
-
-	/**
-	 * Accessors can be used to iterate over vectors with respect to an
-	 * order imposed by a specific domain.
-	 *
-	 * Consider the following example evaluating the function
-	 * \f$f\left(x,y\right)=xy\f$ on two-dimensional domain:
-	 * \code{.cpp}
-	 * // Initialize a domain (assume My2DDomain is a subtype of Domain2)
-	 * My2DDomain D;
-	 *
-	 * // Create a vector
-	 * Vector v = D.vector();
-	 *
-	 * // For-each loop over the elements in the vector
-	 * for(auto v_xy : accessor(D, v)) {
-	 * 	// Get the coordinates associated with this node
-	 * 	auto xy = &v_xy; // xy is of type std::array<Real, 2>
-	 * 	Real x = xy[0], y = xy[1];
-	 *
-	 * 	// Set the value at this node
-	 * 	*v_xy = x * y;
-	 * }
-	 * \endcode
-	 *
-	 * This becomes particularly useful if we would like to evaluate an
-	 * n-dimensional function on a n-dimensional domain, but we only know
-	 * the dimension of the domain at compile-time (as a template argument).
-	 *
-	 * Consider the following example evaulating the function
-	 * \f$f\left(x_1, \ldots, x_n\right)=\prod_{i=1}^n x_i\f$ on an
-	 * n-dimensional domain:
-	 * \code{.cpp}
-	 * // Initialize a domain (assume MyDomain<Dimension> is a subtype of
-	 * // Domain<Dimension>)
-	 * MyDomain<Dimension> D;
-	 *
-	 * Vector v = D.vector();
-	 * for(auto v_x : accessor(D, v)) {
-	 * 	auto x = &v_x; // x is of type std::array<Real, Dimension>
-	 * 	Real product = 1.;
-	 * 	for(Index i = 0; i < Dimension; ++i) {
-	 * 		product *= x[i];
-	 * 	}
-	 * 	*v = product;
-	 * }
-	 * \endcode
-	 * Since the dimension is a template parameter, it is safe to assume
-	 * that the innermost loop will be unrolled by any (smart) compiler for
-	 * low dimensions, and that autovectorizers will be able to pick up on
-	 * potential optimizations.
-	 * @return A vector accessor.
-	 */
-	template <typename D>
-	friend VectorAccessorCONST accessor(D &domain, const Vector &vector) {
-		return VectorAccessorCONST(domain, &vector);
-	}
-
-	template <typename D>
-	friend VectorAccessorSHARED accessor(D &domain, Vector &&vector) {
-		return VectorAccessorSHARED(
-			domain,
-			std::shared_ptr<Vector>(new Vector(std::move(vector)))
-		);
-	}
-
-	template <typename D>
-	friend VectorAccessorNON_CONST accessor(D &domain, Vector &vector) {
-		return VectorAccessorNON_CONST(domain, &vector);
-	}
-
-	template <typename D, typename F>
-	friend VectorAccessorSHARED accessor(D &domain,
-			F &&function) {
-		return VectorAccessorSHARED(
-			domain,
-			std::shared_ptr<Vector>(
-				new Vector(
-					domain.image(
-						std::forward<F>(function)
-					)
-				)
-			)
-		);
 	}
 
 	/*
@@ -604,16 +519,7 @@ public:
 	 * @see QuantPDE::Domain::accessor
 	 */
 	template <typename F>
-	Vector image(F &&function) const {
-		Vector v = vector();
-		for(auto node : accessor(*this, v)) {
-			*node = packAndCall<Dimension>(
-				std::forward<F>(function),
-				(&node).data()
-			);
-		}
-		return v;
-	}
+	Vector image(F &&function) const;
 
 	////////////////////////////////////////////////////////////////////////
 
@@ -638,9 +544,105 @@ public:
 
 };
 
+template <Index Dimension> template <typename F>
+Vector Domain<Dimension>::image(F &&function) const {
+	Vector v = vector();
+	for(auto node : accessor(*this, v)) {
+		*node = packAndCall<Dimension>(
+			std::forward<F>(function),
+			(&node).data()
+		);
+	}
+	return v;
+}
+
 typedef Domain<1> Domain1;
 typedef Domain<2> Domain2;
 typedef Domain<3> Domain3;
+
+/**
+ * Accessors can be used to iterate over vectors with respect to an
+ * order imposed by a specific domain.
+ *
+ * Consider the following example evaluating the function
+ * \f$f\left(x,y\right)=xy\f$ on two-dimensional domain:
+ * \code{.cpp}
+ * // Initialize a domain (assume My2DDomain is a subtype of Domain2)
+ * My2DDomain D;
+ *
+ * // Create a vector
+ * Vector v = D.vector();
+ *
+ * // For-each loop over the elements in the vector
+ * for(auto v_xy : accessor(D, v)) {
+ * 	// Get the coordinates associated with this node
+ * 	auto xy = &v_xy; // xy is of type std::array<Real, 2>
+ * 	Real x = xy[0], y = xy[1];
+ *
+ * 	// Set the value at this node
+ * 	*v_xy = x * y;
+ * }
+ * \endcode
+ *
+ * This becomes particularly useful if we would like to evaluate an
+ * n-dimensional function on a n-dimensional domain, but we only know
+ * the dimension of the domain at compile-time (as a template argument).
+ *
+ * Consider the following example evaulating the function
+ * \f$f\left(x_1, \ldots, x_n\right)=\prod_{i=1}^n x_i\f$ on an
+ * n-dimensional domain:
+ * \code{.cpp}
+ * // Initialize a domain (assume MyDomain<Dimension> is a subtype of
+ * // Domain<Dimension>)
+ * MyDomain<Dimension> D;
+ *
+ * Vector v = D.vector();
+ * for(auto v_x : accessor(D, v)) {
+ * 	auto x = &v_x; // x is of type std::array<Real, Dimension>
+ * 	Real product = 1.;
+ * 	for(Index i = 0; i < Dimension; ++i) {
+ * 		product *= x[i];
+ * 	}
+ * 	*v = product;
+ * }
+ * \endcode
+ * Since the dimension is a template parameter, it is safe to assume
+ * that the innermost loop will be unrolled by any (smart) compiler for
+ * low dimensions, and that autovectorizers will be able to pick up on
+ * potential optimizations.
+ * @return A vector accessor.
+ */
+template <typename D>
+typename D::VectorAccessorCONST accessor(D &domain, const Vector &vector) {
+	return typename D::VectorAccessorCONST(domain, &vector);
+}
+
+template <typename D>
+typename D::VectorAccessorSHARED accessor(D &domain, Vector &&vector) {
+	return typename D::VectorAccessorSHARED(
+		domain,
+		std::shared_ptr<Vector>(new Vector(std::move(vector)))
+	);
+}
+
+template <typename D>
+typename D::VectorAccessorNON_CONST accessor(D &domain, Vector &vector) {
+	return typename D::VectorAccessorNON_CONST(domain, &vector);
+}
+
+template <typename D, typename F>
+typename D::VectorAccessorSHARED accessor(D &domain, F &&function) {
+	return typename D::VectorAccessorSHARED(
+		domain,
+		std::shared_ptr<Vector>(
+			new Vector(
+				domain.image(
+					std::forward<F>(function)
+				)
+			)
+		)
+	);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1286,11 +1288,9 @@ public:
 		Index idxs[] {indices...};
 
 		Index
-			index = 0,
+			index = idxs[0],
 			horner = 1
 		;
-
-		index = idxs[0];
 
 		// TODO: Optimize (loop unroll)
 		for(Index i = 0; i < Dimension - 1; ++i) {
