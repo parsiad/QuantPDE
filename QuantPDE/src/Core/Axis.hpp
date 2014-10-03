@@ -169,7 +169,7 @@ public:
 	}
 
 	/**
-	 * Creates an axis with uniformly-spaced ticks.
+	 * Creates an axis with ticks spaced by a step-size.
 	 * Similar to MATLAB's colon notation with begin:step:end.
 	 * @param begin The first tick (inclusive).
 	 * @param step The spacing.

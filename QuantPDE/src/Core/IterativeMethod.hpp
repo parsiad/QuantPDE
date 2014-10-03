@@ -109,7 +109,7 @@ protected:
 	int tail, n;
 
 	#ifndef NDEBUG
-	size_t size;
+	int size;
 	#endif
 
 public:
@@ -493,6 +493,7 @@ public:
 			NaryMethodConst<Real, Interpolant<Dimension>,
 					Dimension, Real> tmp =
 					&Interpolant<Dimension>::operator();
+
 			return packAndCall<Dimension>(interpolant, tmp,
 					coordinates.data() + 1);
 		}
@@ -649,7 +650,7 @@ typedef Control<2> Control2;
 typedef Control<3> Control3;
 
 template <Index Dimension>
-using MultiFunction = Coefficient<Dimension, false, false, true, true>;
+using MultiFunction = Coefficient<Dimension, true, false, true, true>;
 
 typedef MultiFunction<1> MultiFunction1;
 typedef MultiFunction<2> MultiFunction2;
@@ -664,9 +665,7 @@ class ControlledLinearSystemBase : public LinearSystem {
 
 	/**
 	 * Controls the system.
-	 * @param inputs An array of inputs. It can be assumed that the inputs
-	 *               will not be used again and hence invoking move
-	 *               semantics on each input is safe.
+	 * @param inputs An array of inputs.
 	 */
 	virtual void setInputs(Vector *inputs) = 0;
 
@@ -708,7 +707,7 @@ class ControlledLinearSystem : public ControlledLinearSystemBase {
 
 	virtual void setInputs(Vector *inputs) {
 		for(auto control : controls) {
-			control->setInput( std::move(*(inputs++)) );
+			control->setInput( *(inputs++) );
 		}
 	}
 

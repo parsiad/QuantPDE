@@ -47,7 +47,8 @@ class PolicyIteration : public IterationNode {
 			for(Index i = 0; i < ControlDimension; ++i) {
 				inputs[i] = domain->ones() * node[i];
 			}
-			packMoveAndCall<Dimension>(*system, setInputs, inputs);
+			packMoveAndCall<ControlDimension>(*system, setInputs,
+					inputs);
 
 			// Compute A(q)x - b(q)
 			Vector candidate = system->A( nextTime() )
@@ -65,7 +66,7 @@ class PolicyIteration : public IterationNode {
 			}
 		}
 
-		packMoveAndCall<Dimension>(*system, setInputs, optimal);
+		packMoveAndCall<ControlDimension>(*system, setInputs, optimal);
 	}
 
 public:

@@ -234,6 +234,9 @@ struct NaryFunctionPlaceholder {
 	static NaryFunctionPlaceholder ph;
 };
 
+template<int N>
+NaryFunctionPlaceholder<N> NaryFunctionPlaceholder<N>::ph;
+
 /*
 template <class R, class T, class ...Types, class U, int ...Indices>
 std::function<R (Types...)> curry(std::function<R (T, Types...)> f, U val,

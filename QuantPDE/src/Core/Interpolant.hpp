@@ -4,6 +4,7 @@
 #include <array>   // std::array
 #include <cstdint> // std::intmax_t
 #include <memory>  // std::unique_ptr
+#include <tuple>   // std::tuple
 #include <utility> // std::forward, std::move
 
 namespace QuantPDE {
@@ -142,6 +143,59 @@ typedef InterpolantFactory<3> InterpolantFactory3;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <Index Dimension>
+std::array< std::tuple<Real, Real>, Dimension > interpolationData(
+	const RectilinearGrid<Dimension> &grid,
+	const std::array<Real, Dimension> &coordinates
+) {
+
+	std::array< std::tuple<Real, Real>, Dimension > result;
+
+	// For the i-th coordinate, find the ticks on the i-th axis that
+	// it lies between along with the distance from the leftmost
+	// tick
+	// TODO: Optimize (loop unroll)
+	for(Index i = 0; i < Dimension; ++i) {
+
+		const Axis &x = grid[i];
+		Index length = x.size();
+
+		const Real ci = coordinates[i];
+
+		if(ci <= x[0]) {
+			result[i] = std::make_tuple(0, 1.);
+			continue;
+		}
+
+		if(ci >= x[length - 1]) {
+			result[i] = std::make_tuple(length - 2, 0.);
+			continue;
+		}
+
+		// Binary search to find tick
+		Index lo = 0, hi = length - 2, mid = 0;
+		Real weight = 0.;
+		while(lo <= hi) {
+			mid = (lo + hi) / 2;
+			if(ci < x[mid]) {
+				hi = mid - 1;
+			} else if(ci >= x[mid + 1]) {
+				lo = mid + 1;
+			} else {
+				weight = ( x[mid + 1] - ci )
+						/ ( x[mid + 1] - x[mid] );
+				break;
+			}
+		}
+
+		result[i] = std::make_tuple(mid, weight);
+	}
+
+	return result;
+
+}
+
+
 /**
  * A function \f$f\f$ defined piecewise whose pieces are affine functions.
  * Suppose \f$f\f$ is defined on a grid composed of \f$n\f$ axes, and that the
@@ -181,10 +235,9 @@ class PiecewiseLinear : public Interpolant<Dimension> {
 
 	virtual Real interpolate(const std::array<Real, Dimension> &coordinates)
 			const {
-		typedef IntegerPower<2, Dimension> TwoToTheDimension;
-
+		/*
 		Real weights[Dimension];
-		Index indices[TwoToTheDimension::value];
+		Index indices[Dimension];
 
 		// For the i-th coordinate, find the ticks on the i-th axis that
 		// it lies between along with the distance from the leftmost
@@ -228,6 +281,9 @@ class PiecewiseLinear : public Interpolant<Dimension> {
 			indices[i] = mid;
 			weights[i] = weight;
 		}
+		*/
+
+		auto data = interpolationData<Dimension>(*grid, coordinates);
 
 		////////////////////////////////////////////////////////////////
 		// Recursive version
@@ -246,26 +302,27 @@ class PiecewiseLinear : public Interpolant<Dimension> {
 		// the call to interpolate(...) above.
 
 		// Past a certain dimension-threshold, the call to
-		// interpolate(...) will be more efficient as it uses Horner's
+		// interpolate(...) will be more efficient as it uses a factored
 		// form.
 
 		Index idxs[Dimension];
 		Real interpolated = 0.;
 
 		// TODO: Optimize (loop unroll)
+		typedef IntegerPower<2, Dimension> TwoToTheDimension;
 		for(std::intmax_t i = 0; i < TwoToTheDimension::value; ++i) {
 			Real factor = 1.;
 
 			// Unroll loop
 			for(Index j = 0; j < Dimension; ++j) {
-				if(i && (1 << j)) {
+				if(i & (1 << j)) {
 					// j-th bit of i is 1
-					factor *= weights[j];
-					idxs[j] = indices[j];
+					idxs[j] = std::get<0>( data[j] );
+					factor *= std::get<1>( data[j] );
 				} else {
 					// j-th bit of i is 0
-					factor *= 1 - weights[j];
-					idxs[j] = indices[j] + 1;
+					idxs[j] = std::get<0>( data[j] ) + 1;
+					factor *= 1 - std::get<1>( data[j] );
 				}
 			}
 

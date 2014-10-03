@@ -22,7 +22,7 @@ namespace Modules {
  * @tparam SIndex The index of the risky asset.
 **/
 template <Index Dimension, Index SIndex>
-class BlackScholes : public ControlledLinearSystem1 {
+class BlackScholes : public ControlledLinearSystem<Dimension> {
 
 	static_assert(Dimension > 0, "Dimension must be positive");
 	static_assert(SIndex >=0 && SIndex < Dimension,
@@ -82,10 +82,10 @@ protected:
 		l( std::forward<F4>(meanArrivalTime) ),
 		g( std::forward<F5>(jumpAmplitudeDensity) )
 	{
-		registerControl(r);
-		registerControl(v);
-		registerControl(q);
-		registerControl(l);
+		this->registerControl(r);
+		this->registerControl(v);
+		this->registerControl(q);
+		this->registerControl(l);
 		// g is not controllable
 
 		if(g.isConstantInTime()) {
@@ -117,11 +117,11 @@ public:
 		q( std::forward<F3>(dividends) ),
 		G( grid ),
 		l( 0. ),
-		g( [] (Real S) { return 0.; } )
+		g( 0. )
 	{
-		registerControl(r);
-		registerControl(v);
-		registerControl(q);
+		this->registerControl(r);
+		this->registerControl(v);
+		this->registerControl(q);
 
 		_computeKappa = &BlackScholes::pass;
 	}
@@ -160,7 +160,7 @@ public:
 		// Iterate through nodes on the grid
 		for(Index idx = 0; idx < G.size(); ++idx) {
 			// Retrieve index of S tick
-			Index i = idx / offset;
+			Index i = (idx / offset) % G[SIndex].size();
 
 			// TODO: Remove branching
 			if(i == 0) {
