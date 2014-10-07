@@ -1,12 +1,12 @@
 #ifndef QUANT_PDE_CORE
 #define QUANT_PDE_CORE
 
+#include "src/Core/Macros.hpp"
+
 // Use Eigen by default
 #ifndef QUANT_PDE_BOUND
 #include "src/Bindings/Eigen.hpp"
 #endif
-
-#include "src/Core/Macros.hpp"
 
 #include "src/Core/Wrapper.hpp"
 #include "src/Core/Metafunctions.hpp"

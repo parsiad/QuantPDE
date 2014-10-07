@@ -361,7 +361,7 @@ RRef<T> makeRRef(T &&x) {
 namespace std {
 
 template <int N>
-struct is_placeholder<::QuantPDE::NaryFunctionPlaceholder<N>> :
+struct is_placeholder< ::QuantPDE::NaryFunctionPlaceholder<N>> :
 		std::integral_constant<int, N>
 {};
 

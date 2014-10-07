@@ -892,6 +892,8 @@ class Iteration {
 		return 1;
 	}
 
+	virtual void clear() {}
+
 protected:
 
 	Iteration *child;
@@ -959,17 +961,6 @@ public:
 	 */
 	const std::vector<size_t> &iterations() const {
 		return its;
-	}
-
-	/**
-	 * @return The average number of iterations.
-	 */
-	Real meanIterations() const {
-		Real mean = its[0];
-		for(size_t i = 1; i < its.size(); ++i) {
-			mean = (i * mean + its[i]) / (i + 1);
-		}
-		return mean;
 	}
 
 	/**
@@ -1122,6 +1113,7 @@ bool IterationNode::isTimestepTheSame() const {
 	do { \
 		QUANT_PDE_TMP_SET_TIME; \
 		this->its.push_back(0); \
+		this->clear(); \
 		this->clearNodes(); \
 		this->history->clear(); \
 		this->history->push(std::make_tuple( \

@@ -11,16 +11,20 @@ else
 DIRECTIVES:=-O2 -DNDEBUG
 endif
 
+ifdef CUDA
+CXX:=nvcc
+OPTIONS:=-x cu --compiler-bindir /usr/bin/gcc-4.8
+else
+OPTIONS:=-Wall -pedantic -msse2
+endif
+
 all: $(BINARIES)
 
 $(BINARIES_DIRECTORY)/% : %.cpp
 	mkdir -p $(BINARIES_DIRECTORY)
 	$(CXX) \
-			-Wall -pedantic                  \
-			-msse2                           \
-			-std=c++11                       \
-			-I ../                           \
-			$(EIGEN) $(DIRECTIVES) -o $@ $<
+			$(OPTIONS) -std=c++11 \
+			-I../ $(EIGEN) $(DIRECTIVES) -o $@ $<
 
 clean:
 	$(RM) -r $(BINARIES_DIRECTORY)

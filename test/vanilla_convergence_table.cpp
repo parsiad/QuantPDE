@@ -20,6 +20,7 @@ using namespace QuantPDE::Modules;
 #include <iostream> // cout, cerr
 #include <iomanip>  // setw
 #include <memory>   // unique_ptr
+#include <numeric>  // accumulate
 #include <unistd.h> // getopt
 
 using namespace std;
@@ -289,7 +290,9 @@ int main(int argc, char **argv) {
 
 			// Average number of inner iterations
 			if(american) {
-				inner = tolerance->meanIterations();
+				auto its = tolerance->iterations();
+				inner = accumulate(its.begin(), its.end(), 0.)
+						/ its.size();
 			}
 
 			// Solution at S = stock (default is 100.)

@@ -61,6 +61,7 @@ class VariableStepper final : public TimeIteration<Forward> {
 	Real (VariableStepper::*_step)();
 
 	Real _step0() {
+		_step = &VariableStepper::_step1;
 		return dt;
 	}
 
