@@ -249,9 +249,11 @@ int main(int argc, char **argv) {
 	// the long or short position problem.
 	unique_ptr<IterationNode> policy(L
 		? (IterationNode*)
-				new MinPolicyIteration1_1(grid, controls, bs)
-		: (IterationNode*)
+				// sup[ V_tau - LV ]
 				new MaxPolicyIteration1_1(grid, controls, bs)
+		: (IterationNode*)
+				// inf[ V_tau - LV ]
+				new MinPolicyIteration1_1(grid, controls, bs)
 	);
 	policy->setIteration(tolerance); // Associate with k-iteration
 
