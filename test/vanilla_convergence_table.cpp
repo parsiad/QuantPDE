@@ -44,6 +44,10 @@ endl <<
 endl <<
 "    Sets the dividend rate (default is 0.)." << endl <<
 endl <<
+"-f" << endl <<
+"    The initial timestep size is decreased by a factor of 4 (default is 2) to" << endl <<
+"    ensure quadratic convergence in the American put case." << endl <<
+endl <<
 "-K REAL" << endl <<
 endl <<
 "    Sets the strike price (default is 100.)." << endl <<
@@ -97,18 +101,22 @@ int main(int argc, char **argv) {
 	bool call           = true;
 	bool variable       = false;
 	bool american       = false;
+	bool quadratic      = false;
 
 	const Real target   = 1;
 
 	// Setting options with getopt
 	{ char c;
-	while((c = getopt(argc, argv, "Ad:hK:N:pr:R:S:T:v:V")) != -1) {
+	while((c = getopt(argc, argv, "Ad:fhK:N:pr:R:S:T:v:V")) != -1) {
 		switch(c) {
 			case 'A':
 				american = true;
 				break;
 			case 'd':
 				dividends = atof(optarg);
+				break;
+			case 'f':
+				quadratic = true;
 				break;
 			case 'h':
 				help();
@@ -211,7 +219,6 @@ int main(int argc, char **argv) {
 		///////////////////////////////////////////////////////////////
 
 		// Refine the grid
-		// TODO: Uncomment
 		grid.refine( RectilinearGrid1::NewTickBetweenEachPair() );
 
 		///////////////////////////////////////////////////////////////
@@ -233,8 +240,8 @@ int main(int argc, char **argv) {
 				? (Iteration *) new ReverseVariableStepper(
 					0.,                       // startTime
 					expiry,                   // endTime
-					expiry / steps / (pow2l * pow2l), // dt
-					target / (pow2l * pow2l)  // target
+					expiry / steps / pow2l,   // dt
+					target / pow2l            // target
 				)
 				: (Iteration *) new ReverseConstantStepper(
 					0.,                     // startTime
@@ -326,8 +333,12 @@ int main(int argc, char **argv) {
 		previousChange = change;
 		previousValue = value;
 
-		// If variable timestepping is on, decrease by 4 at each step
 		pow2l *= 2;
+
+		// Decrease by 4 at each step
+		if(quadratic) {
+			pow2l *= 2;
+		}
 	}
 
 	return 0;

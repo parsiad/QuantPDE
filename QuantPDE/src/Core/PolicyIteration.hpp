@@ -51,8 +51,7 @@ class PolicyIteration : public IterationNode {
 					inputs);
 
 			// Compute A(q)x - b(q)
-			Vector candidate = system->A( nextTime() )
-					* iterand(0)
+			Vector candidate = system->A( nextTime() ) * iterand(0)
 					- system->b( nextTime() );
 
 			for(Index i = 0; i < domain->size(); ++i) {
