@@ -5,7 +5,7 @@ namespace QuantPDE {
 
 /**
  * Used to solve a problem of the form
- * \f$\min( LV, L^\prime V \right)=0\f$.
+ * \f$\min\left( LV, L^\prime V \right)=0\f$.
  */
 class PenaltyMethod : public IterationNode {
 
@@ -66,7 +66,7 @@ public:
 
 /**
  * Used to solve a problem of the form
- * \f$\min( LV, V - V_0 \right)=0\f$ where V_0 is a function of time and space.
+ * \f$\min\left( LV, V - V_0 \right)=0\f$ where V_0 is a function of time and space.
  *
  * There are two ways to pass V_0:
  * \code{.cpp}

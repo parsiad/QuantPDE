@@ -27,5 +27,13 @@
 	#define EIGEN_DEFAULT_DENSE_INDEX_TYPE int
 #endif
 
-#endif
+// Verbose asserts
+#define QUANT_PDE_ASSERT(x) for ( ; !(x) ; assert(x) )
 
+/*
+QUANT_PDE_ASSERT(condition) {
+	cerr << "this is a detailed error message" << endl;
+}
+*/
+
+#endif

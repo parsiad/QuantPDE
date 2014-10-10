@@ -8,7 +8,7 @@ namespace Modules {
 /**
  * @param K Strike price.
  * @return Lambda function payoff for a vanilla call option,
- *         \f$\f\left(S\right)\equiv max\left(S - K, 0\right)\f$.
+ *         \f$\left(S\right)\equiv max\left(S - K, 0\right)\f$.
  */
 inline Function1 callPayoff(Real K) {
 	return [K] (Real S) { return S < K ? 0. : S - K; };
@@ -17,7 +17,7 @@ inline Function1 callPayoff(Real K) {
 /**
  * @param K Strike price.
  * @return Lambda function payoff for a vanilla put option,
- *         \f$\f\left(S\right)\equiv max\left(S - K, 0\right)\f$.
+ *         \f$\left(S\right)\equiv max\left(S - K, 0\right)\f$.
  */
 inline Function1 putPayoff(Real K) {
 	return [K] (Real S) { return S < K ? K - S : 0.; };
