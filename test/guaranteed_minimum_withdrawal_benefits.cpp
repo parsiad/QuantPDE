@@ -58,14 +58,21 @@ public:
 			const Real S = node[0]; // Investment
 			const Real W = node[1]; // Withdrawal
 
-			const Real lambda = control(t, S, W); // Control
+			// Contract rate of withdrawal
+			const Real Gdt = contractRate(t, S, W);
+
+			// Control
+			const Real q = control(t, S, W);
+
+			// Amount withdrawn, pre-penalty
+			const Real lambdaW = (q<=1.) ? (q*Gdt) : ((q-1.)*(W - Gdt) + Gdt);
 
 			// Interpolation data
 			auto data = interpolationData<2>(
 				grid,
 				{
-					max(S - lambda * W, 0.),
-					(1 - lambda) * W
+					max(S - lambdaW, 0.),
+					W - lambdaW
 				}
 			);
 
@@ -94,36 +101,29 @@ public:
 			const Real S = (&node)[0]; // Investment
 			const Real W = (&node)[1]; // Withdrawal
 
-			//std::cout << S << ", " << W << ": ";
-
 			// You have no money :(
 			if(W <= epsilon) {
-				*node = 0. - epsilon;
-				//std::cout << "cashflow=" << *node << std::endl;
+				*node = 0.;
 				continue;
 			}
-
-			// Control
-			const Real lambda = control(t, S, W);
 
 			// Contract rate of withdrawal
 			const Real Gdt = contractRate(t, S, W);
 
+			// Control
+			const Real q = control(t, S, W);
+
 			// Amount withdrawn, pre-penalty
-			const Real lambdaW = lambda * W;
+			const Real lambdaW = (q<=1.) ? (q*Gdt) : ((q-1.)*(W - Gdt) + Gdt);
 
 			// Withdrawal at no penalty
-			if( lambda < min(Gdt / W, 1.) ) {
-				*node = lambdaW - epsilon;
-				//std::cout << "cashflow=" << *node << std::endl;
+			if(lambdaW < Gdt) {
+				*node = lambdaW;
 				continue;
 			}
 
 			// Withdrawal at a penalty
-			*node = lambdaW - kappa(t, S, W) * (lambdaW - Gdt)
-					- epsilon;
-			//std::cout << "cashflow=" << *node << std::endl;
-
+			*node = lambdaW - kappa(t, S, W) * (lambdaW - Gdt);
 		}
 
 		return b;
@@ -147,7 +147,7 @@ int main() {
 	Real G = 10.;     // Contract rate
 	Real kappa = 0.1; // Penalty rate
 
-	int refinement = 2;
+	int refinement = 1;
 
 	////////////////////////////////////////////////////////////////////////
 	// Solution grid
@@ -177,7 +177,7 @@ int main() {
 		////////////////////////////////////////////////////////////////////////
 
 		// Control partition 0 : 1/n : 1 (MATLAB notation)
-		RectilinearGrid1 controls( Axis::range(0, 1. / (n * pow2l), 1) );
+		RectilinearGrid1 controls( Axis::range(0., 1. / (n * pow2l), 2.) );
 
 		////////////////////////////////////////////////////////////////////////
 		// Iteration tree
