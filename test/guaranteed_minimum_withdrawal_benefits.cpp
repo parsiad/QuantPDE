@@ -65,7 +65,13 @@ public:
 			const Real q = control(t, S, W);
 
 			// Amount withdrawn, pre-penalty
-			const Real lambdaW = (q<=1.) ? (q*Gdt) : ((q-1.)*(W - Gdt) + Gdt);
+			//const Real lambdaW = q * W;
+			Real lambdaW;
+			if(Gdt <= W) {
+				lambdaW = (q<=1.) ? (q*Gdt) : ((q-1.)*(W - Gdt) + Gdt);
+			} else {
+				lambdaW = q/2.*W;
+			}
 
 			// Interpolation data
 			auto data = interpolationData<2>(
@@ -114,7 +120,13 @@ public:
 			const Real q = control(t, S, W);
 
 			// Amount withdrawn, pre-penalty
-			const Real lambdaW = (q<=1.) ? (q*Gdt) : ((q-1.)*(W - Gdt) + Gdt);
+			//const Real lambdaW = q * W;
+			Real lambdaW;
+			if(Gdt <= W) {
+				lambdaW = (q<=1.) ? (q*Gdt) : ((q-1.)*(W - Gdt) + Gdt);
+			} else {
+				lambdaW = q/2.*W;
+			}
 
 			// Withdrawal at no penalty
 			if(lambdaW < Gdt) {
@@ -135,14 +147,14 @@ public:
 
 int main() {
 
-	int n = 10;  // Optimal control partition size
-	int N = 100; // Number of timesteps
+	int n = 10; // Initial optimal control partition size
+	int N = 32; // Initial number of timesteps
 
 	Real T = 10.;
 	Real r = .05;
-	Real v = .20;
+	Real v = .2;
 
-	Real alpha = 0.;  // Hedging fee
+	Real alpha = 0.013886;  // Hedging fee
 
 	Real G = 10.;     // Contract rate
 	Real kappa = 0.1; // Penalty rate
@@ -166,7 +178,7 @@ int main() {
 			130., 135., 140., 145., 150., 160., 175., 200., 225.,
 			250., 300., 500., 750., 1000.
 		},
-		Axis::range(0., 2., 200.)
+		Axis::range(0., 2., 100.)
 	);
 
 	unsigned pow2l  = 1; // 2^l
@@ -196,13 +208,13 @@ int main() {
 		////////////////////////////////////////////////////////////////////////
 
 		BlackScholes<2, 0> bs(grid, r, v, alpha);
-		ReverseLinearBDFTwo bdf(grid, bs);
-		bdf.setIteration(stepper);
+		ReverseRannacher discretization(grid, bs);
+		discretization.setIteration(stepper);
 
 		Withdrawal impulse(grid, G * T / (N * pow2l), kappa);
 		MinPolicyIteration2_1 policy(grid, controls, impulse);
 
-		PenaltyMethod penalty(grid, bdf, policy);
+		PenaltyMethod penalty(grid, discretization, policy);
 
 		// TODO: It currently matters what order each linear system is
 		//       associated with an iteration; fix this.
@@ -237,7 +249,7 @@ int main() {
 
 		RectilinearGrid2 printGrid(
 			Axis::range(0., 25., 200.),
-			Axis::range(0., 25., 200.)
+			Axis { 100. }
 		);
 		cout << accessor( printGrid, V );
 
