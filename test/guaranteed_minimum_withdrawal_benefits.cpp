@@ -33,10 +33,9 @@ class Withdrawal final : public ControlledLinearSystem2 {
 	static constexpr Real epsilon = 1e-12;
 
 	RectilinearGrid2 &grid;
-	MultiFunction2 contractRate, kappa;
+	Noncontrollable2 contractRate, kappa;
 
-	// TODO: Change name of coefficient
-	Coefficient2 control;
+	Controllable2 control;
 
 public:
 
