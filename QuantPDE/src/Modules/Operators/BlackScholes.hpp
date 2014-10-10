@@ -9,8 +9,8 @@ namespace QuantPDE {
 namespace Modules {
 
 /**
- * Represents the operator $L$ in
- * \f$V_{t}+LV\equiv V_{t}+\frac{1}{2}\sigma^{2}S^{2}V_{SS}+\left(r-q\right)SV_{S}-rV\f$
+ * Represents the operator \f$\mathcal{L}\f$ in
+ * \f$V_{t}+\mathcal{L}V\equiv V_{t}+\frac{1}{2}\sigma^{2}S^{2}V_{SS}+\left(r-q\right)SV_{S}-rV\f$
  * \f$r\f$, \f$\sigma\f$, and \f$q\f$ are the usual interest rate, volatility
  * and (continuous) rate of dividends.
  *
@@ -228,8 +228,8 @@ public:
 typedef BlackScholes<1, 0> BlackScholes1;
 
 /**
- * Represents the operator $L$ in
- * \f$V_{t}+LV\equiv V_{t}+\frac{1}{2}\sigma^{2}S^{2}V_{SS}+\left(r-q-\lambda\kappa\right)SV_{S}-\left(r+\lambda\right)V+\lambda\int_{0}^{\infty}V\left(t,S\eta\right)g\left(\eta\right)d\eta.\f$
+ * Represents the operator \f$\mathcal{L}\f$ in
+ * \f$V_{t}+\mathcal{L}V\equiv V_{t}+\frac{1}{2}\sigma^{2}S^{2}V_{SS}+\left(r-q-\lambda\kappa\right)SV_{S}-\left(r+\lambda\right)V+\lambda\int_{0}^{\infty}V\left(t,S\eta\right)g\left(\eta\right)d\eta.\f$
  * \f$r\f$, \f$\sigma\f$, and \f$q\f$ are the usual interest rate, volatility
  * and (continuous) rate of dividends. \f$\lambda\f$ is the mean arrival
  * time of the Poisson process responsible for generating the jumps.
