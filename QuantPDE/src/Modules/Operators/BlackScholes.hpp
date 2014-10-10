@@ -28,7 +28,7 @@ class BlackScholes : public ControlledLinearSystem<Dimension> {
 	static_assert(SIndex >=0 && SIndex < Dimension,
 			"The asset index must be between 0 (inclusive) and Dimension (exclusive)");
 
-	Coefficient<Dimension> r, v, q;
+	Controllable<Dimension> r, v, q;
 	Real kappa;
 
 	void (BlackScholes::*_computeKappa)(Real);
@@ -38,8 +38,8 @@ protected:
 	const RectilinearGrid<Dimension> &G;
 
 	// TODO: Increase dimensions
-	Coefficient<Dimension> l;
-	MultiFunction<Dimension> g;
+	Controllable<Dimension> l;
+	Noncontrollable<Dimension> g;
 
 	void pass(Real) {
 	}

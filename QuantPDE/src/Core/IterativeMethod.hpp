@@ -274,7 +274,7 @@ public:
  * The above operator has a controllable interest rate and a local volatility
  * model.
  *
- * This flexibility is made possible by the Coefficient class, a wrapper for
+ * This flexibility is made possible by the Controllable class, a wrapper for
  * constants, functions of space and time, functions of space, and controls.
  *
  * @tparam Dimension The dimension of the associated spatial domain (not the
@@ -282,7 +282,7 @@ public:
  */
 template <Index Dimension, bool CanConstant = true, bool CanControl = true,
 		bool CanFunctionST = true, bool CanFunctionS = true>
-class Coefficient final {
+class Controllable final {
 
 	static_assert(Dimension > 0, "Dimension must be positive");
 
@@ -519,7 +519,7 @@ public:
 	/**
 	 * Constructor for a constant.
 	 */
-	Coefficient(Real constant) noexcept {
+	Controllable(Real constant) noexcept {
 		static_assert(CanConstant, "Cannot use this as a constant");
 		base = B(new Constant(constant));
 	}
@@ -527,7 +527,7 @@ public:
 	/**
 	 * Constructor for a function of space and time.
 	 */
-	Coefficient(const Function<Dimension + 1> &function) noexcept {
+	Controllable(const Function<Dimension + 1> &function) noexcept {
 		static_assert(CanFunctionST, "Cannot use this as a function of "
 				"space and time");
 		base = B(new FunctionST(function));
@@ -536,7 +536,7 @@ public:
 	/**
 	 * Move constructor for a function of space and time.
 	 */
-	Coefficient(Function<Dimension + 1> &&function) noexcept {
+	Controllable(Function<Dimension + 1> &&function) noexcept {
 		static_assert(CanFunctionST, "Cannot use this as a function of "
 				"space and time");
 		base = B(new FunctionST(std::move(function)));
@@ -545,7 +545,7 @@ public:
 	/**
 	 * Constructor for a function of space.
 	 */
-	Coefficient(const Function<Dimension> &function) noexcept {
+	Controllable(const Function<Dimension> &function) noexcept {
 		static_assert(CanFunctionS, "Cannot use this as a function of "
 				"space");
 		base = B(new FunctionS(function));
@@ -554,7 +554,7 @@ public:
 	/**
 	 * Move constructor for a function of space.
 	 */
-	Coefficient(Function<Dimension> &&function) noexcept {
+	Controllable(Function<Dimension> &&function) noexcept {
 		static_assert(CanFunctionS, "Cannot use this as a function of "
 				"space");
 		base = B(new FunctionS(std::move(function)));
@@ -563,37 +563,37 @@ public:
 	/**
 	 * Move constructor for a control.
 	 */
-	Coefficient(Control &&control) noexcept {
+	Controllable(Control &&control) noexcept {
 		static_assert(CanControl, "Cannot use this as a control");
 		base = B(new Control(std::move(control)));
 	}
-	Coefficient(const Control &control) = delete;
+	Controllable(const Control &control) = delete;
 
 	/**
 	 * Copy constructor.
 	 */
-	Coefficient(const Coefficient &that) noexcept
+	Controllable(const Controllable &that) noexcept
 			: base(that.base->clone()) {
 	}
 
 	/**
 	 * Move constructor.
 	 */
-	Coefficient(Coefficient &&that) noexcept
+	Controllable(Controllable &&that) noexcept
 			: base( std::move(that.base) ) {
 	}
 
 	/**
 	 * Copy assignment operator.
 	 */
-	Coefficient &operator=(const Coefficient &that) & noexcept {
+	Controllable &operator=(const Controllable &that) & noexcept {
 		base = that.base->clone();
 	}
 
 	/**
 	 * Move assignment operator.
 	 */
-	Coefficient &operator=(Coefficient &&that) & noexcept {
+	Controllable &operator=(Controllable &&that) & noexcept {
 		base = std::move(that.base);
 	}
 
@@ -637,24 +637,24 @@ public:
 
 };
 
-typedef Coefficient<1> Coefficient1;
-typedef Coefficient<2> Coefficient2;
-typedef Coefficient<3> Coefficient3;
+typedef Controllable<1> Controllable1;
+typedef Controllable<2> Controllable2;
+typedef Controllable<3> Controllable3;
 
 // Expose Control
 template <Index Dimension>
-using Control = typename Coefficient<Dimension>::Control;
+using Control = typename Controllable<Dimension>::Control;
 
 typedef Control<1> Control1;
 typedef Control<2> Control2;
 typedef Control<3> Control3;
 
 template <Index Dimension>
-using MultiFunction = Coefficient<Dimension, true, false, true, true>;
+using Noncontrollable = Controllable<Dimension, true, false, true, true>;
 
-typedef MultiFunction<1> MultiFunction1;
-typedef MultiFunction<2> MultiFunction2;
-typedef MultiFunction<3> MultiFunction3;
+typedef Noncontrollable<1> Noncontrollable1;
+typedef Noncontrollable<2> Noncontrollable2;
+typedef Noncontrollable<3> Noncontrollable3;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -698,12 +698,12 @@ public:
 
 /**
  * A controllable linear system using wrappers as the controls.
- * @see QuantPDE::Coefficient
+ * @see QuantPDE::Controllable
  */
 template <Index Dimension>
 class ControlledLinearSystem : public ControlledLinearSystemBase {
 
-	std::vector<Coefficient<Dimension> *> controls;
+	std::vector<Controllable<Dimension> *> controls;
 
 	virtual void setInputs(Vector *inputs) {
 		for(auto control : controls) {
@@ -723,7 +723,7 @@ protected:
 	 * @param wrapper The control.
 	 * @see QuantPDE::ControlledLinearSystem::setInputs
 	 */
-	void registerControl(Coefficient<Dimension> &wrapper) {
+	void registerControl(Controllable<Dimension> &wrapper) {
 		if(wrapper.isControllable()) {
 			controls.push_back(&wrapper);
 		}
