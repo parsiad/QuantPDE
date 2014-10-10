@@ -148,21 +148,13 @@ int main() {
 	Real G = 10.;     // Contract rate
 	Real kappa = 0.1; // Penalty rate
 
-	////////////////////////////////////////////////////////////////////////
-	// Control grid
-	////////////////////////////////////////////////////////////////////////
-
-	// Control partition 0 : 1/n : 1 (MATLAB notation)
-	RectilinearGrid1 controls( Axis::range(0, 1. / n, 1) );
+	int refinement = 2;
 
 	////////////////////////////////////////////////////////////////////////
 	// Solution grid
 	////////////////////////////////////////////////////////////////////////
 
 	RectilinearGrid2 grid(
-		Axis::range(0., 50., 200.),
-		Axis::range(0., 50., 200.)
-		/*
 		Axis {
 			0., 5., 10., 15., 20., 25.,
 			30., 35., 40., 45.,
@@ -176,74 +168,97 @@ int main() {
 			250., 300., 500., 750., 1000.
 		},
 		Axis::range(0., 2., 200.)
-		*/
 	);
 
-	////////////////////////////////////////////////////////////////////////
-	// Iteration tree
-	////////////////////////////////////////////////////////////////////////
+	unsigned pow2l  = 1; // 2^l
+	for(int l = 0; l < refinement; ++l) {
 
-	ReverseConstantStepper stepper(
-		0.,  // Initial time
-		T,   // Expiry time
-		T/N  // Timestep size
-	);
-	ToleranceIteration tolerance;
-	stepper.setInnerIteration(tolerance);
+		////////////////////////////////////////////////////////////////////////
+		// Control grid
+		////////////////////////////////////////////////////////////////////////
 
-	////////////////////////////////////////////////////////////////////////
-	// Linear system tree
-	////////////////////////////////////////////////////////////////////////
+		// Control partition 0 : 1/n : 1 (MATLAB notation)
+		RectilinearGrid1 controls( Axis::range(0, 1. / (n * pow2l), 1) );
 
-	BlackScholes<2, 0> bs(grid, r, v, alpha);
-	ReverseLinearBDFOne bdf(grid, bs);
-	bdf.setIteration(stepper);
+		////////////////////////////////////////////////////////////////////////
+		// Iteration tree
+		////////////////////////////////////////////////////////////////////////
 
-	Withdrawal impulse(grid, G * T / N, kappa);
-	MinPolicyIteration2_1 policy(grid, controls, impulse);
+		ReverseConstantStepper stepper(
+			0.,              // Initial time
+			T,               // Expiry time
+			T / (N * pow2l)  // Timestep size
+		);
+		ToleranceIteration tolerance;
+		stepper.setInnerIteration(tolerance);
 
-	PenaltyMethod penalty(grid, bdf, policy);
+		////////////////////////////////////////////////////////////////////////
+		// Linear system tree
+		////////////////////////////////////////////////////////////////////////
 
-	// TODO: It currently matters what order each linear system is
-	//       associated with an iteration; fix this.
+		BlackScholes<2, 0> bs(grid, r, v, alpha);
+		ReverseLinearBDFTwo bdf(grid, bs);
+		bdf.setIteration(stepper);
 
-	penalty.setIteration(tolerance);
-	policy.setIteration(tolerance);
+		Withdrawal impulse(grid, G * T / (N * pow2l), kappa);
+		MinPolicyIteration2_1 policy(grid, controls, impulse);
 
-	////////////////////////////////////////////////////////////////////////
-	// Payoff
-	////////////////////////////////////////////////////////////////////////
+		PenaltyMethod penalty(grid, bdf, policy);
 
-	Function2 payoff = [=] (Real S, Real W) {
-		return max(S, (1 - kappa) * W);
-	};
+		// TODO: It currently matters what order each linear system is
+		//       associated with an iteration; fix this.
 
-	////////////////////////////////////////////////////////////////////////
-	// Running
-	////////////////////////////////////////////////////////////////////////
+		penalty.setIteration(tolerance);
+		policy.setIteration(tolerance);
 
-	BiCGSTABSolver solver;
+		////////////////////////////////////////////////////////////////////////
+		// Payoff
+		////////////////////////////////////////////////////////////////////////
 
-	auto V = stepper.solve(
-		grid,    // Domain
-		payoff,  // Initial condition
-		penalty, // Root of linear system tree
-		solver   // Linear system solver
-	);
+		Function2 payoff = [=] (Real S, Real W) {
+			return max(S, (1 - kappa) * W);
+		};
 
-	////////////////////////////////////////////////////////////////////////
-	// Print solution
-	////////////////////////////////////////////////////////////////////////
+		////////////////////////////////////////////////////////////////////////
+		// Running
+		////////////////////////////////////////////////////////////////////////
 
-	RectilinearGrid2 printGrid(
-		Axis::range(0., 25., 200.),
-		Axis::range(0., 25., 200.)
-	);
-	cout << accessor( printGrid, V );
+		BiCGSTABSolver solver;
 
-	auto its = tolerance.iterations();
-	Real inner = accumulate(its.begin(), its.end(), 0.) / its.size();
-	cout << endl << "average number of inner iterations " << inner << endl;
+		auto V = stepper.solve(
+			grid,    // Domain
+			payoff,  // Initial condition
+			penalty, // Root of linear system tree
+			solver   // Linear system solver
+		);
+
+		////////////////////////////////////////////////////////////////////////
+		// Print solution
+		////////////////////////////////////////////////////////////////////////
+
+		RectilinearGrid2 printGrid(
+			Axis::range(0., 25., 200.),
+			Axis::range(0., 25., 200.)
+		);
+		cout << accessor( printGrid, V );
+
+		cout << endl;
+
+		auto its = tolerance.iterations();
+		Real inner = accumulate(its.begin(), its.end(), 0.)/its.size();
+
+		cout << "average number of inner iterations: " << inner << endl;
+
+		cout << endl;
+
+		pow2l *= 2;
+
+		////////////////////////////////////////////////////////////////////////
+		// Refine Solution grid
+		////////////////////////////////////////////////////////////////////////
+
+		grid.refine( RectilinearGrid2::NewTickBetweenEachPair() );
+	}
 
 	return 0;
 }
