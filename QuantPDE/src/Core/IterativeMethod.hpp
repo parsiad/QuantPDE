@@ -1190,8 +1190,8 @@ public:
 	 * @param lookback The number of iterands to keep track of.
 	 */
 	ToleranceIteration(
-		Real tolerance = 1e-6,
-		Real scale = 1
+		Real tolerance = QuantPDE::tolerance,
+		Real scale = QuantPDE::scale
 	) noexcept :
 		tolerance(tolerance),
 		scale(scale)
@@ -1307,7 +1307,6 @@ class TimeIteration : public Iteration {
 	////////////////////////////////////////////////////////////////////////
 
 	static constexpr Real direction = Forward ? 1. : -1.;
-	static constexpr Real epsilon = 1e-12;
 
 	////////////////////////////////////////////////////////////////////////
 

@@ -36,4 +36,12 @@ QUANT_PDE_ASSERT(condition) {
 }
 */
 
+// Reals
+namespace QuantPDE {
+	typedef double Real;
+	static constexpr Real epsilon = 1e-12;
+	static constexpr Real tolerance = 1e-4;
+	static constexpr Real scale = 1.;
+}
+
 #endif

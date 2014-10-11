@@ -9,8 +9,6 @@
 
 namespace QuantPDE {
 
-typedef double Real;
-
 typedef Eigen::SparseMatrix<Real>::Index Index;
 
 typedef Eigen::Matrix<Real, Eigen::Dynamic, 1> Vector;

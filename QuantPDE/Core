@@ -1,7 +1,7 @@
 #ifndef QUANT_PDE_CORE
 #define QUANT_PDE_CORE
 
-#include "src/Core/Macros.hpp"
+#include "src/Core/EarlyInclude.hpp"
 
 // Use Eigen by default
 #ifndef QUANT_PDE_BOUND

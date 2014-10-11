@@ -114,8 +114,8 @@ public:
 		Real endTime,
 		Real dt,
 		Real target,
-		Real epsilon = 1e-6,
-		Real scale = 1.
+		Real epsilon = QuantPDE::epsilon,
+		Real scale = QuantPDE::scale
 	) noexcept :
 		TimeIteration<Forward>(startTime, endTime),
 		dt(dt),

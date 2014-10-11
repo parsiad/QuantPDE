@@ -40,7 +40,7 @@ public:
 	PenaltyMethod(
 		D &domain,
 		LinearSystem &constraint, LinearSystem &penalizedConstraint,
-		Real tolerance = 1e-6
+		Real tolerance = QuantPDE::tolerance
 	) noexcept :
 		domain(&domain),
 		left(&constraint), right(&penalizedConstraint),
@@ -200,7 +200,7 @@ public:
 	PenaltyMethodDifference(
 		D &domain,
 		LinearSystem &constraint, F &&function,
-		Real tolerance = 1e-6
+		Real tolerance = QuantPDE::tolerance
 	) noexcept :
 		PenaltyMethod( domain, constraint, penalty, tolerance ),
 		penalty( domain, std::forward<F>(function) ) {
