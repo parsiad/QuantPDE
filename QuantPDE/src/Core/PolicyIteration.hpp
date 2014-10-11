@@ -55,7 +55,7 @@ class PolicyIteration : public IterationNode {
 					- system->b( nextTime() );
 
 			for(Index i = 0; i < domain->size(); ++i) {
-				if( Order()(candidate(i), best(i)) ) {
+				if( Order()(candidate(i)/* + (Max ? -1 : 1) * 1e-6*/, best(i)) ) {
 					best(i) = candidate(i);
 					for(Index j = 0; j < ControlDimension;
 							++j) {

@@ -7,12 +7,10 @@
 
 namespace QuantPDE {
 
-// TODO: Clean this file up; perhaps remove Metafunctions namespace
-
 // TODO: To intmax_t or not to intmax_t?
 
 /**
- * Computes integer powers.
+ * Used to compute integer powers at compile-time.
  * @tparam Base The base.
  * @tparam Exponent The exponent.
  */
@@ -22,9 +20,16 @@ struct IntegerPower {
 
 	static constexpr std::intmax_t temporary = HalfPower::value;
 
+	/**
+	 * The value of base to the exponent, assuming no overflow occurred.
+	 * @see QuantPDE::IntegerPower::overflow
+	 */
 	static constexpr std::intmax_t value = temporary * temporary
 			* (Exponent % 2 == 1 ? Base : 1);
 
+	/**
+	 * Logical true if and only if overflow occurred.
+	 */
 	static constexpr bool overflow = HalfPower::overflow ? true :
 			(temporary > std::numeric_limits<intmax_t>::max() /
 			(temporary * (Exponent % 2 == 1 ? Base : 1)) ? true
@@ -33,11 +38,13 @@ struct IntegerPower {
 	static_assert(!overflow, "Overflow detected");
 };
 
+/** @cond QUANT_PDE_HIDDEN */
 template <std::intmax_t Base>
 struct IntegerPower<Base, 0> {
 	static constexpr std::intmax_t value = 1;
 	static constexpr bool overflow = false;
 };
+/** @endcond */
 
 ////////////////////////////////////////////////////////////////////////////////
 

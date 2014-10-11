@@ -11,7 +11,7 @@ namespace QuantPDE {
 
 /**
  * A set of monotonically increasing values used to represent a partition of an
- * interval (e.g. the set \f$\left\{x_i\right\}\f$, where
+ * interval (e.g. \f$\left\{x_i\right\}\f$, where
  * \f$a \equiv x_1 < \ldots < x_n \equiv b\f$; the \f$x_i\f$ are referred to
  * as ticks).
  */
@@ -51,27 +51,16 @@ class Axis final {
 public:
 
 	/**
-	 * Constructor.
-	 * @param list The ticks. These should be strictly monotonically
-	 *             increasing.
+	 * Initializer list constructor.
+	 * @param ticks The ticks.
 	 */
-	Axis(const std::initializer_list<Real> &list) noexcept {
-		initialize(list);
+	Axis(const std::initializer_list<Real> &ticks) noexcept {
+		initialize(ticks);
 	}
 
 	/**
-	 * Constructor.
-	 * @param list The ticks. These should be strictly monotonically
-	 *             increasing.
-	 */
-	//template <typename T>
-	//Axis(const T &list) noexcept {
-	//	initialize(list);
-	//}
-
-	/**
-	 * Constructor.
-	 * @param ticks Ticks (as an array).
+	 * Array constructor.
+	 * @param ticks The ticks.
 	 * @param length The number of ticks.
 	 */
 	Axis(const Real *ticks, Index length) : length(length),
@@ -81,40 +70,28 @@ public:
 	}
 
 	/**
-	 * Initialize the axis from a vector.
-	 * @param vector The vector.
+	 * Vector constructor.
+	 * @param ticks The ticks.
 	 */
-	Axis(const Vector &vector) noexcept : length(vector.size()),
+	Axis(const Vector &ticks) noexcept : length(ticks.size()),
 			n(new Real[length]) {
 		assert(length > 0);
-		std::memcpy(n, vector.data(), sizeof(Real) * length);
+		std::memcpy(n, ticks.data(), sizeof(Real) * length);
 	}
 
-	/**
-	 * Copy constructor.
-	 */
 	Axis(const Axis &that) noexcept : length(that.length),
 			n(new Real[length]) {
 		std::memcpy(n, that.n, length * sizeof(Real));
 	}
 
-	/**
-	 * Move constructor.
-	 */
 	Axis(Axis &&that) noexcept : length(that.length), n(that.n) {
 		that.n = nullptr;
 	}
 
-	/**
-	 * Destructor.
-	 */
 	~Axis() {
 		delete [] n;
 	}
 
-	/**
-	 * Copy assignment operator.
-	 */
 	Axis &operator=(const Axis &that) & noexcept {
 		length = that.length;
 
@@ -127,9 +104,6 @@ public:
 		return *this;
 	}
 
-	/**
-	 * Move assignment operator.
-	 */
 	Axis &operator=(Axis &&that) & noexcept {
 		length = that.length;
 		n = that.n;
@@ -139,7 +113,7 @@ public:
 	}
 
 	/**
-	 * Return a non-const reference to a node by index.
+	 * Return a (non-const) reference to a node by index.
 	 * @param i The index.
 	 */
 	Real &operator[](Index i) {
@@ -155,7 +129,7 @@ public:
 	}
 
 	/**
-	 * @return A pointer to the ticks on this axis.
+	 * @return A const pointer to the ticks on this axis.
 	 */
 	const Real *ticks() const {
 		return n;
