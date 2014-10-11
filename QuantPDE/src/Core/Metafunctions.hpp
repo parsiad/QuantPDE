@@ -55,21 +55,25 @@ struct IntegerPower<Base, 0> {
  */
 template <std::intmax_t Factor, std::intmax_t ...Factors>
 struct IntegerProduct {
+	/**
+	 * The product.
+	 */
 	static constexpr std::intmax_t value = IntegerProduct<Factors...>::value
 			* Factor;
 };
 
+/** @cond QUANT_PDE_HIDDEN */
 template <std::intmax_t Factor>
 struct IntegerProduct<Factor> {
 	static constexpr std::intmax_t value = Factor;
 	//static constexpr bool overflow = false;
 };
+/** @endcond */
 
 ////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Selects the N-th type out of a parameter pack or the N-th argument of a
- * variadic template function.
+ * Selects the N-th type and value out of a parameter pack.
  *
  * \code{.cpp}
  * template <typename ...Ts>
@@ -91,6 +95,7 @@ struct Select {
 	typedef void type;
 };
 
+/** @cond QUANT_PDE_HIDDEN */
 template <std::size_t N, typename T, typename ...Args>
 struct Select<N, T, Args...> {
 	typedef typename Select<N - 1, Args...>::type type;
@@ -108,37 +113,7 @@ struct Select<0, T, Args...> {
 		return a;
 	}
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Selects the N-th value of a parameter pack (of values).
- *
- * \code{.cpp}
- * template <int ...Is>
- * void f(Is ...args) {
- * 	int firstValue  = SelectValue<int, 0, Is...>::get(args...);
- * 	int secondValue = SelectValue<int, 1, Is...>::get(args...);
- * }
- * \endcode
- *
- * @tparam N A nonnegative integer.
- * @tparam Args The parameter pack.
- */
-template <typename T, std::size_t N, T ...Args>
-struct SelectValue {
-	static_assert(N < sizeof...(Args), "Index out of bounds");
-};
-
-template <typename T, std::size_t N, T Arg, T ...Args>
-struct SelectValue<T, N, Arg, Args...> {
-	static constexpr T value = SelectValue<T, N - 1, Args...>::value;
-};
-
-template <typename T, T Arg, T ...Args>
-struct SelectValue<T, 0, Arg, Args...> {
-	static constexpr T value = Arg;
-};
+/** @endcond */
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,9 +134,11 @@ template <int N, int ...Integers>
 struct GenerateSequence : GenerateSequence<N - 1, N - 1, Integers...> {
 };
 
+/** @cond QUANT_PDE_HIDDEN */
 template <int ...Integers>
 struct GenerateSequence<0, Integers...> : Sequence<Integers...> {
 };
+/** @endcond */
 
 ////////////////////////////////////////////////////////////////////////////////
 

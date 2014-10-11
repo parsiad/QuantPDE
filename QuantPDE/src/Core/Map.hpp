@@ -323,8 +323,6 @@ class L2ProjectOnLagrangeBases1 final : public Map1 {
 
 	template <typename F1>
 	Vector map(F1 &&f) const {
-		const Real epsilon = 1e-6;
-
 		auto M_G = G->builder(IntegerVector::Constant(G->size(), 3));
 
 		const Axis &S = (*G)[0];

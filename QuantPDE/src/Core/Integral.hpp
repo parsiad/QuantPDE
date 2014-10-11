@@ -1,11 +1,12 @@
 #ifndef QUANT_PDE_CORE_INTEGRAL_HPP
 #define QUANT_PDE_CORE_INTEGRAL_HPP
 
-#include <array>   // std::array
-#include <cstdint> // std::intmax_t
-#include <cstdlib> // std::abs
-#include <limits>  // std::numeric_limits
-#include <utility> // std::forward, std::move
+#include <array>       // std::array
+#include <cstdint>     // std::intmax_t
+#include <cstdlib>     // std::abs
+#include <limits>      // std::numeric_limits
+#include <type_traits> // std::enable_if
+#include <utility>     // std::forward, std::move
 
 // TODO: static integrate method
 
@@ -30,9 +31,14 @@ class Integral {
 	virtual Real compute(const std::array<Real, Dimension> &a,
 			const std::array<Real, Dimension> &x) const = 0;
 
+	Real tolerance;
+
 protected:
 
-	const std::array<Real, Dimension> a;
+	// TODO: Use templates to select first Dimension arguments in tolerance
+	//       constructor and make this const
+	std::array<Real, Dimension> a;
+
 	const Function<Dimension> function;
 
 public:
@@ -42,29 +48,51 @@ public:
 	 * @param function Function to integrate.
 	 * @param a Lower bounds of integration.
 	 */
-	template <typename F, typename ...Ts>
+	template <typename F, typename ...Ts, typename std::enable_if<Dimension
+			== sizeof...(Ts), int>::type = 0>
 	Integral(F &&function, Ts ...a) noexcept
-			: a( {{a...}} ), function(std::forward<F>(function)) {
+			: tolerance(QuantPDE::tolerance),
+			a( {{a...}} ), function(std::forward<F>(function)) {
+	}
+
+	/**
+	 * Constructor with specified tolerance.
+	 * @param function Function to integrate.
+	 * @param a Lower bounds of integration. The last argument in the pack
+	            corresponds to the tolerance.
+	 */
+	template <typename F, typename ...Ts, typename std::enable_if<Dimension
+			+ 1 == sizeof...(Ts), int>::type = 0>
+	Integral(F &&function, Ts ...a) noexcept
+			: function(std::forward<F>(function)) {
+		tolerance = Select<Dimension, Ts...>::get(a...);
+
+		Real tmp[] {a...};
+		for(Index i = 0; i < Dimension; ++i) {
+			this->a[i] = tmp[i];
+		}
 	}
 
 	/**
 	 * Copy constructor.
 	 */
-	Integral(const Integral &that) noexcept : a(that.a),
-			function(that.function) {
+	Integral(const Integral &that) noexcept : tolerance(that.tolerance),
+			a(that.a), function(that.function) {
 	}
 
 	/**
 	 * Move constructor.
 	 */
-	Integral(Integral &&that) noexcept : a(std::move(that.a)),
-			function(std::move(that.function)) {
+	Integral(Integral &&that) noexcept : tolerance(that.tolerance),
+			a(std::move(that.a)), function(std::move(that.function))
+			{
 	}
 
 	/**
 	 * Copy assignment operator.
 	 */
 	Integral &operator=(const Integral &that) noexcept {
+		tolerance = that.tolerance;
 		a = that.a;
 		function = that.function;
 		return *this;
@@ -74,6 +102,7 @@ public:
 	 * Move assignment operator.
 	 */
 	Integral &operator=(Integral &&that) noexcept {
+		tolerance = that.tolerance;
 		a = std::move(that.a);
 		function = std::move(that.function);
 		return *this;
@@ -94,8 +123,6 @@ public:
 	Real operator()(Ts ...x) const {
 		// TODO: Optimize; inefficient to figure out whether an integral
 		// is finite at run-time
-
-		const Real tolerance = 1e-6; // TODO: Make this a parameter
 
 		// Buffers for lower and upper bounds of integration
 		std::array<Real, Dimension> aa(a);
@@ -428,18 +455,33 @@ class AdaptiveQuadrature : public Integral<Dimension> {
 		return refine(integral, p);
 	}
 
-	const Real tolerance;
+	Real tolerance;
 
 public:
 
 	/**
 	 * Constructor.
+	 * @param a Lower bounds of integration.
 	 */
-	template <typename F, typename ...Ts>
-	AdaptiveQuadrature(F &&function, Ts ...a) noexcept
-			: Integral<Dimension>(std::forward<F>(function), a...),
-			tolerance(1e-6) {
-		// TODO: Use SFINAE to pass in tolerance
+	template <typename F, typename ...Ts, typename std::enable_if<Dimension
+			== sizeof...(Ts), int>::type = 0>
+	AdaptiveQuadrature(F &&function, Ts ...a) noexcept :
+			Integral<Dimension>(std::forward<F>(function), a...),
+			tolerance( QuantPDE::tolerance ) {
+	}
+
+	// SFINAE used to pass in default tolerance
+
+	/**
+	 * Constructor with specified tolerance.
+	 * @param a Lower bounds of integration. The last argument in the pack
+	 *          corresponds to the tolerance.
+	 */
+	template <typename F, typename ...Ts, typename std::enable_if<Dimension
+			+ 1 == sizeof...(Ts), int>::type = 0>
+	AdaptiveQuadrature(F &&function, Ts ...a) noexcept :
+			Integral<Dimension>(std::forward<F>(function), a...),
+			tolerance( Select<Dimension, Ts...>::get(a...) ) {
 	}
 
 	/**
