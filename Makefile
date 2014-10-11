@@ -8,5 +8,5 @@ clean:
 	$(RM) -r doc
 	$(MAKE) clean -C test
 
-.PHONY: all clean
+.PHONY: all doc clean
 

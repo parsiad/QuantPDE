@@ -217,7 +217,7 @@ public:
 
 	/**
 	 * @return False if and only if the left-hand-side matrix (A) has
-	 *         changed since the previous call to A.
+	 *         changed since the last iteration.
 	 * @see QuantPDE::LinearSystem::A
 	 */
 	virtual bool isATheSame() const {
@@ -1154,8 +1154,10 @@ bool IterationNode::isTimestepTheSame() const {
 
 /**
  * An iterative method that terminates when adjacent iterands are within a
- * certain error tolerance. Specifically, the stopping condition is
- * \f$ \max_{i}\frac{\left|x_{i}^{k+1}-x_{i}^{k}\right|}{\max\left(\text{scale},\left|x_{i}^{k+1}\right|\right)}<\text{tolerance} \f$
+ * certain error tolerance.
+ *
+ * The stopping condition is
+ * \f[\max_{i}\frac{\left|x_{i}^{k+1}-x_{i}^{k}\right|}{\max\left(\text{scale},\max_{j}\left(\left|x_{j}^{k+1}\right|\right)\right)}<\text{tolerance}.\f]
  */
 class ToleranceIteration final : public Iteration {
 

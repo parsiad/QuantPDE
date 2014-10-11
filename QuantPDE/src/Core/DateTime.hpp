@@ -75,7 +75,7 @@ public:
 	}
 
 	/**
-	 * Constructor.
+	 * Constructor that fills the std::tm struct directly.
 	 */
 	DateTime(int year, int month, int day, int hours = 0, int minutes = 0,
 			int seconds = 0) noexcept {
@@ -90,16 +90,10 @@ public:
 		gmtime_r(&time, &details);
 	}
 
-	/**
-	 * Copy constructor.
-	 */
 	DateTime(const DateTime &that) noexcept : time(that.time),
 			details(that.details) {
 	}
 
-	/**
-	 * Copy assignment operator.
-	 */
 	DateTime &operator=(const DateTime &that) & noexcept {
 		time = that.time;
 		details = that.details;

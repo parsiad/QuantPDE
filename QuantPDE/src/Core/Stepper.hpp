@@ -50,6 +50,10 @@ typedef ConstantStepper<true > ForwardConstantStepper;
 
 /**
  * Steps through time at (self-adjusting) variable intervals.
+ *
+ * The initial interval size \f$\Delta t^0\f$ is given, and subsequent interval
+ * sizes are computed by
+ * \f[\Delta t^{n}\equiv\frac{\text{target}}{\max_{i}\frac{\left|v_{i}^{n+1}-v_{i}^{n}\right|}{\max\left(\text{scale},\max_{j}\left(\left|v_{j}^{n+1}\right|\right)\right)}+\text{epsilon}}\Delta t^{n+1}\f]
  */
 template <bool Forward>
 class VariableStepper final : public TimeIteration<Forward> {
@@ -57,7 +61,7 @@ class VariableStepper final : public TimeIteration<Forward> {
 	static_assert(std::numeric_limits<Real>::is_iec559,
 			"IEEE 754 required");
 
-	Real dt, target, scale;
+	Real dt, target, epsilon, scale;
 	Real (VariableStepper::*_step)();
 
 	Real _step0() {
@@ -66,8 +70,6 @@ class VariableStepper final : public TimeIteration<Forward> {
 	}
 
 	Real _step1() {
-		const Real epsilon = 1e-6;
-
 		const Vector
 			&v1 = this->iterand(0),
 			&v0 = this->iterand(1)
@@ -103,7 +105,7 @@ public:
 	 * @param startTime The initial time.
 	 * @param endTime The expiry time (must be larger than the initial).
 	 * @param dt The initial time step size.
-	 * @param target The target time step size.
+	 * @param target The target relative error.
 	 * @param scale The scale of the error (e.g. 1 for dollars).
 	 * @param lookback The number of iterands to keep track of.
 	 */
@@ -112,15 +114,18 @@ public:
 		Real endTime,
 		Real dt,
 		Real target,
+		Real epsilon = 1e-6,
 		Real scale = 1.
 	) noexcept :
 		TimeIteration<Forward>(startTime, endTime),
 		dt(dt),
 		target(target),
+		epsilon(epsilon),
 		scale(scale)
 	{
 		assert(dt > 0);
 		assert(target > 0);
+		assert(epsilon > 0);
 		assert(scale > 0);
 	}
 
