@@ -63,6 +63,8 @@ public:
 			}
 		}
 
+		assert(q >= 0.);
+		assert(q <= 2.);
 		assert(lambdaW <= W);
 
 		return lambdaW;
@@ -132,6 +134,7 @@ public:
 
 			// Withdrawal at a penalty
 			*node = lambdaW - kappa(t, S, W) * (lambdaW - Gdt);
+
 		}
 
 		return b;
@@ -161,14 +164,14 @@ int main() {
 	Real G = 10.; // Contract rate
 	Real kappa = 0.1; // Penalty rate
 
-	int refinement = 1;
+	int refinement = 5;
 
 	////////////////////////////////////////////////////////////////////////
 	// Solution grid
 	////////////////////////////////////////////////////////////////////////
 
 	RectilinearGrid2 grid(
-		Axis {
+		/*Axis {
 			0., 5., 10., 15., 20., 25.,
 			30., 35., 40., 45.,
 			50., 55., 60., 65., 70., 72.5, 75., 77.5, 80., 82., 84.,
@@ -180,7 +183,9 @@ int main() {
 			130., 135., 140., 145., 150., 160., 175., 200., 225.,
 			250., 300., 500., 750., 1000.
 		},
-		Axis::range(0., 2., 100.)
+		Axis::range(0., 2., 100.)*/
+		Axis::range(0., 50., 100.),
+		Axis::range(0., 50., 100.)
 	);
 
 	unsigned pow2l  = 1; // 2^l
@@ -221,8 +226,8 @@ int main() {
 		// TODO: It currently matters what order each linear system is
 		//       associated with an iteration; fix this.
 
-		penalty.setIteration(tolerance);
 		policy.setIteration(tolerance);
+		penalty.setIteration(tolerance);
 
 		////////////////////////////////////////////////////////////////
 		// Payoff
@@ -249,11 +254,15 @@ int main() {
 		// Print solution
 		////////////////////////////////////////////////////////////////
 
+		/*
 		RectilinearGrid2 printGrid(
 			Axis::range(0., 25., 200.),
 			Axis { 100. }
 		);
 		cout << accessor( printGrid, V ) << endl;
+		*/
+
+		cout << V(100., 100.) << endl;
 
 		auto its = tolerance.iterations();
 		Real inner = accumulate(its.begin(), its.end(), 0.)/its.size();

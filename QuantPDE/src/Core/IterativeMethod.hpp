@@ -3,7 +3,7 @@
 
 #include <array>        // std::array
 #include <cstdlib>      // std:abs, size_t
-#include <forward_list> // std::forward_list
+#include <list>         // std::list
 #include <memory>       // std::shared_ptr, std::unique_ptr
 #include <queue>        // std::priority_queue
 #include <tuple>        // std::tuple
@@ -875,8 +875,8 @@ class Iteration {
 	}
 
 	inline void endNodes() {
-		for(auto node : nodes) {
-			node->onIterationEnd();
+		for(auto it = nodes.rbegin(); it != nodes.rend(); ++it) {
+			(*it)->onIterationEnd();
 		}
 	}
 
@@ -911,7 +911,7 @@ class Iteration {
 protected:
 
 	Iteration *child;
-	std::forward_list<IterationNode *> nodes;
+	std::list<IterationNode *> nodes;
 	CB *history;
 	Real implicitTime;
 	std::vector<size_t> its;
@@ -1070,7 +1070,7 @@ void IterationNode::setIteration(Iteration &iteration) {
 	}
 	this->iteration = &iteration;
 
-	iteration.nodes.push_front(this);
+	iteration.nodes.push_back(this);
 }
 
 Real IterationNode::time(int index) const {
