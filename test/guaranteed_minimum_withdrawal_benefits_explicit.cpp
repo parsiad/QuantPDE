@@ -32,16 +32,16 @@ int main() {
 
 	int N = 32; // Initial number of timesteps
 
-	Real T = 10.;
+	Real T = 14.28;
 	Real r = .05;
 	Real v = .2;
 
-	Real alpha = 0.013886; // Hedging fee
+	Real alpha = 0.036; // Hedging fee
 
-	Real G = 10.; // Contract rate
+	Real G = 7.; // Contract rate
 	Real kappa = 0.1; // Penalty rate
 
-	int E = 10; // Number of events
+	int E = N; // Number of events
 
 	int refinement = 5;
 
@@ -83,7 +83,7 @@ int main() {
 		////////////////////////////////////////////////////////////////
 
 		BlackScholes<2, 0> bs(grid, r, v, alpha);
-		ReverseRannacher discretization(grid, bs);
+		ReverseCrankNicolson discretization(grid, bs);
 		discretization.setIteration(stepper);
 
 		////////////////////////////////////////////////////////////////
@@ -141,6 +141,7 @@ int main() {
 				}
 			}
 
+			// Penalty
 			if(W > Gdt) {
 				for(int i = 1; i <= partitionSize; ++i) {
 					const Real lambdaW = Gdt + (W - Gdt) * i
@@ -170,6 +171,9 @@ int main() {
 
 				// Spatial grid to interpolate on
 				grid
+
+				// Null-event test
+				//std::unique_ptr<EventBase>(new NullEvent)
 			);
 		}
 

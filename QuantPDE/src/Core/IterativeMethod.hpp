@@ -1241,7 +1241,7 @@ public:
 			this->implicitTime, \
 			std::move(transformed) \
 		)); \
-	} while( Order()(terminalTime(), this->implicitTime) ) \
+	} while( Order()(terminalTime(), this->implicitTime) )
 
 // TODO: Optimize
 #undef QUANT_PDE_TMP_TIMESTEP

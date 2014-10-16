@@ -51,13 +51,11 @@ class MapWrapper : public Map<Dimension> {
 
 public:
 
-	virtual Vector operator()(const Function<Dimension> &function)
-			const {
+	virtual Vector operator()(const Function<Dimension> &function) const {
 		return (*p)(function);
 	}
 
-	virtual Vector operator()(Function<Dimension> &&function) const
-			{
+	virtual Vector operator()(Function<Dimension> &&function) const {
 		return (*p)(std::move(function));
 	}
 

@@ -23,6 +23,39 @@ using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+#if 0
+class PutEvent : public EventBase {
+
+	const RectilinearGrid1 &grid;
+	Real K;
+
+	template <typename V>
+	Vector _doEvent(V &&vector) const {
+		Vector newVector = grid.vector();
+		const Axis &S = grid[0];
+		for( int i = 0 ; i < grid.size() ; ++i ) {
+			newVector(i) = max( vector(i), K - S[i] );
+		}
+		return newVector;
+	}
+
+	virtual Vector doEvent(const Vector &vector) const {
+		return _doEvent(vector);
+	}
+
+	virtual Vector doEvent(Vector &&vector) const {
+		return _doEvent(std::move(vector));
+	}
+
+public:
+
+	template <typename G>
+	PutEvent(G &grid, Real K) noexcept : grid(grid), K(K) {
+	}
+
+};
+#endif
+
 /**
  * Prints help to stderr.
  */
@@ -205,11 +238,14 @@ int main(int argc, char **argv) {
 			// Take the maximum of the continuation and exercise
 			// values
 			[K] (const Interpolant1 &V, Real S) {
-				return V(S); //return max( V(S) , K - S );
+				return max( V(S) , K - S );
 			},
 
 			// Spatial grid to interpolate on
 			grid
+
+			// Non-lambda function approach:
+			//std::unique_ptr<EventBase>(new PutEvent(grid, K))
 		);
 	}
 
