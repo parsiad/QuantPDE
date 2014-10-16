@@ -761,6 +761,14 @@ class IterationNode : public LinearSystem {
 	}
 
 	/**
+	 * Method called after an event occurs.
+	 */
+	virtual void onAfterEvent() {
+		// Default: do nothing (some IterationNodes may want to call
+		//	    clear())
+	}
+
+	/**
 	 * Method called on the start of an iteration.
 	 */
 	virtual void onIterationStart() {
@@ -851,6 +859,12 @@ class Iteration {
 	inline void clearNodes() {
 		for(auto node : nodes) {
 			node->clear();
+		}
+	}
+
+	inline void afterEventNodes() {
+		for(auto node : nodes) {
+			node->onAfterEvent();
 		}
 	}
 
@@ -1235,7 +1249,7 @@ public:
 			events.pop(); \
 			current = &transformed; \
 		} \
-		this->clearNodes(); \
+		this->afterEventNodes(); \
 		this->history->clear(); \
 		this->history->push(std::make_tuple( \
 			this->implicitTime, \

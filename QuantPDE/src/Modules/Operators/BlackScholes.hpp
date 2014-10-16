@@ -368,6 +368,7 @@ public:
 		return BlackScholes::A(t);
 	}
 
+	// TODO: Deprecate this in lieu of something more clever
 	virtual Vector b(Real) {
 		// Spatial axis
 		const Axis &S = G[0];

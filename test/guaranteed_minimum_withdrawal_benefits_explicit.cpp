@@ -32,13 +32,13 @@ int main() {
 
 	int N = 32; // Initial number of timesteps
 
-	Real T = 14.28;
+	Real T = 10.; //14.28;
 	Real r = .05;
 	Real v = .2;
 
-	Real alpha = 0.036; // Hedging fee
+	Real alpha = 0.01389; // 0.036; // Hedging fee
 
-	Real G = 7.; // Contract rate
+	Real G = 10.; //7.; // Contract rate
 	Real kappa = 0.1; // Penalty rate
 
 	int E = N; // Number of events
