@@ -9,7 +9,9 @@ class LinearBDFBase : public IterationNode {
 	const DomainBase *domain;
 
 	inline Real difference(Real t1, Real t0) {
-		return Forward ? t1 - t0 : t0 - t1;
+		auto dt = Forward ? t1 - t0 : t0 - t1;
+		assert(dt > epsilon);
+		return dt;
 	}
 
 protected:

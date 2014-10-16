@@ -764,8 +764,8 @@ class IterationNode : public LinearSystem {
 	 * Method called after an event occurs.
 	 */
 	virtual void onAfterEvent() {
-		// Default: do nothing (some IterationNodes may want to call
-		//	    clear())
+		// Default: clear()
+		clear();
 	}
 
 	/**
@@ -862,7 +862,7 @@ class Iteration {
 		}
 	}
 
-	inline void afterEventNodes() {
+	inline void afterEvent() {
 		for(auto node : nodes) {
 			node->onAfterEvent();
 		}
@@ -1249,7 +1249,7 @@ public:
 			events.pop(); \
 			current = &transformed; \
 		} \
-		this->afterEventNodes(); \
+		this->afterEvent(); \
 		this->history->clear(); \
 		this->history->push(std::make_tuple( \
 			this->implicitTime, \
@@ -1369,7 +1369,7 @@ public:
 	 */
 	void add(Real time, std::unique_ptr<EventBase> event) {
 		assert(time >= startTime);
-		assert(time <= endTime);
+		assert(time < endTime - epsilon);
 		assert(time != initialTime());
 
 		events.emplace( id++, time, std::move(event) );
@@ -1386,7 +1386,7 @@ public:
 	template <Index Dimension, typename ...Ts>
 	void add(Real time, Ts &&...args) {
 		assert(time >= startTime);
-		assert(time <= endTime);
+		assert(time < endTime - epsilon);
 		assert(time != initialTime());
 
 		events.emplace(
@@ -1409,7 +1409,7 @@ public:
 	template <typename ...Ts> \
 	void add(Real time, Transform##DIMENSION &&transform, Ts &&...args) { \
 		assert(time >= startTime); \
-		assert(time <= endTime); \
+		assert(time < endTime - epsilon); \
 		assert(time != initialTime()); \
 		events.emplace( \
 			id++, \
@@ -1426,7 +1426,7 @@ public:
 	void add(Real time, const Transform##DIMENSION &transform, \
 			Ts &&...args) { \
 		assert(time >= startTime); \
-		assert(time <= endTime); \
+		assert(time < endTime - epsilon); \
 		assert(time != initialTime()); \
 		events.emplace( \
 			id++, \

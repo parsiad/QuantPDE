@@ -153,7 +153,7 @@ int main() {
 	//       + W0   exp(-r   * T) * (1 - kappa) * (1 - normcdf(dm))
 
 	int n = 10; // Initial optimal control partition size
-	int N = 60; // Initial number of timesteps
+	int N = 32; // Initial number of timesteps
 
 	Real T = 10.;
 	Real r = .05;
@@ -161,7 +161,7 @@ int main() {
 
 	Real alpha = 0.013886;  // Hedging fee
 
-	Real G = 10.;     // Contract rate
+	Real G = 10.; // Contract rate
 	Real kappa = 0.1; // Penalty rate
 
 	int refinement = 1;

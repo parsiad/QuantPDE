@@ -15,7 +15,9 @@ class Rannacher : public IterationNode {
 	void   (Rannacher::*_onIterationEnd)();
 
 	inline Real difference(Real t1, Real t0) {
-		return Forward ? t1 - t0 : t0 - t1;
+		auto dt = Forward ? t1 - t0 : t0 - t1;
+		assert(dt > epsilon);
+		return dt;
 	}
 
 	bool _isATheSame1() const {
@@ -105,6 +107,10 @@ public:
 		_A = &Rannacher::_A1;
 		_b = &Rannacher::_b1;
 		_onIterationEnd = &Rannacher::_onIterationEnd1;
+	}
+
+	virtual void onAfterEvent() {
+		// Do nothing; assume smoothness is preserved
 	}
 
 	virtual void onIterationEnd() {

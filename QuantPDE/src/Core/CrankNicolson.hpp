@@ -29,7 +29,10 @@ class CrankNicolson : public IterationNode {
 			t0 = time(0)
 		;
 
-		return Forward ? t1 - t0 : t0 - t1;
+		auto dt = Forward ? t1 - t0 : t0 - t1;
+		assert(dt > epsilon);
+
+		return dt;
 	}
 
 	virtual Matrix A(Real t1) {
