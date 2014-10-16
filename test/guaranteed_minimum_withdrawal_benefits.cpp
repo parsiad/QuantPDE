@@ -47,6 +47,27 @@ public:
 		registerControl( control );
 	}
 
+	inline Real amountWithdrawnPrepenalty(Real t, Real S, Real W) const {
+		const Real Gdt = contractRate(t, S, W);
+		const Real q = control(t, S, W);
+
+		Real lambdaW;
+
+		if(W <= Gdt) {
+			lambdaW = (q / 2.) * W;
+		} else {
+			if(q <= 1) {
+				lambdaW = q * Gdt;
+			} else {
+				lambdaW = Gdt + (q - 1.) * (W - Gdt);
+			}
+		}
+
+		assert(lambdaW <= W);
+
+		return lambdaW;
+	}
+
 	virtual Matrix A(Real t) {
 		Matrix M(grid.size(), grid.size());
 		M.reserve(IntegerVector::Constant(grid.size(), 4));
@@ -56,30 +77,15 @@ public:
 			const Real S = node[0]; // Investment
 			const Real W = node[1]; // Withdrawal
 
-			// Contract rate of withdrawal
-			const Real Gdt = contractRate(t, S, W);
-
-			// Control
-			const Real q = control(t, S, W);
-
-			// Amount withdrawn, pre-penalty
-			//const Real lambdaW = q * W;
-			Real lambdaW;
-			if(Gdt <= W) {
-				lambdaW = (q<=1.) ? (q*Gdt) :
-						((q-1.)*(W - Gdt) + Gdt);
-			} else {
-				lambdaW = q/2.*W;
-			}
+			// Amount withdrawn pre-penalty
+			const Real lambdaW = amountWithdrawnPrepenalty(t, S, W);
 
 			// Interpolation data
-			auto data = interpolationData<2>(
-				grid,
-				{
-					max(S - lambdaW, 0.),
-					W - lambdaW
-				}
-			);
+			std::array<Real, 2> coordinates {{
+				max(S - lambdaW, 0.),
+				W - lambdaW
+			}};
+			auto data = interpolationData<2>( grid, coordinates );
 
 			const Index i0 = get<0>( data[0] );
 			const Index i1 = get<0>( data[1] );
@@ -112,23 +118,14 @@ public:
 				continue;
 			}
 
+			// Amount withdrawn, pre-penalty
+			const Real lambdaW = amountWithdrawnPrepenalty(t, S, W);
+
 			// Contract rate of withdrawal
 			const Real Gdt = contractRate(t, S, W);
 
-			// Control
-			const Real q = control(t, S, W);
-
-			// Amount withdrawn, pre-penalty
-			//const Real lambdaW = q * W;
-			Real lambdaW;
-			if(Gdt <= W) {
-				lambdaW = (q<=1.) ? (q*Gdt) : ((q-1.)*(W - Gdt) + Gdt);
-			} else {
-				lambdaW = q/2.*W;
-			}
-
 			// Withdrawal at no penalty
-			if(lambdaW < Gdt) {
+			if(lambdaW <= Gdt) {
 				*node = lambdaW;
 				continue;
 			}
@@ -159,7 +156,7 @@ int main() {
 	Real r = .05;
 	Real v = .2;
 
-	Real alpha = 0.013886;  // Hedging fee
+	Real alpha = 0.01389; // Hedging fee
 
 	Real G = 10.; // Contract rate
 	Real kappa = 0.1; // Penalty rate
@@ -194,7 +191,7 @@ int main() {
 		////////////////////////////////////////////////////////////////
 
 		// Control partition 0 : 1/n : 1 (MATLAB notation)
-		RectilinearGrid1 controls(Axis::range(0., 1./(n * pow2l), 2.));
+		RectilinearGrid1 controls(Axis::range(0., 2./(n * pow2l), 2.));
 
 		////////////////////////////////////////////////////////////////
 		// Iteration tree

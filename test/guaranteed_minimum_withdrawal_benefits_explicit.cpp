@@ -83,7 +83,7 @@ int main() {
 		////////////////////////////////////////////////////////////////
 
 		BlackScholes<2, 0> bs(grid, r, v, alpha);
-		ReverseLinearBDFTwo discretization(grid, bs);
+		ReverseRannacher discretization(grid, bs);
 		discretization.setIteration(stepper);
 
 		////////////////////////////////////////////////////////////////

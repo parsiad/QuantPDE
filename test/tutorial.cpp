@@ -83,7 +83,7 @@ for(int e = 0; e < E; ++e) {
 
 // Relates the value of V- to V (see the above derivation)
 auto exerciseEvent = [K] (const Interpolant1 &V, Real S) {
-    return max( {V(S) , K - S} );
+    return max( V(S) , K - S );
 };
 
 // Create uniformly spaced exercise times

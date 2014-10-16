@@ -4,6 +4,7 @@ SOURCES:=$(wildcard *.cpp)
 BINARIES:=$(addprefix $(BINARIES_DIRECTORY)/, $(SOURCES:.cpp=))
 
 EIGEN:=-I/usr/local/include/eigen3 -I/usr/include/eigen3
+GCC:=/usr/bin/gcc-4.8
 
 ifdef DEBUG
 DIRECTIVES:=-static -g
@@ -13,8 +14,11 @@ endif
 
 ifdef CUDA
 CXX:=nvcc
-OPTIONS:=-x cu --compiler-bindir /usr/bin/gcc-4.8
+OPTIONS:=-x cu --compiler-bindir $(GCC)
 else
+ifdef CLANG
+CXX:=clang++
+endif
 OPTIONS:=-Wall -pedantic -msse2
 endif
 
