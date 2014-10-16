@@ -205,7 +205,7 @@ int main(int argc, char **argv) {
 			// Take the maximum of the continuation and exercise
 			// values
 			[K] (const Interpolant1 &V, Real S) {
-				return max( V(S) , K - S );
+				return V(S); //return max( V(S) , K - S );
 			},
 
 			// Spatial grid to interpolate on

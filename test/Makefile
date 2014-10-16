@@ -6,7 +6,7 @@ BINARIES:=$(addprefix $(BINARIES_DIRECTORY)/, $(SOURCES:.cpp=))
 EIGEN:=-I/usr/local/include/eigen3 -I/usr/include/eigen3
 
 ifdef DEBUG
-DIRECTIVES:=-g
+DIRECTIVES:=-static -g
 else
 DIRECTIVES:=-O2 -DNDEBUG
 endif

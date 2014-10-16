@@ -115,6 +115,7 @@ public:
 		r( std::forward<F1>(interest) ),
 		v( std::forward<F2>(volatility) ),
 		q( std::forward<F3>(dividends) ),
+		kappa( 0. ),
 		G( grid ),
 		l( 0. ),
 		g( 0. )

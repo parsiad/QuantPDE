@@ -322,7 +322,7 @@ class PiecewiseLinear : public Interpolant<Dimension> {
 				} else {
 					// j-th bit of i is 0
 					idxs[j] = std::get<0>( data[j] ) + 1;
-					factor *= 1 - std::get<1>( data[j] );
+					factor *= 1. - std::get<1>( data[j] );
 				}
 			}
 

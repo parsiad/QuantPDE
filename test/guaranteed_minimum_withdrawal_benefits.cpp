@@ -153,7 +153,7 @@ int main() {
 	//       + W0   exp(-r   * T) * (1 - kappa) * (1 - normcdf(dm))
 
 	int n = 10; // Initial optimal control partition size
-	int N = 32; // Initial number of timesteps
+	int N = 60; // Initial number of timesteps
 
 	Real T = 10.;
 	Real r = .05;
@@ -164,7 +164,7 @@ int main() {
 	Real G = 10.;     // Contract rate
 	Real kappa = 0.1; // Penalty rate
 
-	int refinement = 5;
+	int refinement = 1;
 
 	////////////////////////////////////////////////////////////////////////
 	// Solution grid
@@ -194,7 +194,7 @@ int main() {
 		////////////////////////////////////////////////////////////////
 
 		// Control partition 0 : 1/n : 1 (MATLAB notation)
-		RectilinearGrid1 controls( Axis::range(0., 1. / (n * pow2l), 2.) );
+		RectilinearGrid1 controls(Axis::range(0., 1./(n * pow2l), 2.));
 
 		////////////////////////////////////////////////////////////////
 		// Iteration tree
