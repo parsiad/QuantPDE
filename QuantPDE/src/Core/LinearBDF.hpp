@@ -8,7 +8,7 @@ class LinearBDFBase : public IterationNode {
 
 	const DomainBase *domain;
 
-	inline Real difference(Real t1, Real t0) {
+	inline Real difference(Real t1, Real t0) const {
 		auto dt = Forward ? t1 - t0 : t0 - t1;
 		assert(dt > epsilon);
 		return dt;
@@ -560,7 +560,11 @@ public:
 
 	template <typename D>
 	LinearBDFTwo(D &domain, LinearSystem &op) noexcept
-			: LinearBDFBase<Forward, 2>(domain, op) {
+			: LinearBDFBase<Forward, 2>(domain, op),
+			_isATheSame(nullptr),
+			_A(nullptr),
+			_b(nullptr),
+			_onIterationEnd(nullptr) {
 	}
 
 	virtual bool isATheSame() const {
@@ -708,7 +712,11 @@ public:
 
 	template <typename D>
 	LinearBDFFour(D &domain, LinearSystem &op) noexcept
-			: LinearBDFBase<Forward, 4>(domain, op) {
+			: LinearBDFBase<Forward, 4>(domain, op),
+			_isATheSame(nullptr),
+			_A(nullptr),
+			_b(nullptr),
+			_onIterationEnd(nullptr) {
 	}
 
 	virtual bool isATheSame() const {
@@ -791,7 +799,11 @@ public:
 
 	template <typename D>
 	LinearBDFFive(D &domain, LinearSystem &op) noexcept
-			: LinearBDFBase<Forward, 5>(domain, op) {
+			: LinearBDFBase<Forward, 5>(domain, op),
+			_isATheSame(nullptr),
+			_A(nullptr),
+			_b(nullptr),
+			_onIterationEnd(nullptr) {
 	}
 
 	virtual bool isATheSame() const {
@@ -880,7 +892,11 @@ public:
 
 	template <typename D>
 	LinearBDFSix(D &domain, LinearSystem &op) noexcept
-			: LinearBDFBase<Forward, 6>(domain, op) {
+			: LinearBDFBase<Forward, 6>(domain, op),
+			_isATheSame(nullptr),
+			_A(nullptr),
+			_b(nullptr),
+			_onIterationEnd(nullptr) {
 	}
 
 	virtual bool isATheSame() const {

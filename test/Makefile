@@ -7,7 +7,7 @@ EIGEN:=-I/usr/local/include/eigen3 -I/usr/include/eigen3
 GCC:=/usr/bin/gcc-4.8
 
 ifdef DEBUG
-DIRECTIVES:=-static -g
+DIRECTIVES:=-static -g3 -DEIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT
 else
 DIRECTIVES:=-O2 -DNDEBUG
 endif
@@ -27,7 +27,7 @@ all: $(BINARIES)
 $(BINARIES_DIRECTORY)/% : %.cpp
 	mkdir -p $(BINARIES_DIRECTORY)
 	$(CXX) \
-			$(OPTIONS) -std=c++11 \
+			$(OPTIONS) $(CFLAGS) -std=c++11 \
 			-I../ $(EIGEN) $(DIRECTIVES) -o $@ $<
 
 clean:

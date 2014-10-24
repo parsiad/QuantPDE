@@ -118,7 +118,7 @@ public:
 	 * Constructor.
 	 * @param lookback How many iterands to keep track of.
 	 */
-	CircularBuffer(int lookback) noexcept : n(lookback) {
+	CircularBuffer(int lookback) noexcept : data(nullptr), n(lookback) {
 		assert(lookback > 0);
 		data = new T[lookback];
 		clear();
@@ -129,6 +129,7 @@ public:
 	 */
 	virtual ~CircularBuffer() {
 		delete [] data;
+		data = nullptr;
 	}
 
 	// Disable copy constructor and assignment operator.
@@ -519,7 +520,7 @@ public:
 	/**
 	 * Constructor for a constant.
 	 */
-	Controllable(Real constant) noexcept {
+	Controllable(Real constant) noexcept : base(nullptr) {
 		static_assert(CanConstant, "Cannot use this as a constant");
 		base = B(new Constant(constant));
 	}
@@ -527,7 +528,8 @@ public:
 	/**
 	 * Constructor for a function of space and time.
 	 */
-	Controllable(const Function<Dimension + 1> &function) noexcept {
+	Controllable(const Function<Dimension + 1> &function) noexcept
+			: base(nullptr) {
 		static_assert(CanFunctionST, "Cannot use this as a function of "
 				"space and time");
 		base = B(new FunctionST(function));
@@ -536,7 +538,8 @@ public:
 	/**
 	 * Move constructor for a function of space and time.
 	 */
-	Controllable(Function<Dimension + 1> &&function) noexcept {
+	Controllable(Function<Dimension + 1> &&function) noexcept
+			: base(nullptr) {
 		static_assert(CanFunctionST, "Cannot use this as a function of "
 				"space and time");
 		base = B(new FunctionST(std::move(function)));
@@ -545,7 +548,8 @@ public:
 	/**
 	 * Constructor for a function of space.
 	 */
-	Controllable(const Function<Dimension> &function) noexcept {
+	Controllable(const Function<Dimension> &function) noexcept
+			: base(nullptr) {
 		static_assert(CanFunctionS, "Cannot use this as a function of "
 				"space");
 		base = B(new FunctionS(function));
@@ -554,7 +558,7 @@ public:
 	/**
 	 * Move constructor for a function of space.
 	 */
-	Controllable(Function<Dimension> &&function) noexcept {
+	Controllable(Function<Dimension> &&function) noexcept : base(nullptr) {
 		static_assert(CanFunctionS, "Cannot use this as a function of "
 				"space");
 		base = B(new FunctionS(std::move(function)));
@@ -563,7 +567,7 @@ public:
 	/**
 	 * Move constructor for a control.
 	 */
-	Controllable(Control &&control) noexcept {
+	Controllable(Control &&control) noexcept : base(nullptr) {
 		static_assert(CanControl, "Cannot use this as a control");
 		base = B(new Control(std::move(control)));
 	}
@@ -631,8 +635,9 @@ public:
 	 * done.
 	 * @param input The value to take on.
 	 */
-	void setInput(const Vector &input) {
-		base->setInput(input);
+	template <typename V>
+	void setInput(V &&input) {
+		base->setInput( std::forward<V>(input) );
 	}
 
 };
@@ -940,7 +945,9 @@ public:
 	/**
 	 * Constructor.
 	 */
-	Iteration() noexcept : child(nullptr), history(nullptr) {
+	Iteration() noexcept : child(nullptr), history(nullptr),
+		// Initialize implicit time to some infeasible value
+		implicitTime(-1.) {
 	}
 
 	/**
@@ -948,6 +955,7 @@ public:
 	 */
 	virtual ~Iteration() {
 		delete history;
+		history = nullptr;
 	}
 
 	/**
@@ -967,6 +975,7 @@ public:
 	 *         computing a solution for.
 	 */
 	Real nextTime() const {
+		assert(implicitTime >= 0.);
 		return implicitTime;
 	}
 
@@ -1007,6 +1016,7 @@ public:
 					lookback = tmp;
 				}
 				delete current->history;
+				//current->history = nullptr;
 				current->history = new CB(lookback);
 			}
 
@@ -1085,6 +1095,7 @@ const Vector &IterationNode::iterand(int index) const {
 
 Real IterationNode::nextTime() const {
 	assert(iteration);
+	assert(iteration->implicitTime >= 0.);
 	return iteration->implicitTime;
 }
 
@@ -1263,6 +1274,7 @@ public:
 	do { \
 		dtPrevious = dt; \
 		dt = timestep(); \
+		assert(dt > 0.); \
 		Real tmp = this->implicitTime + direction * dt; \
 		if( std::abs(tmp - nextEventTime) < epsilon ) { \
 			tmp = nextEventTime; \
@@ -1357,7 +1369,9 @@ public:
 	 * Constructor.
 	 */
 	TimeIteration(Real startTime, Real endTime) noexcept : id(0),
-			startTime(startTime), endTime(endTime) {
+			startTime(startTime), endTime(endTime),
+			// Initialize dt to some infeasible value
+			dt(-1.), dtPrevious(-1.) {
 		assert(startTime >= 0.);
 		assert(startTime < endTime);
 	}
@@ -1373,8 +1387,6 @@ public:
 		assert(time != initialTime());
 
 		events.emplace( id++, time, std::move(event) );
-
-		// TODO: Test to see if this works
 	}
 
 	/**

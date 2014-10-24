@@ -1,20 +1,9 @@
 ////////////////////////////////////////////////////////////////////////////////
-// unequal_borrowing_lending_rates.cpp
-// -----------------------------------
+// black_scholes.cpp
+// -----------------
 //
-// Prices a long/short position straddle option under the Black-Scholes model
-// assuming unequal borrowing/lending rates [1].
-//
-// The pricing problem is given by
-//
-// V_t = \sup_{r \in \{ r_l, r_b \}} (-\sigma^2 S^2 V_{SS} / 2 + r( V - S V_S ))
-// V(0, S) = max(S - K, K - S)
-//
-// for the short position. The \sup becomes an \inf for the long position.
-//
-// [1] Forsyth, Peter A., and George Labahn. "Numerical methods for controlled
-// Hamilton-Jacobi-Bellman PDEs in finance." Journal of Computational Finance
-// 11.2 (2007): 1.
+// Computes a numerical solution to the Black-Scholes equation with constant
+// coefficients.
 //
 // Author: Parsiad Azimzadeh
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,15 +15,14 @@
 using namespace QuantPDE;
 using namespace QuantPDE::Modules;
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 #include <iostream> // cout, cerr
-#include <memory>   // unique_ptr
 #include <unistd.h> // getopt
 
 using namespace std;
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 /**
  * Prints help to stderr.
@@ -45,10 +33,6 @@ void help() {
 "Prices a long/short position straddle under the Black-Scholes model assuming" << endl <<
 "unequal borrowing/lending rates." << endl <<
 endl <<
-"-b REAL" << endl <<
-endl <<
-"    Sets the borrowing interest rate (default is 0.05)." << endl <<
-endl <<
 "-d REAL" << endl <<
 endl <<
 "    Sets the dividend rate (default is 0.)." << endl <<
@@ -57,21 +41,17 @@ endl <<
 endl <<
 "    Sets the strike price (default is 100.)." << endl <<
 endl <<
-"-l REAL" << endl <<
+"-r REAL" << endl <<
 endl <<
-"    Sets lending interest rate (default is 0.03)." << endl <<
-endl <<
-"-L" << endl <<
-endl <<
-"    Calculates the price for a long position (default is short position)." << endl <<
-endl <<
-"-N POSITIVE_INTEGER" << endl <<
-endl <<
-"    Sets the number of steps to take in time (default is 100)." << endl <<
+"    Sets the interest rate (default is 0.04)." << endl <<
 endl <<
 "-R NONNEGATIVE_INTEGER" << endl <<
 endl <<
 "    Controls the coarseness of the grid, with 0 being coarsest (default is 0)." << endl <<
+endl <<
+"-t POSITIVE_REAL" << endl <<
+endl <<
+"    Sets the timestep size (default is 0.01)." << endl <<
 endl <<
 "-T POSITIVE_REAL" << endl <<
 endl <<
@@ -79,31 +59,26 @@ endl <<
 endl <<
 "-v REAL" << endl <<
 endl <<
-"    Sets the volatility (default is 0.3)." << endl << endl;
+"    Sets the volatility (default is 0.2)." << endl << endl;
 }
 
 int main(int argc, char **argv) {
 
-	Real K     = 100.;
-	Real T     = 1.;
-	Real r_l   = .03;
-	Real r_b   = .05;
-	Real vol   = .3;
-	Real div   = 0.;
+	Real K  = 100.;
+	Real T  = 1.;
+	Real r  = .04;
+	Real v  = .2;
+	Real q  = 0.;
+	Real dt = .01;
 
-	int N      = 100;
-	int R      = 0;
-	bool L     = false;
+	int R = 0;
 
 	// Setting options with getopt
 	{ char c;
-	while((c = getopt(argc, argv, "b:d:hK:l:LN:R:T:v:")) != -1) {
+	while((c = getopt(argc, argv, "d:hK:r:R:t:T:v:")) != -1) {
 		switch(c) {
-			case 'b':
-				r_b = atof(optarg);
-				break;
 			case 'd':
-				div = atof(optarg);
+				q = atof(optarg);
 				break;
 			case 'h':
 				help();
@@ -111,25 +86,22 @@ int main(int argc, char **argv) {
 			case 'K':
 				K = atof(optarg);
 				break;
-			case 'l':
-				r_l = atof(optarg);
-				break;
-			case 'L':
-				L = true;
-				break;
-			case 'N':
-				N = atoi(optarg);
-				if(N <= 0) {
-					cerr <<
-"error: the number of steps must be positive" << endl;
-					return 1;
-				}
+			case 'r':
+				r = atof(optarg);
 				break;
 			case 'R':
 				R = atoi(optarg);
 				if(R < 0) {
 					cerr <<
 "error: the maximum level of refinement must be nonnegative" << endl;
+					return 1;
+				}
+				break;
+			case 't':
+				dt = atof(optarg);
+				if(dt <= 0.) {
+					cerr <<
+"error: the timestep size must be positive" << endl;
 					return 1;
 				}
 				break;
@@ -141,7 +113,7 @@ int main(int argc, char **argv) {
 				}
 				break;
 			case 'v':
-				vol = atof(optarg);
+				v = atof(optarg);
 				break;
 			case ':':
 			case '?':
@@ -155,7 +127,6 @@ int main(int argc, char **argv) {
 	// Spatial grid
 	////////////////////////////////////////////////////////////////////////
 
-	// Initial discretization
 	RectilinearGrid1 grid(
 		Axis {
 			0., 10., 20., 30., 40., 50., 60., 70.,
@@ -175,16 +146,9 @@ int main(int argc, char **argv) {
 	);
 
 	// Refine grid
-	for(int r = 0; r < R; ++r) {
+	for(int i = 0; i < R; ++i) {
 		grid.refine( RectilinearGrid1::NewTickBetweenEachPair() );
 	}
-
-	////////////////////////////////////////////////////////////////////////
-	// Control grid
-	////////////////////////////////////////////////////////////////////////
-
-	// Control can be two interest rates: lending or borrowing
-	RectilinearGrid1 controls( Axis { r_l, r_b } );
 
 	////////////////////////////////////////////////////////////////////////
 	// Payoff
@@ -194,11 +158,11 @@ int main(int argc, char **argv) {
 	// expands to
 	//
 	// auto payoff = [K] (Real S) {
-	// 	return S < K ? K - S : S - K;
+	// 	return S < K ? K - S : 0.;
 	// };
 	////////////////////////////////////////////////////////////////////////
 
-	auto payoff = straddlePayoff(K);
+	auto payoff = putPayoff(K);
 
 	////////////////////////////////////////////////////////////////////////
 	// Iteration tree
@@ -206,20 +170,15 @@ int main(int argc, char **argv) {
 	//
 	// Sets up the loop structure:
 	// for(int n = 0; n < N; ++n) {
-	// 	for(int k = 0; ; ++k) {
-	// 		// Solve a linear system
-	// 		if(error < tolerance) break;
-	// 	}
+	// 	// Solve a linear system
 	// }
 	////////////////////////////////////////////////////////////////////////
 
 	ReverseConstantStepper stepper(
-		0.,  // Initial time
-		T,   // Expiry time
-		T/N  // Timestep size
+		0., // Initial time
+		T,  // Expiry time
+		dt  // Timestep size
 	);
-	ToleranceIteration tolerance;
-	stepper.setInnerIteration(tolerance);
 
 	////////////////////////////////////////////////////////////////////////
 	// Linear system tree
@@ -231,35 +190,13 @@ int main(int argc, char **argv) {
 	BlackScholes1 bs(
 		grid,
 
-		// Interest rate (passed as a control)
-		Control1(grid),
-
-		vol, // Volatility
-		div  // Dividend rate
+		r, // Interest
+		v, // Volatility
+		q  // Dividend rate
 	);
 
-	// Policy iteration (a node in the linear system tree)
-	//
-	// The notation [N][_M] at the end of class names is used when the
-	// problem is N-dimensional (in space) with an M-dimensional control.
-	// In the following, we instantiate a policy iteration class meant for
-	// one-dimensional (in space) problems with a one-dimensional control.
-	//
-	// Pick min/max policy iteration depending on whether we are considering
-	// the long or short position problem.
-	unique_ptr<IterationNode> policy(L
-		? (IterationNode*)
-				// sup[ V_tau - LV ]
-				new MaxPolicyIteration1_1(grid, controls, bs)
-		: (IterationNode*)
-				// inf[ V_tau - LV ]
-				new MinPolicyIteration1_1(grid, controls, bs)
-	);
-	policy->setIteration(tolerance); // Associate with k-iteration
-
-	// BDF2 (timestepping)
-	ReverseLinearBDFTwo bdf2(grid, *policy);
-	bdf2.setIteration(stepper); // Associate with n-iteration
+	ReverseLinearBDFTwo bdf2(grid, bs);
+	bdf2.setIteration(stepper);
 
 	////////////////////////////////////////////////////////////////////////
 	// Running
@@ -268,10 +205,8 @@ int main(int argc, char **argv) {
 	// Everything prior to this was setup. Now we run the method.
 	////////////////////////////////////////////////////////////////////////
 
-	// Linear system solver
 	BiCGSTABSolver solver;
 
-	// Calculate the solution at time zero
 	auto V = stepper.solve(
 		grid,   // Domain
 		payoff, // Initial condition

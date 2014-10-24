@@ -23,7 +23,7 @@ class CrankNicolson : public IterationNode {
 	const DomainBase *domain;
 	LinearSystem *system;
 
-	inline Real dt() {
+	inline Real dt() const {
 		const Real
 			t1 = nextTime(),
 			t0 = time(0)

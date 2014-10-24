@@ -121,7 +121,8 @@ public:
 		dt(dt),
 		target(target),
 		epsilon(epsilon),
-		scale(scale)
+		scale(scale),
+		_step(nullptr)
 	{
 		assert(dt > 0);
 		assert(target > 0);

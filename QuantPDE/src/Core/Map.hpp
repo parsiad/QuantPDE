@@ -159,6 +159,7 @@ class MollifierConvolution1 : public Map1 {
 		}
 		RectilinearGrid1 tmp( Axis(ticks, n) );
 		delete [] ticks;
+		ticks = nullptr;
 
 		////////////////////////////////////////////////////////////////
 		// Convolution and linear interpolation

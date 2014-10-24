@@ -28,7 +28,7 @@ class PenaltyMethod : public IterationNode {
 		// Build penalty matrix
 		P.setZero();
 		for(Index i = 0; i < domain->size(); ++i) {
-			if( predicate(i) < 0. ) {
+			if( predicate(i) < -epsilon ) {
 				P.insert(i, i) = large;
 			}
 		}

@@ -2,8 +2,8 @@
 // guaranteed_minimum_withdrawal_benefit.cpp
 // -----------------------------------------
 //
-// Computes the price of a Guaranteed Minimum Withdrawal Benefit (GMWB) using an
-// implicit, impulse control formulation.
+// Computes the price of a Guaranteed Minimum Withdrawal Benefit (GMWB) using
+// an explicit formulation.
 //
 // Author: Parsiad Azimzadeh
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,13 +32,13 @@ int main() {
 
 	int N = 32; // Initial number of timesteps
 
-	Real T = 10.; //14.28;
+	Real T = 14.28; // 10;
 	Real r = .05;
 	Real v = .2;
 
-	Real alpha = 0.01389; // 0.036; // Hedging fee
+	Real alpha = 0.036; //0.01389; // Hedging fee
 
-	Real G = 10.; //7.; // Contract rate
+	Real G = 7.; // 10.; // Contract rate
 	Real kappa = 0.1; // Penalty rate
 
 	int E = N; // Number of events
@@ -65,8 +65,7 @@ int main() {
 		Axis::range(0., 2., 100.)
 	);
 
-	int pow2l  = 1; // 2^l
-	for(int l = 0; l < refinement; ++l) {
+	for(int l = 0, pow2l = 1; l < refinement; ++l, pow2l *= 2) {
 
 		////////////////////////////////////////////////////////////////
 		// Iteration tree
@@ -103,19 +102,18 @@ int main() {
 			// Contract withdrawal amount
 			const Real Gdt = G * T / e;
 
-			const int partitionSize = 10 * pow2l;
-
 			#if 0
+			const int partitionSize = 10 * pow2l;
 			for(int i = 1; i <= partitionSize; ++i) {
-				const Real lambdaW = W * i / partitionSize;
+				const Real gamma = W * i / partitionSize;
 				const Real interp = V(
-					max(S - lambdaW, 0.),
-					W - lambdaW
+					max(S - gamma, 0.),
+					W - gamma
 				);
 
-				Real cashflow = lambdaW;
-				if(lambdaW > Gdt) {
-					cashflow -= kappa * (lambdaW - Gdt);
+				Real cashflow = gamma;
+				if(gamma > Gdt) {
+					cashflow -= kappa * (gamma - Gdt);
 				}
 
 				const Real newValue = interp + cashflow;
@@ -126,15 +124,38 @@ int main() {
 			}
 			#endif
 
+#if   defined(GMWB_CONSTANT_WITHDRAWAL)
+			// Constant withdrawal
+			const Real gamma = min(W, Gdt);
+			const Real interp = V(
+				max(S - gamma, 0.),
+				W - gamma
+			);
+			const Real cashflow = gamma;
+
+			best = interp + cashflow;
+#elif defined(GMWB_SURRENDER)
+			const Real gamma = W;
+
+			const Real interp = V(
+				max(S - gamma, 0.),
+				W - gamma
+			);
+			const Real cashflow = gamma;
+
+			best = interp + cashflow - kappa * max(gamma - Gdt, 0.);
+#else
+			const int partitionSize = 10 * pow2l;
+
 			// Nonpenalty
 			const Real beta = min(W, Gdt);
 			for(int i = 1; i <= partitionSize; ++i) {
-				const Real lambdaW = beta * i / partitionSize;
+				const Real gamma = beta * i / partitionSize;
 				const Real interp = V(
-					max(S - lambdaW, 0.),
-					W - lambdaW
+					max(S - gamma, 0.),
+					W - gamma
 				);
-				const Real cashflow = lambdaW;
+				const Real cashflow = gamma;
 				const Real newValue = interp + cashflow;
 				if(newValue > best) {
 					best = newValue;
@@ -144,20 +165,21 @@ int main() {
 			// Penalty
 			if(W > Gdt) {
 				for(int i = 1; i <= partitionSize; ++i) {
-					const Real lambdaW = Gdt + (W - Gdt) * i
+					const Real gamma = Gdt + (W - Gdt) * i
 							/ partitionSize;
 					const Real interp = V(
-						max(S - lambdaW, 0.),
-						W - lambdaW
+						max(S - gamma, 0.),
+						W - gamma
 					);
-					const Real cashflow = lambdaW - kappa
-							* (lambdaW - Gdt);
+					const Real cashflow = gamma - kappa
+							* (gamma - Gdt);
 					const Real newValue = interp + cashflow;
 					if(newValue > best) {
 						best = newValue;
 					}
 				}
 			}
+#endif
 
 			return best;
 		};

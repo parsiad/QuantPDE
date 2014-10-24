@@ -90,6 +90,7 @@ public:
 
 	~Axis() {
 		delete [] n;
+		n = nullptr;
 	}
 
 	Axis &operator=(const Axis &that) & noexcept {
@@ -100,6 +101,7 @@ public:
 		std::memcpy(n, that.n, length * sizeof(Real));
 
 		delete [] p;
+		p = nullptr;
 
 		return *this;
 	}

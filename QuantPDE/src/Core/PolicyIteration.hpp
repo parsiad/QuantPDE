@@ -50,9 +50,11 @@ class PolicyIteration : public IterationNode {
 			packMoveAndCall<ControlDimension>(*system, setInputs,
 					inputs);
 
+			Vector bCandidate = system->b( nextTime() );
+			Matrix ACandidate = system->A( nextTime() );
+
 			// Compute A(q)x - b(q)
-			Vector candidate = system->A( nextTime() ) * iterand(0)
-					- system->b( nextTime() );
+			Vector candidate = ACandidate * iterand(0) - bCandidate;
 
 			for(Index i = 0; i < domain->size(); ++i) {
 				if( Order()(candidate(i), best(i)) ) {

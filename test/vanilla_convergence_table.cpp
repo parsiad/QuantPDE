@@ -17,8 +17,8 @@ using namespace QuantPDE::Modules;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-#include <iostream> // cout, cerr
 #include <iomanip>  // setw
+#include <iostream> // cout, cerr
 #include <memory>   // unique_ptr
 #include <numeric>  // accumulate
 #include <unistd.h> // getopt

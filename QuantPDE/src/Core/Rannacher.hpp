@@ -14,7 +14,7 @@ class Rannacher : public IterationNode {
 	Vector (Rannacher::*_b)(Real);
 	void   (Rannacher::*_onIterationEnd)();
 
-	inline Real difference(Real t1, Real t0) {
+	inline Real difference(Real t1, Real t0) const {
 		auto dt = Forward ? t1 - t0 : t0 - t1;
 		assert(dt > epsilon);
 		return dt;
@@ -119,7 +119,8 @@ public:
 
 	template <typename D>
 	Rannacher(D &domain, LinearSystem &op) noexcept : domain(&domain),
-			op(&op) {
+			op(&op), _isATheSame(nullptr), _A(nullptr), _b(nullptr),
+			_onIterationEnd(nullptr) {
 	}
 
 };
