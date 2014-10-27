@@ -124,7 +124,7 @@ int main() {
 			}
 			#endif
 
-#if   defined(GMWB_CONSTANT_WITHDRAWAL)
+#if   defined(GMWB_CONTRACT_WITHDRAWAL)
 			// Constant withdrawal
 			const Real gamma = min(W, Gdt);
 			const Real interp = V(

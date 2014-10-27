@@ -59,27 +59,23 @@ public:
 
 		Real gamma;
 
-		#if   defined(GMWB_CONSTANT_WITHDRAWAL)
-			gamma = min(W, Gdt);
-		#elif defined(GMWB_SURRENDER)
-			gamma = W;
-		#else
-			// Control in [0,2]
-			const Real q = control(t, S, W);
+		// Control in [0,2]
+		const Real q = control(t, S, W);
 
-			assert(q >= 0.);
-			assert(q <= 2.);
+		assert(q >= 0.);
+		assert(q <= 2.);
 
-			if(W <= Gdt) {
-				gamma = (q / 2.) * W;
+		if( q <= 1. ) {
+			// Nonpenalty
+			gamma = q * min(W, Gdt);
+		} else {
+			if( W > Gdt ) {
+				// Penalty
+				gamma = Gdt + (q - 1.) * (W - Gdt);
 			} else {
-				if(q <= 1.) {
-					gamma = q * Gdt;
-				} else {
-					gamma = Gdt + (q - 1.) * (W - Gdt);
-				}
+				gamma = min(W, Gdt);
 			}
-		#endif
+		}
 
 		assert(gamma >= 0);
 		assert(gamma <= W);
@@ -88,10 +84,10 @@ public:
 	}
 
 	virtual Matrix A(Real t) {
-		Matrix M(grid.size(), grid.size());
+		Matrix M = grid.matrix();
 		M.reserve(IntegerVector::Constant(grid.size(), 4));
 
-		Index i = 0;
+		Index k = 0;
 		for(auto node : grid) {
 
 			const Real S = node[0]; // Investment
@@ -100,26 +96,30 @@ public:
 			// Amount withdrawn pre-penalty
 			const Real gamma = amountWithdrawnPrepenalty(t, S, W);
 
+			const Real Splus = max(S - gamma, 0.);
+			const Real Wplus = W - gamma;
+
 			// Interpolation data
-			std::array<Real, 2> coordinates {{
-				max(S - gamma, 0.),
-				W - gamma
-			}};
-			auto data = interpolationData<2>( grid, coordinates );
+			auto data = interpolationData<2>(grid, {{Splus,Wplus}});
 
 			const Index i0 = get<0>( data[0] );
 			const Index i1 = get<0>( data[1] );
 			const Real  w0 = get<1>( data[0] );
 			const Real  w1 = get<1>( data[1] );
 
+			assert( (grid[0][i0+1] - Splus)
+					/ (grid[0][i0+1] - grid[0][i0]) == w0 );
+			assert( (grid[1][i1+1] - Wplus)
+					/ (grid[1][i1+1] - grid[1][i1]) == w1 );
+
 			const Index j = grid.index(i0, i1);
 
-			M.insert(i, j                     ) =    w0  *    w1 ;
-			M.insert(i, j     + grid[0].size()) =    w0  * (1-w1);
-			M.insert(i, j + 1                 ) = (1-w0) *    w1 ;
-			M.insert(i, j + 1 + grid[0].size()) = (1-w0) * (1-w1);
+			M.insert(k, j                     ) =    w0  *    w1 ;
+			M.insert(k, j     + grid[0].size()) =    w0  * (1-w1);
+			M.insert(k, j + 1                 ) = (1-w0) *    w1 ;
+			M.insert(k, j + 1 + grid[0].size()) = (1-w0) * (1-w1);
 
-			++i;
+			++k;
 
 		}
 
@@ -143,7 +143,10 @@ public:
 			const Real Gdt = G * dt();
 
 			// Cashflow (including penalty if gamma > Gdt)
-			*node = gamma - kappa(t, S, W) * max(gamma - Gdt, 0.);
+			*node = gamma - kappa(t, S, W) * max(gamma - Gdt, 0.)
+					- epsilon;
+
+			assert( *node >= -epsilon );
 
 		}
 
@@ -174,31 +177,13 @@ int main() {
 	Real alpha = 0.036; //0.01389; // Hedging fee
 
 	Real G = 7.; //10.; // Contract rate
-	Real kappa = 0.1; // Penalty rate
+	Real kappa = 0.; // Penalty rate
 
 	int refinement = 5;
 
 	////////////////////////////////////////////////////////////////////////
 	// Solution grid
 	////////////////////////////////////////////////////////////////////////
-
-	/*
-	RectilinearGrid2 grid(
-		Axis {
-			0., 10., 20.,
-			30., 40.,
-			50., 60., 70., 75., 80., 84.,
-			86., 90., 92., 94.,
-			96., 98., 100.,
-			102., 104., 106.,
-			108., 110., 114.,
-			118., 123.,
-			130., 140., 150., 175., 225.,
-			300., 750., 1000.
-		},
-		Axis::range(0., 4., 100.)
-	);
-	*/
 
 	RectilinearGrid2 grid(
 		Axis {
@@ -248,11 +233,17 @@ int main() {
 		////////////////////////////////////////////////////////////////
 
 		// Control partition 0 : 1/n : 1 (MATLAB notation)
-		RectilinearGrid1 controls(Axis::range(
-			0.,
-			2. / (partitionSize - 1),
-			2.
-		));
+		#if   defined(GMWB_SURRENDER)
+			RectilinearGrid1 controls(Axis { 2. });
+		#elif defined(GMWB_CONTRACT_WITHDRAWAL)
+			RectilinearGrid1 controls(Axis { 1. });
+		#else
+			RectilinearGrid1 controls(Axis::range(
+				0.,
+				2. / (partitionSize - 1),
+				2.
+			));
+		#endif
 
 		////////////////////////////////////////////////////////////////
 		// Iteration tree
@@ -311,6 +302,12 @@ int main() {
 		// Print table rows
 		////////////////////////////////////////////////////////////////
 
+		RectilinearGrid2 printGrid(
+			Axis::range(0., 25., 200.),
+			Axis { 100. }
+		);
+		cout << accessor( printGrid, V ) << endl;
+
 		auto its = tolerance.iterations();
 
 		Real
@@ -324,14 +321,14 @@ int main() {
 		int max = ( *max_element(its.begin(), its.end()) );
 
 		cout
-			<< setw(td) << grid.size()   << "\t"
-			<< setw(td) << partitionSize << "\t"
-			<< setw(td) << outer         << "\t"
-			<< setw(td) << value         << "\t"
-			<< setw(td) << mean          << "\t"
-			<< setw(td) << sqrt(var)     << "\t"
-			<< setw(td) << max           << "\t"
-			<< setw(td) << change        << "\t"
+			<< setw(td) << grid.size()     << "\t"
+			<< setw(td) << controls.size() << "\t"
+			<< setw(td) << outer           << "\t"
+			<< setw(td) << value           << "\t"
+			<< setw(td) << mean            << "\t"
+			<< setw(td) << sqrt(var)       << "\t"
+			<< setw(td) << max             << "\t"
+			<< setw(td) << change          << "\t"
 			<< setw(td) << ratio
 			<< endl
 		;
