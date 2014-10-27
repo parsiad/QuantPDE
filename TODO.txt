@@ -1,2 +1,5 @@
 - Allow for control domains which are a function of time and space
 - Step into feature for iterations
+- Migrate to CMake
+- Parallelize
+- Automagic grid creation
