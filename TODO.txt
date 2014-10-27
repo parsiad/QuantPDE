@@ -1,5 +1,7 @@
-- Allow for control domains which are a function of time and space
 - Step into feature for iterations
+- Lazy sparse matrix creation
+- Remove branching in BlackScholes.hpp
+- Allow for control domains which are a function of time and space
+- Automagic grid creation
 - Migrate to CMake
 - Parallelize
-- Automagic grid creation

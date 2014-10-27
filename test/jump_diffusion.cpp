@@ -231,7 +231,7 @@ int main(int argc, char **argv) {
 
 	bs.setIteration(stepper);
 
-	ReverseLinearBDFTwo bdf2(grid, (IterationNode &) bs);
+	ReverseLinearBDFTwo bdf2(grid, bs);
 	bdf2.setIteration(stepper);
 
 	////////////////////////////////////////////////////////////////////////

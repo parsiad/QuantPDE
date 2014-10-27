@@ -16,8 +16,9 @@
 
 #include <algorithm> // max, min, max_element
 #include <cmath>     // sqrt
-#include <iomanip>  // setw
+#include <iomanip>   // setw
 #include <iostream>  // cout
+#include <memory>    // unique_ptr
 #include <numeric>   // accumulate
 #include <tuple>     // get
 
@@ -30,7 +31,84 @@ using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class Withdrawal final : public ControlledLinearSystem2, public IterationNode {
+class ContinuousWithdrawal final : public ControlledLinearSystem2,
+		public IterationNode {
+
+	RectilinearGrid2 &grid;
+	Noncontrollable2 contractAmount;
+
+	Controllable2 control;
+
+public:
+
+	template <typename G, typename F1>
+	ContinuousWithdrawal(G &grid, F1 &&contractAmount) noexcept
+			: grid(grid), contractAmount(contractAmount),
+			control( Control2(grid) ) {
+		registerControl(control);
+	}
+
+	inline Real dt() const {
+		return time(0) - nextTime();
+	}
+
+	virtual Matrix A(Real t) {
+		Matrix M = grid.matrix();
+		M.reserve(IntegerVector::Constant(grid.size(), 4));
+
+		Index k = 0;
+		for(auto node : grid) {
+
+			const Real S = node[0]; // Investment
+			const Real W = node[1]; // Withdrawal
+
+			const Real G = contractAmount(t, S, W);
+			const Real Gdt = G * dt();
+			const Real gamma = control(t, S, W) * Gdt;
+
+			// TODO: Remove branching
+			if(W > epsilon) {
+				if(S > epsilon) {
+					M.insert(k, k) =  2. * gamma;
+					M.insert(k, k - 1) = -1. * gamma;
+					M.insert(k, k - grid[0].size()) = -1.
+							* gamma;
+				} else {
+					// S ~= 0
+					M.insert(k, k) =  1. * gamma;
+					M.insert(k, k - grid[0].size()) = -1.
+							* gamma;
+				}
+			}
+
+			++k;
+
+		}
+
+		M.makeCompressed();
+		return M;
+	}
+
+	virtual Vector b(Real t) {
+		Vector b = grid.vector();
+
+		for(auto node : accessor(grid, b)) {
+			const Real S = (&node)[0]; // Investment
+			const Real W = (&node)[1]; // Withdrawal
+
+			const Real G = contractAmount(t, S, W);
+			const Real Gdt = G * dt();
+
+			*node = control(t, S, W) * Gdt;
+		}
+
+		return b;
+	}
+
+};
+
+class ImpulseWithdrawal final : public ControlledLinearSystem2,
+		public IterationNode {
 
 	RectilinearGrid2 &grid;
 	Noncontrollable2 contractAmount, kappa;
@@ -40,11 +118,9 @@ class Withdrawal final : public ControlledLinearSystem2, public IterationNode {
 public:
 
 	template <typename G, typename F1, typename F2>
-	Withdrawal(G &grid, F1 &&contractAmount, F2 &&kappa) noexcept :
-		grid(grid),
-		contractAmount(contractAmount),
-		kappa(kappa),
-		control( Control2(grid) ) {
+	ImpulseWithdrawal(G &grid, F1 &&contractAmount, F2 &&kappa) noexcept
+			: grid(grid), contractAmount(contractAmount),
+			kappa(kappa), control( Control2(grid) ) {
 		registerControl( control );
 	}
 
@@ -234,16 +310,18 @@ int main() {
 
 		// Control partition 0 : 1/n : 1 (MATLAB notation)
 		#if   defined(GMWB_SURRENDER)
-			RectilinearGrid1 controls(Axis { 2. });
+			RectilinearGrid1 impulseControls(Axis { 2. });
 		#elif defined(GMWB_CONTRACT_WITHDRAWAL)
-			RectilinearGrid1 controls(Axis { 1. });
+			RectilinearGrid1 impulseControls(Axis { 1. });
 		#else
-			RectilinearGrid1 controls(Axis::range(
+			RectilinearGrid1 impulseControls(Axis::range(
 				0.,
 				2. / (partitionSize - 1),
 				2.
 			));
 		#endif
+
+		RectilinearGrid1 continuousControls( Axis { 0., 1. } );
 
 		////////////////////////////////////////////////////////////////
 		// Iteration tree
@@ -261,20 +339,46 @@ int main() {
 		// Linear system tree
 		////////////////////////////////////////////////////////////////
 
-		BlackScholes<2, 0> bs(grid, r, v, alpha);
-		ReverseRannacher discretization(grid, bs);
+		// Impulse withdrawal policy iteration
+		ImpulseWithdrawal impulseWithdrawal(grid, G, kappa);
+		impulseWithdrawal.setIteration(stepper);
+		MinPolicyIteration2_1 impulsePolicy(
+			grid,
+			impulseControls,
+			impulseWithdrawal
+		);
+
+		// Continuous withdrawal policy iteration
+		ContinuousWithdrawal *cw = new ContinuousWithdrawal(grid, G);
+		cw->setIteration(stepper);
+		MinPolicyIteration2_1 continuousPolicy(
+			grid,
+			continuousControls,
+			*cw
+		);
+
+		// Linear system sum
+		unique_ptr<LinearSystem> bs(
+			new BlackScholes<2, 0>(
+				grid,
+				r, v, alpha
+			)
+		);
+		unique_ptr<LinearSystem> continuousWithdrawal(cw); cw = nullptr;
+		auto sum = std::move(bs) + std::move(continuousWithdrawal);
+
+		// Discretization
+		ReverseRannacher discretization(grid, sum);
 		discretization.setIteration(stepper);
 
-		Withdrawal impulse(grid, G, kappa);
-		impulse.setIteration(stepper);
-
-		MinPolicyIteration2_1 policy(grid, controls, impulse);
-		PenaltyMethod penalty(grid, discretization, policy);
+		// Penalty method
+		PenaltyMethod penalty(grid, discretization, impulsePolicy);
 
 		// TODO: It currently matters what order each linear system is
 		//       associated with an iteration; fix this.
 
-		policy.setIteration(tolerance);
+		impulsePolicy.setIteration(tolerance);
+		continuousPolicy.setIteration(tolerance);
 		penalty.setIteration(tolerance);
 
 		////////////////////////////////////////////////////////////////
@@ -321,14 +425,14 @@ int main() {
 		int max = ( *max_element(its.begin(), its.end()) );
 
 		cout
-			<< setw(td) << grid.size()     << "\t"
-			<< setw(td) << controls.size() << "\t"
-			<< setw(td) << outer           << "\t"
-			<< setw(td) << value           << "\t"
-			<< setw(td) << mean            << "\t"
-			<< setw(td) << sqrt(var)       << "\t"
-			<< setw(td) << max             << "\t"
-			<< setw(td) << change          << "\t"
+			<< setw(td) << grid.size()            << "\t"
+			<< setw(td) << impulseControls.size() << "\t"
+			<< setw(td) << outer                  << "\t"
+			<< setw(td) << value                  << "\t"
+			<< setw(td) << mean                   << "\t"
+			<< setw(td) << sqrt(var)              << "\t"
+			<< setw(td) << max                    << "\t"
+			<< setw(td) << change                 << "\t"
 			<< setw(td) << ratio
 			<< endl
 		;

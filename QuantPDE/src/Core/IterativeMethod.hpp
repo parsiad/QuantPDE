@@ -666,7 +666,7 @@ typedef Noncontrollable<3> Noncontrollable3;
 /**
  * A controllable linear system.
  */
-class ControlledLinearSystemBase : public LinearSystem {
+class ControlledLinearSystemBase : virtual public LinearSystem {
 
 	/**
 	 * Controls the system.
@@ -754,7 +754,7 @@ typedef ControlledLinearSystem<3> ControlledLinearSystem3;
  * Used to generate the left and right-hand sides of the linear system at each
  * iteration.
  */
-class IterationNode : public LinearSystem {
+class IterationNode : virtual public LinearSystem {
 
 	Iteration *iteration;
 

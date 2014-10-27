@@ -14,11 +14,11 @@ class LinearSystemSum : public LinearSystem {
 	LinearSystemSum() noexcept {
 	}
 
+public:
+
 	LinearSystemSum(LinearSystemSum &&sum) noexcept
 			: systems(std::move(sum.systems)) {
 	}
-
-public:
 
 	virtual bool isATheSame() const {
 		for(auto &system : systems) {
@@ -47,24 +47,28 @@ public:
 		return b;
 	}
 
-	friend LinearSystemSum &&operator+(Ptr a, Ptr b) {
-		LinearSystemSum O;
-		O.systems.push_front(std::move(a));
-		O.systems.push_front(std::move(b));
-		return std::move(O);
-	}
-
-	friend LinearSystemSum &&operator+(LinearSystemSum &&O, Ptr a) {
-		O.systems.push_front(std::move(a));
-		return std::move(O);
-	}
-
-	friend LinearSystemSum &&operator+(Ptr a, LinearSystemSum &&O) {
-		O.systems.push_front(std::move(a));
-		return std::move(O);
-	}
+	friend LinearSystemSum operator+(Ptr a, Ptr b);
+	friend LinearSystemSum &&operator+(LinearSystemSum &&O, Ptr a);
+	friend LinearSystemSum &&operator+(Ptr a, LinearSystemSum &&O);
 
 };
+
+LinearSystemSum operator+(LinearSystemSum::Ptr a, LinearSystemSum::Ptr b) {
+	LinearSystemSum O;
+	O.systems.push_front(std::move(a));
+	O.systems.push_front(std::move(b));
+	return O;
+}
+
+LinearSystemSum &&operator+(LinearSystemSum &&O, LinearSystemSum::Ptr a) {
+	O.systems.push_front(std::move(a));
+	return std::move(O);
+}
+
+LinearSystemSum &&operator+(LinearSystemSum::Ptr a, LinearSystemSum &&O) {
+	O.systems.push_front(std::move(a));
+	return std::move(O);
+}
 
 }
 
