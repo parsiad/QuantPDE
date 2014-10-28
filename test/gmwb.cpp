@@ -35,21 +35,17 @@ class ContinuousWithdrawal final : public ControlledLinearSystem2,
 		public IterationNode {
 
 	RectilinearGrid2 &grid;
-	Noncontrollable2 contractAmount;
+	Noncontrollable2 contractRate;
 
 	Controllable2 control;
 
 public:
 
 	template <typename G, typename F1>
-	ContinuousWithdrawal(G &grid, F1 &&contractAmount) noexcept
-			: grid(grid), contractAmount(contractAmount),
+	ContinuousWithdrawal(G &grid, F1 &&contractRate) noexcept
+			: grid(grid), contractRate(contractRate),
 			control( Control2(grid) ) {
 		registerControl(control);
-	}
-
-	inline Real dt() const {
-		return time(0) - nextTime();
 	}
 
 	virtual Matrix A(Real t) {
@@ -65,9 +61,8 @@ public:
 		for(Index j = 1; j < W.size(); ++j) {
 			// S = 0
 			{
-				const Real G = contractAmount(t, S[0], W[j]);
-				const Real Gdt = G * dt();
-				const Real gamma = control(t, S[0], W[j]) * Gdt;
+				const Real G = contractRate(t, S[0], W[j]);
+				const Real gamma = control(t, S[0], W[j]) * G;
 
 				const Real tW = gamma / (W[j] - W[j-1]);
 
@@ -77,9 +72,8 @@ public:
 
 			// S > 0
 			for(Index i = 1; i < S.size(); ++i) {
-				const Real G = contractAmount(t, S[i], W[j]);
-				const Real Gdt = G * dt();
-				const Real gamma = control(t, S[i], W[j]) * Gdt;
+				const Real G = contractRate(t, S[i], W[j]);
+				const Real gamma = control(t, S[i], W[j]) * G;
 
 				const Real tW = gamma / (W[j] - W[j-1]);
 				const Real tS = gamma / (S[i] - S[i-1]);
@@ -101,9 +95,8 @@ public:
 			const Real S = (&node)[0]; // Investment
 			const Real W = (&node)[1]; // Withdrawal
 
-			const Real G = contractAmount(t, S, W);
-			const Real Gdt = G * dt();
-			const Real gamma = control(t, S, W) * Gdt;
+			const Real G = contractRate(t, S, W);
+			const Real gamma = control(t, S, W) * G;
 
 			*node = gamma;
 		}
@@ -203,15 +196,15 @@ int main() {
 	int n = 10; // Initial optimal control partition size
 	int N = 32; // Initial number of timesteps
 
-	Real T = 14.28; //10.;
+	Real T = 10.; // 14.28;
 	Real r = .05;
 	Real v = .2;
 
 	Real w_0 = 100.;
 
-	Real alpha = 0.036; //0.01389; // Hedging fee
+	Real alpha = 0.01389; // 0.036; // Hedging fee
 
-	Real G = 7.; //10.; // Contract rate
+	Real G = 10.; // 7.; // Contract rate
 	Real kappa = 0.1; // Penalty rate
 
 	int refinement = 5;
@@ -332,7 +325,7 @@ int main() {
 		discretization.setIteration(stepper);
 
 		// Impulse withdrawal
-		ImpulseWithdrawal impulseWithdrawal(grid, /*G,*/ kappa);
+		ImpulseWithdrawal impulseWithdrawal(grid, kappa);
 		impulseWithdrawal.setIteration(stepper);
 
 		// Impulse withdrawal policy iteration
@@ -345,9 +338,6 @@ int main() {
 
 		// Penalty method
 		PenaltyMethod penalty(grid, discretization, impulsePolicy);
-
-		// TODO:
-
 		penalty.setIteration(tolerance);
 
 		////////////////////////////////////////////////////////////////
