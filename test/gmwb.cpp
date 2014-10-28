@@ -2,8 +2,7 @@
 // gmwb.cpp
 // --------
 //
-// Computes the price of a Guaranteed Minimum Withdrawal Benefit (GMWB) using an
-// implicit, impulse control formulation.
+// Computes the price of a GMWB using several different formulations.
 //
 // Author: Parsiad Azimzadeh
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,12 +15,13 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#include <algorithm> // max, min, max_element
+#include <algorithm> // max, min
 #include <cmath>     // sqrt
 #include <iomanip>   // setw
 #include <iostream>  // cout
 #include <memory>    // unique_ptr
 #include <numeric>   // accumulate
+#include <tuple>     // get
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,6 +31,83 @@ using namespace QuantPDE::Modules;
 using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class ImpulseWithdrawal final : public ControlledLinearSystem2,
+		public IterationNode {
+
+	RectilinearGrid2 &grid;
+	Noncontrollable2 kappa;
+
+	Controllable2 control;
+
+public:
+
+	template <typename G, typename F1>
+	ImpulseWithdrawal(G &grid, F1 &&kappa) noexcept
+			: grid(grid), kappa(kappa), control( Control2(grid) ) {
+		registerControl( control );
+	}
+
+	virtual Matrix A(Real t) {
+		Matrix M = grid.matrix();
+		M.reserve(IntegerVector::Constant(grid.size(), 4));
+
+		Index k = 0;
+		for(auto node : grid) {
+			const Real S = node[0]; // Investment
+			const Real W = node[1]; // Withdrawal
+
+			// Amount withdrawn pre-penalty
+			const Real gamma = control(t, S, W) * W;
+
+			const Real Splus = std::max(S - gamma, 0.);
+			const Real Wplus = W - gamma;
+
+			// Interpolation data
+			auto data = interpolationData<2>(grid, {{Splus,Wplus}});
+
+			const Index i0 = std::get<0>( data[0] );
+			const Index i1 = std::get<0>( data[1] );
+			const Real  w0 = std::get<1>( data[0] );
+			const Real  w1 = std::get<1>( data[1] );
+
+			assert( (grid[0][i0+1] - Splus)
+					/ (grid[0][i0+1] - grid[0][i0]) == w0 );
+			assert( (grid[1][i1+1] - Wplus)
+					/ (grid[1][i1+1] - grid[1][i1]) == w1 );
+
+			const Index j = grid.index(i0, i1);
+
+			M.insert(k, j                     ) =    w0  *    w1 ;
+			M.insert(k, j     + grid[0].size()) =    w0  * (1-w1);
+			M.insert(k, j + 1                 ) = (1-w0) *    w1 ;
+			M.insert(k, j + 1 + grid[0].size()) = (1-w0) * (1-w1);
+
+			++k;
+		}
+
+		M.makeCompressed();
+		return grid.identity() - M;
+	}
+
+	virtual Vector b(Real t) {
+		Vector b = grid.vector();
+
+		for(auto node : accessor(grid, b)) {
+			const Real S = (&node)[0]; // Investment
+			const Real W = (&node)[1]; // Withdrawal
+
+			// Amount withdrawn, pre-penalty
+			const Real gamma = control(t, S, W) * W;
+
+			// Cashflow minus adjustment
+			*node = (1 - kappa(t, S, W)) * gamma - epsilon;
+		}
+
+		return b;
+	}
+
+};
 
 class ContinuousWithdrawal final : public ControlledLinearSystem2,
 		public IterationNode {
@@ -111,25 +188,23 @@ public:
 
 int main() {
 
-	// 2014-10-15: Tested without withdrawals; closed-form is
-	// dm :=   (log(S0 / (1-kappa) * (r - alpha - 1/2 * sigma * sigma) * T))
-	//       / (sigma * sqrt(T))
-	// V   =   S0 * exp(-alpha T) * normcdf(dm + sigma * sqrt(T))
-	//       + W0   exp(-r   * T) * (1 - kappa) * (1 - normcdf(dm))
+	enum class Method {EXPLICIT, SEMI_IMPLICIT, IMPLICIT};
+	Method method = Method::SEMI_IMPLICIT;
 
-	int n = 10; // Initial optimal control partition size
 	int N = 32; // Initial number of timesteps
 
-	Real T = 10.; // 14.28;
+	int partitionSize = 10; // Number of controls
+
+	Real T = 10.; //14.28;
 	Real r = .05;
 	Real v = .2;
 
-	Real w_0 = 100.;
+	Real alpha = 0.01389; //0.036; // Hedging fee
 
-	Real alpha = 0.01389; // 0.036; // Hedging fee
-
-	Real G = 10.; // 7.; // Contract rate
+	Real G = 10.; //7.; // Contract rate
 	Real kappa = 0.1; // Penalty rate
+
+	Real w_0 = 100.; // Initial value of the account
 
 	int refinement = 5;
 
@@ -138,6 +213,7 @@ int main() {
 	////////////////////////////////////////////////////////////////////////
 
 	RectilinearGrid2 grid(
+		/*
 		Axis {
 			0., 5., 10., 15., 20., 25.,
 			30., 35., 40., 45.,
@@ -151,6 +227,21 @@ int main() {
 			250., 300., 500., 750., 1000.
 		},
 		Axis::range(0., 2., 100.)
+		*/
+
+		Axis {
+			0., 10., 20.,
+			30., 40.,
+			50., 60., 70., 75., 80., 84.,
+			86., 90., 92., 94., 95.,
+			96., 98., 100.,
+			101., 103., 105.,
+			107., 109., 112.,
+			116., 120., 126.,
+			130., 140., 150., 175., 225.,
+			250., 500., 1000.
+		},
+		Axis::range(0., 5., 100.)
 	);
 
 	////////////////////////////////////////////////////////////////////////
@@ -174,94 +265,221 @@ int main() {
 		<< endl
 	;
 
+	////////////////////////////////////////////////////////////////////////
+	// Refinement loop
+	////////////////////////////////////////////////////////////////////////
+
 	for(
-		int l = 0, outer = N, partitionSize = n;
+		int l = 0;
 		l < refinement;
-		++l, outer *= 2, partitionSize *= 2
+		++l, N *= 2, partitionSize *= 2
 	) {
-
-		////////////////////////////////////////////////////////////////
-		// Control grid
-		////////////////////////////////////////////////////////////////
-
-		// Control partition 0 : 1/n : 1 (MATLAB notation)
-		#if   defined(GMWB_SURRENDER)
-			RectilinearGrid1 impulseControls( Axis { 1. } );
-			RectilinearGrid1 continuousControls( Axis { 0. } );
-		#elif defined(GMWB_CONTRACT_WITHDRAWAL)
-			RectilinearGrid1 impulseControls( Axis { 0. } );
-			RectilinearGrid1 continuousControls( Axis { 1. } );
-		#else
-			// No need to check control = 0
-			RectilinearGrid1 impulseControls( Axis::range(
-				1. / partitionSize,
-				1. / partitionSize,
-				1.
-			) );
-			RectilinearGrid1 continuousControls( Axis { 0., 1. } );
-		#endif
 
 		////////////////////////////////////////////////////////////////
 		// Iteration tree
 		////////////////////////////////////////////////////////////////
 
 		ReverseConstantStepper stepper(
-			0.,       // Initial time
-			T,        // Expiry time
-			T / outer // Timestep size
+			0.,    // Initial time
+			T,     // Expiry time
+			T / N  // Timestep size
 		);
-		ToleranceIteration tolerance;
-		stepper.setInnerIteration(tolerance);
+
+		// Tolerance iteration
+		unique_ptr<ToleranceIteration> tolerance;
+		if(method != Method::EXPLICIT) {
+			tolerance = unique_ptr<ToleranceIteration>(
+					new ToleranceIteration());
+			stepper.setInnerIteration(*tolerance);
+		}
 
 		////////////////////////////////////////////////////////////////
 		// Linear system tree
 		////////////////////////////////////////////////////////////////
 
-		// Black-scholes
-		unique_ptr<LinearSystem> blackScholes(
-			new BlackScholes<2, 0>(
+		typedef ReverseLinearBDFOne Discretization;
+
+		unique_ptr<BlackScholes<2, 0>> blackScholes(
+			new BlackScholes<2,0>(
 				grid,
 				r, v, alpha
 			)
 		);
 
-		// Continuous withdrawal
-		ContinuousWithdrawal continuousWithdrawal(grid, G);
-		continuousWithdrawal.setIteration(stepper);
+		unique_ptr<RectilinearGrid1> continuousControls;
+		unique_ptr<ContinuousWithdrawal> continuousWithdrawal;
+		unique_ptr<MinPolicyIteration2_1> continuousPolicy;
+		unique_ptr<LinearSystemSum> sum;
+		LinearSystem *discretizee;
+		if(method != Method::IMPLICIT) {
+			discretizee = blackScholes.get();
+		} else {
+			// Continuous control grid
+			continuousControls = unique_ptr<RectilinearGrid1>(
+					new RectilinearGrid1(Axis { 0., 1. }));
 
-		// Policy iteration
-		unique_ptr<LinearSystem> continuousPolicy;
-		{
-			MinPolicyIteration2_1 *tmp = new MinPolicyIteration2_1(
-				grid,
-				continuousControls,
-				continuousWithdrawal
+			// Continuous withdrawal
+			continuousWithdrawal = unique_ptr<ContinuousWithdrawal>(
+					new ContinuousWithdrawal(grid, G));
+
+			// Continuous withdrawal policy iteration
+			continuousPolicy = unique_ptr<MinPolicyIteration2_1>(
+				new MinPolicyIteration2_1(
+					grid,
+					*continuousControls,
+					*continuousWithdrawal
+				)
 			);
-			tmp->setIteration(tolerance);
-			continuousPolicy = unique_ptr<LinearSystem>(tmp);
+			continuousPolicy->setIteration(*tolerance);
+
+			// Sum of linear systems
+			sum = unique_ptr<LinearSystemSum>(
+				new LinearSystemSum(
+					  std::move(blackScholes    )
+					+ std::move(continuousPolicy)
+				)
+			);
+
+			discretizee = sum.get();
 		}
 
-		// Linear system sum
-		auto sum = move(blackScholes) + move(continuousPolicy);
-
-		// Discretization
-		ReverseLinearBDFOne discretization(grid, sum);
+		Discretization discretization(grid, *discretizee);
 		discretization.setIteration(stepper);
 
-		// Impulse withdrawal
-		ImpulseWithdrawal impulseWithdrawal(grid, kappa);
+		unique_ptr<RectilinearGrid1> impulseControls;
+		unique_ptr<ImpulseWithdrawal> impulseWithdrawal;
+		unique_ptr<MinPolicyIteration2_1> impulsePolicy;
+		unique_ptr<PenaltyMethod> penalty;
+		IterationNode *root;
+		if(method == Method::EXPLICIT) {
+			// No impulse root
+			root = &discretization;
+		} else {
+			// Impulse control grid
+			impulseControls = unique_ptr<RectilinearGrid1>(
+				new RectilinearGrid1(
+					Axis::range(
+						1. / partitionSize,
+						1. / partitionSize,
+						1.
+					)
+				)
+			);
 
-		// Impulse withdrawal policy iteration
-		MinPolicyIteration2_1 impulsePolicy(
-			grid,
-			impulseControls,
-			impulseWithdrawal
-		);
-		impulsePolicy.setIteration(tolerance);
+			// Impulse withdrawal
+			impulseWithdrawal = unique_ptr<ImpulseWithdrawal>(
+					new ImpulseWithdrawal(grid, kappa));
 
-		// Penalty method
-		PenaltyMethod penalty(grid, discretization, impulsePolicy);
-		penalty.setIteration(tolerance);
+			// Impulse withdrawal policy iteration
+			impulsePolicy = unique_ptr<MinPolicyIteration2_1>(
+				new MinPolicyIteration2_1(
+					grid,
+					*impulseControls,
+					*impulseWithdrawal
+				)
+			);
+			impulsePolicy->setIteration(*tolerance);
+
+			// Penalty method
+			penalty = unique_ptr<PenaltyMethod>(
+				new PenaltyMethod(
+					grid,
+					discretization,
+					*impulsePolicy
+				)
+			);
+			penalty->setIteration(*tolerance);
+
+			// Impulse root
+			root = penalty.get();
+		}
+
+		////////////////////////////////////////////////////////////////
+		// Exercise events
+		////////////////////////////////////////////////////////////////
+
+		auto withdrawal = [=] (const Interpolant2 &V, Real S, Real W) {
+			Real best = V(S, W);
+
+			// Contract withdrawal amount
+			const Real Gdt = G * T / N;
+
+			/*
+			#if   defined(GMWB_CONTRACT_WITHDRAWAL)
+				// Constant withdrawal
+				const Real gamma = min(W, Gdt);
+				const Real interp = V(
+					max(S - gamma, 0.),
+					W - gamma
+				);
+				const Real cashflow = gamma;
+
+				best = interp + cashflow;
+			#elif defined(GMWB_SURRENDER)
+				const Real gamma = W;
+
+				const Real interp = V(
+					max(S - gamma, 0.),
+					W - gamma
+				);
+				const Real cashflow = gamma  - kappa
+						* max(gamma - Gdt, 0.);
+
+				best = interp + cashflow;
+			#else
+			*/
+
+			// Nonpenalty
+			const Real beta = min(W, Gdt);
+			for(int i = 1; i <= partitionSize; ++i) {
+				const Real gamma = beta * i / partitionSize;
+				const Real interp = V(
+					max(S - gamma, 0.),
+					W - gamma
+				);
+				const Real cashflow = gamma;
+				const Real newValue = interp + cashflow;
+				if(newValue > best) {
+					best = newValue;
+				}
+			}
+
+			// Penalty
+			if(method == Method::EXPLICIT && W > Gdt) {
+				for(int i = 1; i <= partitionSize; ++i) {
+					const Real gamma = Gdt + (W - Gdt) * i
+							/ partitionSize;
+					const Real interp = V(
+						max(S - gamma, 0.),
+						W - gamma
+					);
+					const Real cashflow = gamma - kappa
+							* (gamma - Gdt);
+					const Real newValue = interp + cashflow;
+					if(newValue > best) {
+						best = newValue;
+					}
+				}
+			}
+
+			//#endif
+
+			return best;
+		};
+
+		if(method != Method::IMPLICIT) {
+			for(int m = 0; m < N; ++m) {
+				stepper.add(
+					// Time at which the event takes place
+					T / N * m,
+
+					withdrawal,
+
+					// Spatial grid to interpolate on
+					grid
+				);
+			}
+		}
 
 		////////////////////////////////////////////////////////////////
 		// Payoff
@@ -278,10 +496,10 @@ int main() {
 		BiCGSTABSolver solver;
 
 		auto V = stepper.solve(
-			grid,    // Domain
-			payoff,  // Initial condition
-			penalty, // Root of linear system tree
-			solver   // Linear system solver
+			grid,   // Domain
+			payoff, // Initial condition
+			*root,  // Root of linear system tree
+			solver  // Linear system solver
 		);
 
 		////////////////////////////////////////////////////////////////
@@ -294,27 +512,42 @@ int main() {
 		);
 		cout << accessor( printGrid, V ) << endl;
 
-		auto its = tolerance.iterations();
-
 		Real
 			value = V(w_0, w_0),
-			var = 0.,
-			mean = accumulate(its.begin(),its.end(),0.)/its.size(),
 			change = value - previousValue,
-			ratio = previousChange / change
+			ratio = previousChange / change,
+			var = 0., mean = 1.
 		;
-		for(auto x : its) { var += (x - mean) * (x - mean); }
-		int max = ( *max_element(its.begin(), its.end()) );
+
+		int controlSetSize = 0;
+		if(method != Method::EXPLICIT) {
+			controlSetSize += impulseControls->size();
+		}
+		if(method == Method::IMPLICIT) {
+			controlSetSize += continuousControls->size();
+		}
+
+		int max = 1;
+
+		if(method != Method::EXPLICIT) {
+			auto its = tolerance->iterations();
+
+			var = 0.;
+			mean = accumulate(its.begin(),its.end(),0.)/its.size();
+
+			for(auto x : its) { var += (x - mean) * (x - mean); }
+			max = ( *max_element(its.begin(), its.end()) );
+		}
 
 		cout
-			<< setw(td) << grid.size()            << "\t"
-			<< setw(td) << impulseControls.size() << "\t"
-			<< setw(td) << outer                  << "\t"
-			<< setw(td) << value                  << "\t"
-			<< setw(td) << mean                   << "\t"
-			<< setw(td) << sqrt(var)              << "\t"
-			<< setw(td) << max                    << "\t"
-			<< setw(td) << change                 << "\t"
+			<< setw(td) << grid.size()    << "\t"
+			<< setw(td) << controlSetSize << "\t"
+			<< setw(td) << N              << "\t"
+			<< setw(td) << value          << "\t"
+			<< setw(td) << mean           << "\t"
+			<< setw(td) << sqrt(var)      << "\t"
+			<< setw(td) << max            << "\t"
+			<< setw(td) << change         << "\t"
 			<< setw(td) << ratio
 			<< endl
 		;
@@ -331,3 +564,4 @@ int main() {
 
 	return 0;
 }
+
