@@ -1,3 +1,9 @@
+- Controls that do not need to be interpolated are currently interpolated
+- It currently matters what order each linear system is associated with an
+  iteration; this is bad
+	- Possible solution 1: Each Iteration has to specify a list of members
+	- Possible solution 2: Each IterationNode has to associate with an
+	                       Iteration on creation
 - Step into feature for iterations
 - Lazy sparse matrix creation
 - Remove branching in BlackScholes.hpp

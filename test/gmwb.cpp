@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
-// guaranteed_minimum_withdrawal_benefit.cpp
-// -----------------------------------------
+// gmwb.cpp
+// --------
 //
 // Computes the price of a Guaranteed Minimum Withdrawal Benefit (GMWB) using an
 // implicit, impulse control formulation.
@@ -54,35 +54,40 @@ public:
 
 	virtual Matrix A(Real t) {
 		Matrix M = grid.matrix();
-		M.reserve(IntegerVector::Constant(grid.size(), 4));
+		M.reserve(IntegerVector::Constant(grid.size(), 3));
 
-		Index k = 0;
-		for(auto node : grid) {
+		auto M_G = grid.indexer(M);
 
-			const Real S = node[0]; // Investment
-			const Real W = node[1]; // Withdrawal
+		const Axis &S = grid[0];
+		const Axis &W = grid[1];
 
-			const Real G = contractAmount(t, S, W);
-			const Real Gdt = G * dt();
-			const Real gamma = control(t, S, W) * Gdt;
+		// W > 0
+		for(Index j = 1; j < W.size(); ++j) {
+			// S = 0
+			{
+				const Real G = contractAmount(t, S[0], W[j]);
+				const Real Gdt = G * dt();
+				const Real gamma = control(t, S[0], W[j]) * Gdt;
 
-			// TODO: Remove branching
-			if(W > epsilon) {
-				if(S > epsilon) {
-					M.insert(k, k) =  2. * gamma;
-					M.insert(k, k - 1) = -1. * gamma;
-					M.insert(k, k - grid[0].size()) = -1.
-							* gamma;
-				} else {
-					// S ~= 0
-					M.insert(k, k) =  1. * gamma;
-					M.insert(k, k - grid[0].size()) = -1.
-							* gamma;
-				}
+				const Real tW = gamma / (W[j] - W[j-1]);
+
+				M_G(0, j, 0, j    ) =   tW;
+				M_G(0, j, 0, j - 1) = - tW;
 			}
 
-			++k;
+			// S > 0
+			for(Index i = 1; i < S.size(); ++i) {
+				const Real G = contractAmount(t, S[i], W[j]);
+				const Real Gdt = G * dt();
+				const Real gamma = control(t, S[i], W[j]) * Gdt;
 
+				const Real tW = gamma / (W[j] - W[j-1]);
+				const Real tS = gamma / (S[i] - S[i-1]);
+
+				M_G(i, j, i    , j    ) =   tW + tS;
+				M_G(i, j, i    , j - 1) = - tW;
+				M_G(i, j, i - 1, j    ) =      - tS;
+			}
 		}
 
 		M.makeCompressed();
@@ -98,8 +103,9 @@ public:
 
 			const Real G = contractAmount(t, S, W);
 			const Real Gdt = G * dt();
+			const Real gamma = control(t, S, W) * Gdt;
 
-			*node = control(t, S, W) * Gdt;
+			*node = gamma;
 		}
 
 		return b;
@@ -111,52 +117,16 @@ class ImpulseWithdrawal final : public ControlledLinearSystem2,
 		public IterationNode {
 
 	RectilinearGrid2 &grid;
-	Noncontrollable2 contractAmount, kappa;
+	Noncontrollable2 kappa;
 
 	Controllable2 control;
 
 public:
 
-	template <typename G, typename F1, typename F2>
-	ImpulseWithdrawal(G &grid, F1 &&contractAmount, F2 &&kappa) noexcept
-			: grid(grid), contractAmount(contractAmount),
-			kappa(kappa), control( Control2(grid) ) {
+	template <typename G, typename F1>
+	ImpulseWithdrawal(G &grid, F1 &&kappa) noexcept
+			: grid(grid), kappa(kappa), control( Control2(grid) ) {
 		registerControl( control );
-	}
-
-	inline Real dt() const {
-		return time(0) - nextTime();
-	}
-
-	inline Real amountWithdrawnPrepenalty(Real t, Real S, Real W) const {
-		// Contract withdrawal amount for the period
-		const Real G = contractAmount(t, S, W);
-		const Real Gdt = G * dt();
-
-		Real gamma;
-
-		// Control in [0,2]
-		const Real q = control(t, S, W);
-
-		assert(q >= 0.);
-		assert(q <= 2.);
-
-		if( q <= 1. ) {
-			// Nonpenalty
-			gamma = q * min(W, Gdt);
-		} else {
-			if( W > Gdt ) {
-				// Penalty
-				gamma = Gdt + (q - 1.) * (W - Gdt);
-			} else {
-				gamma = min(W, Gdt);
-			}
-		}
-
-		assert(gamma >= 0);
-		assert(gamma <= W);
-
-		return gamma;
 	}
 
 	virtual Matrix A(Real t) {
@@ -165,12 +135,11 @@ public:
 
 		Index k = 0;
 		for(auto node : grid) {
-
 			const Real S = node[0]; // Investment
 			const Real W = node[1]; // Withdrawal
 
 			// Amount withdrawn pre-penalty
-			const Real gamma = amountWithdrawnPrepenalty(t, S, W);
+			const Real gamma = control(t, S, W) * W;
 
 			const Real Splus = max(S - gamma, 0.);
 			const Real Wplus = W - gamma;
@@ -196,7 +165,6 @@ public:
 			M.insert(k, j + 1 + grid[0].size()) = (1-w0) * (1-w1);
 
 			++k;
-
 		}
 
 		M.makeCompressed();
@@ -207,23 +175,14 @@ public:
 		Vector b = grid.vector();
 
 		for(auto node : accessor(grid, b)) {
-
 			const Real S = (&node)[0]; // Investment
 			const Real W = (&node)[1]; // Withdrawal
 
 			// Amount withdrawn, pre-penalty
-			const Real gamma = amountWithdrawnPrepenalty(t, S, W);
+			const Real gamma = control(t, S, W) * W;
 
-			// Contract withdrawal amount for the period
-			const Real G = contractAmount(t, S, W);
-			const Real Gdt = G * dt();
-
-			// Cashflow (including penalty if gamma > Gdt)
-			*node = gamma - kappa(t, S, W) * max(gamma - Gdt, 0.)
-					- epsilon;
-
-			assert( *node >= -epsilon );
-
+			// Cashflow minus adjustment
+			*node = (1 - kappa(t, S, W)) * gamma - epsilon;
 		}
 
 		return b;
@@ -253,7 +212,7 @@ int main() {
 	Real alpha = 0.036; //0.01389; // Hedging fee
 
 	Real G = 7.; //10.; // Contract rate
-	Real kappa = 0.; // Penalty rate
+	Real kappa = 0.1; // Penalty rate
 
 	int refinement = 5;
 
@@ -310,18 +269,20 @@ int main() {
 
 		// Control partition 0 : 1/n : 1 (MATLAB notation)
 		#if   defined(GMWB_SURRENDER)
-			RectilinearGrid1 impulseControls(Axis { 2. });
+			RectilinearGrid1 impulseControls( Axis { 1. } );
+			RectilinearGrid1 continuousControls( Axis { 0. } );
 		#elif defined(GMWB_CONTRACT_WITHDRAWAL)
-			RectilinearGrid1 impulseControls(Axis { 1. });
+			RectilinearGrid1 impulseControls( Axis { 0. } );
+			RectilinearGrid1 continuousControls( Axis { 1. } );
 		#else
-			RectilinearGrid1 impulseControls(Axis::range(
-				0.,
-				2. / (partitionSize - 1),
-				2.
-			));
+			// No need to check control = 0
+			RectilinearGrid1 impulseControls( Axis::range(
+				1. / partitionSize,
+				1. / partitionSize,
+				1.
+			) );
+			RectilinearGrid1 continuousControls( Axis { 0., 1. } );
 		#endif
-
-		RectilinearGrid1 continuousControls( Axis { 0., 1. } );
 
 		////////////////////////////////////////////////////////////////
 		// Iteration tree
@@ -339,46 +300,54 @@ int main() {
 		// Linear system tree
 		////////////////////////////////////////////////////////////////
 
-		// Impulse withdrawal policy iteration
-		ImpulseWithdrawal impulseWithdrawal(grid, G, kappa);
-		impulseWithdrawal.setIteration(stepper);
-		MinPolicyIteration2_1 impulsePolicy(
-			grid,
-			impulseControls,
-			impulseWithdrawal
-		);
-
-		// Continuous withdrawal policy iteration
-		ContinuousWithdrawal *cw = new ContinuousWithdrawal(grid, G);
-		cw->setIteration(stepper);
-		MinPolicyIteration2_1 continuousPolicy(
-			grid,
-			continuousControls,
-			*cw
-		);
-
-		// Linear system sum
-		unique_ptr<LinearSystem> bs(
+		// Black-scholes
+		unique_ptr<LinearSystem> blackScholes(
 			new BlackScholes<2, 0>(
 				grid,
 				r, v, alpha
 			)
 		);
-		unique_ptr<LinearSystem> continuousWithdrawal(cw); cw = nullptr;
-		auto sum = std::move(bs) + std::move(continuousWithdrawal);
+
+		// Continuous withdrawal
+		ContinuousWithdrawal continuousWithdrawal(grid, G);
+		continuousWithdrawal.setIteration(stepper);
+
+		// Policy iteration
+		unique_ptr<LinearSystem> continuousPolicy;
+		{
+			MinPolicyIteration2_1 *tmp = new MinPolicyIteration2_1(
+				grid,
+				continuousControls,
+				continuousWithdrawal
+			);
+			tmp->setIteration(tolerance);
+			continuousPolicy = unique_ptr<LinearSystem>(tmp);
+		}
+
+		// Linear system sum
+		auto sum = move(blackScholes) + move(continuousPolicy);
 
 		// Discretization
-		ReverseRannacher discretization(grid, sum);
+		ReverseLinearBDFOne discretization(grid, sum);
 		discretization.setIteration(stepper);
+
+		// Impulse withdrawal
+		ImpulseWithdrawal impulseWithdrawal(grid, /*G,*/ kappa);
+		impulseWithdrawal.setIteration(stepper);
+
+		// Impulse withdrawal policy iteration
+		MinPolicyIteration2_1 impulsePolicy(
+			grid,
+			impulseControls,
+			impulseWithdrawal
+		);
+		impulsePolicy.setIteration(tolerance);
 
 		// Penalty method
 		PenaltyMethod penalty(grid, discretization, impulsePolicy);
 
-		// TODO: It currently matters what order each linear system is
-		//       associated with an iteration; fix this.
+		// TODO:
 
-		impulsePolicy.setIteration(tolerance);
-		continuousPolicy.setIteration(tolerance);
 		penalty.setIteration(tolerance);
 
 		////////////////////////////////////////////////////////////////

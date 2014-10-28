@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
-// guaranteed_minimum_withdrawal_benefit.cpp
-// -----------------------------------------
+// gmwb_explicit.cpp
+// -----------------
 //
 // Computes the price of a Guaranteed Minimum Withdrawal Benefit (GMWB) using
 // an explicit formulation.
@@ -141,9 +141,10 @@ int main() {
 				max(S - gamma, 0.),
 				W - gamma
 			);
-			const Real cashflow = gamma;
+			const Real cashflow = gamma  - kappa
+					* max(gamma - Gdt, 0.);
 
-			best = interp + cashflow - kappa * max(gamma - Gdt, 0.);
+			best = interp + cashflow;
 #else
 			const int partitionSize = 10 * pow2l;
 
