@@ -12,10 +12,13 @@
 #include <QuantPDE/Modules/Lambdas>
 #include <QuantPDE/Modules/Operators>
 
+#include "gmwb.hpp"
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <algorithm> // max, min
 #include <iostream>  // cout
+#include <memory>    // unique_ptr
 #include <numeric>   // accumulate
 #include <tuple>     // get
 
@@ -38,12 +41,14 @@ int main() {
 
 	Real alpha = 0.01389; //0.036; // Hedging fee
 
-	Real G = 0.; //7.; // Contract rate
+	Real G = 10.; //7.; // Contract rate
 	Real kappa = 0.1; // Penalty rate
 
-	int E = N; // Number of events
-
 	int refinement = 5;
+
+	bool impulse = false;
+
+	int partitionSize = 10;
 
 	////////////////////////////////////////////////////////////////////////
 	// Solution grid
@@ -65,65 +70,82 @@ int main() {
 		Axis::range(0., 2., 100.)
 	);
 
-	for(int l = 0, pow2l = 1; l < refinement; ++l, pow2l *= 2) {
+	for(
+		int l = 0;
+		l < refinement;
+		++l, N *= 2, partitionSize *= 2
+	) {
 
 		////////////////////////////////////////////////////////////////
 		// Iteration tree
 		////////////////////////////////////////////////////////////////
 
 		ReverseConstantStepper stepper(
-			0.,              // Initial time
-			T,               // Expiry time
-			T / (N * pow2l)  // Timestep size
+			0.,    // Initial time
+			T,     // Expiry time
+			T / N  // Timestep size
 		);
+
+		// Tolerance iteration
+		unique_ptr<ToleranceIteration> tolerance;
+		if(impulse) {
+			tolerance = unique_ptr<ToleranceIteration>(
+					new ToleranceIteration());
+			stepper.setInnerIteration(*tolerance);
+		}
 
 		////////////////////////////////////////////////////////////////
 		// Linear system tree
 		////////////////////////////////////////////////////////////////
 
 		BlackScholes<2, 0> bs(grid, r, v, alpha);
-		ReverseRannacher discretization(grid, bs);
+		ReverseLinearBDFOne discretization(grid, bs);
 		discretization.setIteration(stepper);
+
+		/*
+		unique_ptr<PenaltyMethod> penalty;
+		if(impulse) {
+			RectilinearGrid1 impulseControls( Axis::range(
+							1. / partitionSize,
+							1. / partitionSize,
+							1.
+			) );
+
+			// Impulse withdrawal
+			ImpulseWithdrawal impulseWithdrawal(grid, kappa);
+
+			// Impulse withdrawal policy iteration
+			MinPolicyIteration2_1 impulsePolicy(
+				grid,
+				impulseControls,
+				impulseWithdrawal
+			);
+			impulsePolicy.setIteration(tolerance);
+
+			// Penalty method
+			penalty = unique_ptr<PenaltyMethod>(
+				new PenaltyMethod(
+					grid,
+					discretization,
+					payoff
+				)
+			);
+
+			penalty->setIteration(*tolerance);
+		}
+		*/
 
 		////////////////////////////////////////////////////////////////
 		// Exercise events
 		////////////////////////////////////////////////////////////////
 
-		int e = E * pow2l;
-
 		auto withdrawal = [=] (const Interpolant2 &V, Real S, Real W) {
 			Real best = V(S, W);
 
-			// You have no money
-			if(W < epsilon) {
-				return best;
-			}
-
 			// Contract withdrawal amount
-			const Real Gdt = G * T / e;
+			const Real Gdt = G * T / N;
 
-			#if 0
-			const int partitionSize = 10 * pow2l;
-			for(int i = 1; i <= partitionSize; ++i) {
-				const Real gamma = W * i / partitionSize;
-				const Real interp = V(
-					max(S - gamma, 0.),
-					W - gamma
-				);
-
-				Real cashflow = gamma;
-				if(gamma > Gdt) {
-					cashflow -= kappa * (gamma - Gdt);
-				}
-
-				const Real newValue = interp + cashflow;
-
-				if(newValue > best) {
-					best = newValue;
-				}
-			}
-			#endif
-
+/*
 #if   defined(GMWB_CONTRACT_WITHDRAWAL)
 			// Constant withdrawal
 			const Real gamma = min(W, Gdt);
@@ -146,7 +168,7 @@ int main() {
 
 			best = interp + cashflow;
 #else
-			const int partitionSize = 10 * pow2l;
+*/
 
 			// Nonpenalty
 			const Real beta = min(W, Gdt);
@@ -164,7 +186,7 @@ int main() {
 			}
 
 			// Penalty
-			if(W > Gdt) {
+			if(!impulse && W > Gdt) {
 				for(int i = 1; i <= partitionSize; ++i) {
 					const Real gamma = Gdt + (W - Gdt) * i
 							/ partitionSize;
@@ -180,15 +202,15 @@ int main() {
 					}
 				}
 			}
-#endif
+//#endif
 
 			return best;
 		};
 
-		for(int m = 0; m < e; ++m) {
+		for(int m = 0; m < N; ++m) {
 			stepper.add(
 				// Time at which the event takes place
-				T / e * m,
+				T / N * m,
 
 				withdrawal,
 

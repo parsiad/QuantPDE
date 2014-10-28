@@ -12,7 +12,7 @@ namespace Modules {
  * @param sigma The standard deviation.
  * @return Lambda function for a lognormal probability density.
  */
-Function1 lognormal(Real mu = 0., Real sigma = 1.) {
+inline Function1 lognormal(Real mu = 0., Real sigma = 1.) {
 	assert(sigma > 0.);
 
 	return [mu, sigma] (Real x) -> Real {
