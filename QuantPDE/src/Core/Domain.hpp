@@ -1152,7 +1152,7 @@ public:
 	 * @return An indexer to a vector.
 	 * @see QuantPDE::Domain::accessor
 	 */
-	VectorAxesIndexerNonConst indexer(const Vector &vector) const {
+	VectorAxesIndexerNonConst indexer(Vector &vector) const {
 		return VectorAxesIndexerNonConst(*this, vector);
 	}
 
@@ -1160,7 +1160,7 @@ public:
 		return VectorAxesIndexerValue(*this, vector);
 	}
 
-	VectorAxesIndexerConst indexer(Vector &vector) const {
+	VectorAxesIndexerConst indexer(const Vector &vector) const {
 		return VectorAxesIndexerConst(*this, vector);
 	}
 

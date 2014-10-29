@@ -11,8 +11,6 @@
 #include <QuantPDE/Modules/Lambdas>
 #include <QuantPDE/Modules/Operators>
 
-#include "gmwb.hpp"
-
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <algorithm> // max, min
@@ -139,10 +137,10 @@ public:
 		for(Index j = 1; j < W.size(); ++j) {
 			// S = 0
 			{
-				const Real G = contractRate(t, S[0], W[j]);
-				const Real gamma = control(t, S[0], W[j]) * G;
+				const Real G  = contractRate(t, S[0], W[j]);
+				const Real g  =      control(t, S[0], W[j]) * G;
 
-				const Real tW = gamma / (W[j] - W[j-1]);
+				const Real tW = g / (W[j] - W[j-1]);
 
 				M_G(0, j, 0, j    ) =   tW;
 				M_G(0, j, 0, j - 1) = - tW;
@@ -150,13 +148,13 @@ public:
 
 			// S > 0
 			for(Index i = 1; i < S.size(); ++i) {
-				const Real G = contractRate(t, S[i], W[j]);
-				const Real gamma = control(t, S[i], W[j]) * G;
+				const Real G  = contractRate(t, S[i], W[j]);
+				const Real g  =      control(t, S[i], W[j]) * G;
 
-				const Real tW = gamma / (W[j] - W[j-1]);
-				const Real tS = gamma / (S[i] - S[i-1]);
+				const Real tW = g / (W[j] - W[j-1]);
+				const Real tS = g / (S[i] - S[i-1]);
 
-				M_G(i, j, i    , j    ) =   tW + tS;
+				M_G(i, j, i    , j    ) = + tW + tS;
 				M_G(i, j, i    , j - 1) = - tW;
 				M_G(i, j, i - 1, j    ) =      - tS;
 			}
@@ -169,14 +167,20 @@ public:
 	virtual Vector b(Real t) {
 		Vector b = grid.vector();
 
-		for(auto node : accessor(grid, b)) {
-			const Real S = (&node)[0]; // Investment
-			const Real W = (&node)[1]; // Withdrawal
+		auto b_G = grid.indexer(b);
 
-			const Real G = contractRate(t, S, W);
-			const Real gamma = control(t, S, W) * G;
+		const Axis &S = grid[0];
+		const Axis &W = grid[1];
 
-			*node = gamma;
+		// W > 0 (no withdrawal at W = 0)
+		for(Index j = 1; j < W.size(); ++j) {
+			// S >= 0
+			for(Index i = 0; i < S.size() - 1; ++i) {
+				const Real G = contractRate(t, S[i], W[j]);
+				const Real g =      control(t, S[i], W[j]) * G;
+
+				b_G(i, j) = g;
+			}
 		}
 
 		return b;
@@ -189,7 +193,7 @@ public:
 int main() {
 
 	enum class Method {EXPLICIT, SEMI_IMPLICIT, IMPLICIT};
-	Method method = Method::SEMI_IMPLICIT;
+	Method method = Method::IMPLICIT;
 
 	int N = 32; // Initial number of timesteps
 
@@ -229,6 +233,7 @@ int main() {
 		Axis::range(0., 2., 100.)
 		*/
 
+		/*
 		Axis {
 			0., 10., 20.,
 			30., 40.,
@@ -242,6 +247,10 @@ int main() {
 			250., 500., 1000.
 		},
 		Axis::range(0., 5., 100.)
+		*/
+
+		Axis::range(0., 50., 100.),
+		Axis::range(0., 50., 100.)
 	);
 
 	////////////////////////////////////////////////////////////////////////
@@ -486,7 +495,7 @@ int main() {
 		////////////////////////////////////////////////////////////////
 
 		Function2 payoff = [=] (Real S, Real W) {
-			return max(S, (1 - kappa) * W);
+			return max(S, (1 - kappa) * W - epsilon);
 		};
 
 		////////////////////////////////////////////////////////////////
@@ -564,4 +573,3 @@ int main() {
 
 	return 0;
 }
-
