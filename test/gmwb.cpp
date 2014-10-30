@@ -126,12 +126,13 @@ public:
 
 	virtual Matrix A(Real t) {
 		Matrix M = grid.matrix();
-		M.reserve(IntegerVector::Constant(grid.size(), 3));
 
 		auto M_G = grid.indexer(M);
 
 		const Axis &S = grid[0];
 		const Axis &W = grid[1];
+
+		M.reserve(IntegerVector::Constant(grid.size(), 3));
 
 		// W > 0
 		for(Index j = 1; j < W.size(); ++j) {
@@ -160,6 +161,101 @@ public:
 			}
 		}
 
+		////////////////////////////////////////////////////////////////
+
+		#if 0
+		M.reserve(IntegerVector::Constant(grid.size(), 4));
+
+		// 0 < W < W_max
+		for(Index j = 1; j < W.size() - 1; ++j) {
+			// S = 0
+			{
+				const Real G  = contractRate(t, S[0], W[j]);
+				const Real g  =      control(t, S[0], W[j]) * G;
+
+				const Real tW = g / (W[j+1] - W[j-1]);
+
+				M_G(0, j, 0, j + 1) = + tW;
+				M_G(0, j, 0, j - 1) = - tW;
+			}
+
+			// 0 < S < S_max
+			for(Index i = 1; i < S.size() - 1; ++i) {
+				const Real G  = contractRate(t, S[i], W[j]);
+				const Real g  =      control(t, S[i], W[j]) * G;
+
+				const Real tW = g / (W[j+1] - W[j-1]);
+				const Real tS = g / (S[i+1] - S[i-1]);
+
+				M_G(i, j, i    , j + 1) = + tW;
+				M_G(i, j, i    , j - 1) = - tW;
+				M_G(i, j, i + 1, j    ) = + tS;
+				M_G(i, j, i - 1, j    ) = - tS;
+			}
+
+			// S = S_max
+			{
+				const Index i = S.size() - 1;
+
+				const Real G  = contractRate(t, S[i], W[j]);
+				const Real g  =      control(t, S[i], W[j]) * G;
+
+				const Real tW = g / (W[j+1] - W[j-1]);
+				const Real tS = g / (S[i  ] - S[i-1]);
+
+				M_G(i, j, i    , j + 1) = + tW;
+				M_G(i, j, i    , j - 1) = - tW;
+				M_G(i, j, i    , j    ) = + tS;
+				M_G(i, j, i - 1, j    ) = - tS;
+			}
+		}
+
+		// W = W_max
+		{
+			const Index j = W.size() - 1;
+
+			// S = 0
+			{
+				const Real G  = contractRate(t, S[0], W[j]);
+				const Real g  =      control(t, S[0], W[j]) * G;
+
+				const Real tW = g / (W[j] - W[j-1]);
+
+				M_G(0, j, 0, j    ) =   tW;
+				M_G(0, j, 0, j - 1) = - tW;
+			}
+
+			// 0 < S < S_max
+			for(Index i = 1; i < S.size() - 1; ++i) {
+				const Real G  = contractRate(t, S[i], W[j]);
+				const Real g  =      control(t, S[i], W[j]) * G;
+
+				const Real tW = g / (W[j  ] - W[j-1]);
+				const Real tS = g / (S[i+1] - S[i-1]);
+
+				M_G(i, j, i    , j    ) = + tW;
+				M_G(i, j, i    , j - 1) = - tW;
+				M_G(i, j, i + 1, j    ) = + tS;
+				M_G(i, j, i - 1, j    ) = - tS;
+			}
+
+			// S = S_max
+			{
+				const Index i = S.size() - 1;
+
+				const Real G  = contractRate(t, S[i], W[j]);
+				const Real g  =      control(t, S[i], W[j]) * G;
+
+				const Real tW = g / (W[j] - W[j-1]);
+				const Real tS = g / (S[i] - S[i-1]);
+
+				M_G(i, j, i    , j    ) = + tW + tS;
+				M_G(i, j, i - 1, j    ) = - tS;
+				M_G(i, j, i    , j - 1) = - tW;
+			}
+		}
+		#endif
+
 		M.makeCompressed();
 		return M;
 	}
@@ -172,10 +268,15 @@ public:
 		const Axis &S = grid[0];
 		const Axis &W = grid[1];
 
-		// W > 0 (no withdrawal at W = 0)
+		// W = 0 (no withdrawal)
+		for(Index i = 0; i < S.size(); ++i) {
+			b_G(i, 0) = 0.;
+		}
+
+		// W > 0
 		for(Index j = 1; j < W.size(); ++j) {
 			// S >= 0
-			for(Index i = 0; i < S.size() - 1; ++i) {
+			for(Index i = 0; i < S.size(); ++i) {
 				const Real G = contractRate(t, S[i], W[j]);
 				const Real g =      control(t, S[i], W[j]) * G;
 
@@ -193,24 +294,25 @@ public:
 int main() {
 
 	enum class Method {EXPLICIT, SEMI_IMPLICIT, IMPLICIT};
-	Method method = Method::IMPLICIT;
+	Method method = Method::EXPLICIT;
 
-	int N = 32; // Initial number of timesteps
-
-	int partitionSize = 10; // Number of controls
-
-	Real T = 10.; //14.28;
+	Real T = 10.; // 14.28;
 	Real r = .05;
 	Real v = .2;
 
-	Real alpha = 0.01389; //0.036; // Hedging fee
+	Real alpha = 0.01389; // 0.036; // Hedging fee
 
-	Real G = 10.; //7.; // Contract rate
+	Real G = 10.; // 7.; // Contract rate
 	Real kappa = 0.1; // Penalty rate
 
 	Real w_0 = 100.; // Initial value of the account
 
-	int refinement = 5;
+	int N = 32; // Initial number of timesteps
+	int M = 2; // Initial control set partition
+	int Mmax = 16; // Maximum control set partition size
+
+	int R = 1; // Minimum level of refinement
+	int Rmax = 10; // Maximum level of refinement
 
 	////////////////////////////////////////////////////////////////////////
 	// Solution grid
@@ -233,7 +335,6 @@ int main() {
 		Axis::range(0., 2., 100.)
 		*/
 
-		/*
 		Axis {
 			0., 10., 20.,
 			30., 40.,
@@ -247,10 +348,6 @@ int main() {
 			250., 500., 1000.
 		},
 		Axis::range(0., 5., 100.)
-		*/
-
-		Axis::range(0., 50., 100.),
-		Axis::range(0., 50., 100.)
 	);
 
 	////////////////////////////////////////////////////////////////////////
@@ -279,10 +376,12 @@ int main() {
 	////////////////////////////////////////////////////////////////////////
 
 	for(
-		int l = 0;
-		l < refinement;
-		++l, N *= 2, partitionSize *= 2
+		int l = R;
+		l <= Rmax;
+		++l, N *= 2, M *= 2
 	) {
+
+		M = min(M, Mmax);
 
 		////////////////////////////////////////////////////////////////
 		// Iteration tree
@@ -368,8 +467,8 @@ int main() {
 			impulseControls = unique_ptr<RectilinearGrid1>(
 				new RectilinearGrid1(
 					Axis::range(
-						1. / partitionSize,
-						1. / partitionSize,
+						1. / M,
+						1. / M,
 						1.
 					)
 				)
@@ -407,6 +506,8 @@ int main() {
 		// Exercise events
 		////////////////////////////////////////////////////////////////
 
+		const int M2 = M / 2;
+
 		auto withdrawal = [=] (const Interpolant2 &V, Real S, Real W) {
 			Real best = V(S, W);
 
@@ -440,8 +541,8 @@ int main() {
 
 			// Nonpenalty
 			const Real beta = min(W, Gdt);
-			for(int i = 1; i <= partitionSize; ++i) {
-				const Real gamma = beta * i / partitionSize;
+			for(int i = 1; i <= M2; ++i) {
+				const Real gamma = beta * i / M2;
 				const Real interp = V(
 					max(S - gamma, 0.),
 					W - gamma
@@ -455,9 +556,8 @@ int main() {
 
 			// Penalty
 			if(method == Method::EXPLICIT && W > Gdt) {
-				for(int i = 1; i <= partitionSize; ++i) {
-					const Real gamma = Gdt + (W - Gdt) * i
-							/ partitionSize;
+				for(int i = 1; i <= M2; ++i) {
+					const Real gamma = Gdt + (W-Gdt) * i/M2;
 					const Real interp = V(
 						max(S - gamma, 0.),
 						W - gamma
@@ -515,11 +615,13 @@ int main() {
 		// Print table rows
 		////////////////////////////////////////////////////////////////
 
+		/*
 		RectilinearGrid2 printGrid(
 			Axis::range(0., 25., 200.),
 			Axis { 100. }
 		);
 		cout << accessor( printGrid, V ) << endl;
+		*/
 
 		Real
 			value = V(w_0, w_0),
@@ -528,12 +630,11 @@ int main() {
 			var = 0., mean = 1.
 		;
 
-		int controlSetSize = 0;
+		int controlSetSize;
 		if(method != Method::EXPLICIT) {
-			controlSetSize += impulseControls->size();
-		}
-		if(method == Method::IMPLICIT) {
-			controlSetSize += continuousControls->size();
+			controlSetSize = impulseControls->size();
+		} else {
+			controlSetSize = 2*M2 + 1;
 		}
 
 		int max = 1;

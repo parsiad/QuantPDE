@@ -1,14 +1,27 @@
-- Control lookback
+- Control lookback to store controls
+
 - Controls that do not need to be interpolated are currently interpolated
+  for an unecessary cost of O(NlgN) per iteration (N is the number of nodes in
+  the domain)
+
 - It currently matters what order each linear system is associated with an
   iteration; this is bad
 	- Possible solution 1: Each Iteration has to specify a list of members
 	- Possible solution 2: Each IterationNode has to associate with an
 	                       Iteration on creation
+	- Possible solution 3: Infer the order from the associations between
+	                       iteration nodes (automatic)
 - Step into feature for iterations
+
 - Lazy sparse matrix creation
+
 - Remove branching in BlackScholes.hpp
+
 - Allow for control domains which are a function of time and space
+
 - Automagic grid creation
+
 - Migrate to CMake
+
 - Parallelize
+	- General producer/consumer queue

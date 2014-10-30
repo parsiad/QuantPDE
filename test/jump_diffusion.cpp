@@ -92,7 +92,7 @@ int main(int argc, char **argv) {
 
 	// Setting options with getopt
 	{ char c;
-	while((c = getopt(argc, argv, "d:g:hK:m:N:r:R:T:v:")) != -1) {
+	while((c = getopt(argc, argv, "d:g:hK:l:m:N:r:R:T:v:")) != -1) {
 		switch(c) {
 			case 'd':
 				q = atof(optarg);
