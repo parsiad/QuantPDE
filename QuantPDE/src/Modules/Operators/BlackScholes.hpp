@@ -185,19 +185,22 @@ public:
 					dSf = S[i + 1] - S[i]
 				;
 
-				const Real alpha_common = v_i * v_i * S[i] * S[i] / dSb / dSc;
-				const Real  beta_common = v_i * v_i * S[i] * S[i] / dSf / dSc;
+				const Real tmp1 = v_i * v_i * S[i] * S[i];
+				const Real tmp2 = (r_i - q_i - l_i*kappa)*S[i];
+
+				const Real alpha_common = tmp1 / dSb / dSc;
+				const Real  beta_common = tmp1 / dSf / dSc;
 
 				// Central
-				Real alpha_i = alpha_common - (r_i - q_i - l_i * kappa) * S[i] / dSc;
-				Real beta_i  =  beta_common + (r_i - q_i - l_i * kappa) * S[i] / dSc;
+				Real alpha_i = alpha_common - tmp2 / dSc;
+				Real beta_i  =  beta_common + tmp2 / dSc;
 				if(alpha_i < 0) {
 					// Forward
 					alpha_i = alpha_common;
-					beta_i  =  beta_common + (r_i - q_i - l_i * kappa) * S[i] / dSf;
+					beta_i  =  beta_common + tmp2 / dSf;
 				} else if(beta_i < 0) {
 					// Backward
-					alpha_i = alpha_common - (r_i - q_i - l_i * kappa) * S[i] / dSb;
+					alpha_i = alpha_common - tmp2 / dSb;
 					beta_i  =  beta_common;
 				}
 
@@ -206,7 +209,8 @@ public:
 				// M(i, i + 1) = -beta_i;
 
 				M.insert(idx, idx - offset) = -alpha_i;
-				M.insert(idx, idx)          =  alpha_i + beta_i + r_i + l_i;
+				M.insert(idx, idx)          =  alpha_i + beta_i
+				                               + r_i + l_i;
 				M.insert(idx, idx + offset) = -beta_i;
 			}
 		}

@@ -31,7 +31,7 @@ public:
 
 	virtual Matrix A(Real time) {
 		auto it = systems.begin();
-		Matrix A = (*it)->A(time);
+		Matrix A = (*it++)->A(time);
 		for(; it != systems.end(); ++it) {
 			A += (*it)->A(time);
 		}
@@ -40,7 +40,7 @@ public:
 
 	virtual Vector b(Real time) {
 		auto it = systems.begin();
-		Vector b = (*it)->b(time);
+		Vector b = (*it++)->b(time);
 		for(; it != systems.end(); ++it) {
 			b += (*it)->b(time);
 		}

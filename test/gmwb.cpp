@@ -14,6 +14,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <algorithm> // max, min
+#include <climits>   // INT_MAX
 #include <cmath>     // sqrt
 #include <iomanip>   // setw
 #include <iostream>  // cout
@@ -124,6 +125,10 @@ public:
 		registerControl(control);
 	}
 
+	inline Real dt() const {
+		return time(0) - nextTime();
+	}
+
 	virtual Matrix A(Real t) {
 		Matrix M = grid.matrix();
 
@@ -160,101 +165,6 @@ public:
 				M_G(i, j, i - 1, j    ) =      - tS;
 			}
 		}
-
-		////////////////////////////////////////////////////////////////
-
-		#if 0
-		M.reserve(IntegerVector::Constant(grid.size(), 4));
-
-		// 0 < W < W_max
-		for(Index j = 1; j < W.size() - 1; ++j) {
-			// S = 0
-			{
-				const Real G  = contractRate(t, S[0], W[j]);
-				const Real g  =      control(t, S[0], W[j]) * G;
-
-				const Real tW = g / (W[j+1] - W[j-1]);
-
-				M_G(0, j, 0, j + 1) = + tW;
-				M_G(0, j, 0, j - 1) = - tW;
-			}
-
-			// 0 < S < S_max
-			for(Index i = 1; i < S.size() - 1; ++i) {
-				const Real G  = contractRate(t, S[i], W[j]);
-				const Real g  =      control(t, S[i], W[j]) * G;
-
-				const Real tW = g / (W[j+1] - W[j-1]);
-				const Real tS = g / (S[i+1] - S[i-1]);
-
-				M_G(i, j, i    , j + 1) = + tW;
-				M_G(i, j, i    , j - 1) = - tW;
-				M_G(i, j, i + 1, j    ) = + tS;
-				M_G(i, j, i - 1, j    ) = - tS;
-			}
-
-			// S = S_max
-			{
-				const Index i = S.size() - 1;
-
-				const Real G  = contractRate(t, S[i], W[j]);
-				const Real g  =      control(t, S[i], W[j]) * G;
-
-				const Real tW = g / (W[j+1] - W[j-1]);
-				const Real tS = g / (S[i  ] - S[i-1]);
-
-				M_G(i, j, i    , j + 1) = + tW;
-				M_G(i, j, i    , j - 1) = - tW;
-				M_G(i, j, i    , j    ) = + tS;
-				M_G(i, j, i - 1, j    ) = - tS;
-			}
-		}
-
-		// W = W_max
-		{
-			const Index j = W.size() - 1;
-
-			// S = 0
-			{
-				const Real G  = contractRate(t, S[0], W[j]);
-				const Real g  =      control(t, S[0], W[j]) * G;
-
-				const Real tW = g / (W[j] - W[j-1]);
-
-				M_G(0, j, 0, j    ) =   tW;
-				M_G(0, j, 0, j - 1) = - tW;
-			}
-
-			// 0 < S < S_max
-			for(Index i = 1; i < S.size() - 1; ++i) {
-				const Real G  = contractRate(t, S[i], W[j]);
-				const Real g  =      control(t, S[i], W[j]) * G;
-
-				const Real tW = g / (W[j  ] - W[j-1]);
-				const Real tS = g / (S[i+1] - S[i-1]);
-
-				M_G(i, j, i    , j    ) = + tW;
-				M_G(i, j, i    , j - 1) = - tW;
-				M_G(i, j, i + 1, j    ) = + tS;
-				M_G(i, j, i - 1, j    ) = - tS;
-			}
-
-			// S = S_max
-			{
-				const Index i = S.size() - 1;
-
-				const Real G  = contractRate(t, S[i], W[j]);
-				const Real g  =      control(t, S[i], W[j]) * G;
-
-				const Real tW = g / (W[j] - W[j-1]);
-				const Real tS = g / (S[i] - S[i-1]);
-
-				M_G(i, j, i    , j    ) = + tW + tS;
-				M_G(i, j, i - 1, j    ) = - tS;
-				M_G(i, j, i    , j - 1) = - tW;
-			}
-		}
-		#endif
 
 		M.makeCompressed();
 		return M;
@@ -293,8 +203,29 @@ public:
 
 int main() {
 
-	enum class Method {EXPLICIT, SEMI_IMPLICIT, IMPLICIT};
-	Method method = Method::EXPLICIT;
+	////////////////////////////////////////////////////////////////////////
+	// Methods
+	////////////////////////////////////////////////////////////////////////
+
+	constexpr int SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY = 1 << 0;
+	constexpr int SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY = 1 << 1;
+
+	constexpr int EXPLICIT =
+			  SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY
+			| SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY;
+
+	constexpr int IMPLICIT = 0;
+
+	////////////////////////////////////////////////////////////////////////
+
+	int method;
+
+	//method = SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY;
+	method = SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY;
+	//method = EXPLICIT;
+	//method = IMPLICIT;
+
+	////////////////////////////////////////////////////////////////////////
 
 	Real T = 10.; // 14.28;
 	Real r = .05;
@@ -309,17 +240,18 @@ int main() {
 
 	int N = 32; // Initial number of timesteps
 	int M = 2; // Initial control set partition
-	int Mmax = 16; // Maximum control set partition size
+	int Mmax = INT_MAX; //16; // Maximum control set partition size
 
 	int R = 1; // Minimum level of refinement
 	int Rmax = 10; // Maximum level of refinement
+
+	assert(r >= 0.);
 
 	////////////////////////////////////////////////////////////////////////
 	// Solution grid
 	////////////////////////////////////////////////////////////////////////
 
 	RectilinearGrid2 grid(
-		/*
 		Axis {
 			0., 5., 10., 15., 20., 25.,
 			30., 35., 40., 45.,
@@ -331,21 +263,6 @@ int main() {
 			116., 118., 120., 123., 126.,
 			130., 135., 140., 145., 150., 160., 175., 200., 225.,
 			250., 300., 500., 750., 1000.
-		},
-		Axis::range(0., 2., 100.)
-		*/
-
-		Axis {
-			0., 10., 20.,
-			30., 40.,
-			50., 60., 70., 75., 80., 84.,
-			86., 90., 92., 94., 95.,
-			96., 98., 100.,
-			101., 103., 105.,
-			107., 109., 112.,
-			116., 120., 126.,
-			130., 140., 150., 175., 225.,
-			250., 500., 1000.
 		},
 		Axis::range(0., 5., 100.)
 	);
@@ -359,14 +276,14 @@ int main() {
 
 	const int td = 20;
 	cout
-		<< setw(td) << "Nodes"                           << "\t"
-		<< setw(td) << "Control Nodes"                   << "\t"
-		<< setw(td) << "Time Steps"                      << "\t"
-		<< setw(td) << "Value"                           << "\t"
-		<< setw(td) << "Mean Inner Iterations"           << "\t"
-		<< setw(td) << "Std Inner Iterations"            << "\t"
-		<< setw(td) << "Max Inner Iterations"            << "\t"
-		<< setw(td) << "Change"                          << "\t"
+		<< setw(td) << "Nodes"           << "\t"
+		<< setw(td) << "Control Nodes"   << "\t"
+		<< setw(td) << "Time Steps"      << "\t"
+		<< setw(td) << "Value"           << "\t"
+		<< setw(td) << "Mean Iterations" << "\t"
+		<< setw(td) << "Std Iterations"  << "\t"
+		<< setw(td) << "Max Iterations"  << "\t"
+		<< setw(td) << "Change"          << "\t"
 		<< setw(td) << "Ratio"
 		<< endl
 	;
@@ -395,7 +312,7 @@ int main() {
 
 		// Tolerance iteration
 		unique_ptr<ToleranceIteration> tolerance;
-		if(method != Method::EXPLICIT) {
+		if(method != EXPLICIT) {
 			tolerance = unique_ptr<ToleranceIteration>(
 					new ToleranceIteration());
 			stepper.setInnerIteration(*tolerance);
@@ -419,7 +336,8 @@ int main() {
 		unique_ptr<MinPolicyIteration2_1> continuousPolicy;
 		unique_ptr<LinearSystemSum> sum;
 		LinearSystem *discretizee;
-		if(method != Method::IMPLICIT) {
+		if(method & SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY) {
+			// Using semi-lagrangian for continuous withdrawal
 			discretizee = blackScholes.get();
 		} else {
 			// Continuous control grid
@@ -429,6 +347,7 @@ int main() {
 			// Continuous withdrawal
 			continuousWithdrawal = unique_ptr<ContinuousWithdrawal>(
 					new ContinuousWithdrawal(grid, G));
+			continuousWithdrawal->setIteration(stepper);
 
 			// Continuous withdrawal policy iteration
 			continuousPolicy = unique_ptr<MinPolicyIteration2_1>(
@@ -459,10 +378,12 @@ int main() {
 		unique_ptr<MinPolicyIteration2_1> impulsePolicy;
 		unique_ptr<PenaltyMethod> penalty;
 		IterationNode *root;
-		if(method == Method::EXPLICIT) {
+		if(method & SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY) {
 			// No impulse root
 			root = &discretization;
 		} else {
+			// Using semi-lagrangian for withdrawal at a penalty
+
 			// Impulse control grid
 			impulseControls = unique_ptr<RectilinearGrid1>(
 				new RectilinearGrid1(
@@ -506,8 +427,6 @@ int main() {
 		// Exercise events
 		////////////////////////////////////////////////////////////////
 
-		const int M2 = M / 2;
-
 		auto withdrawal = [=] (const Interpolant2 &V, Real S, Real W) {
 			Real best = V(S, W);
 
@@ -539,25 +458,31 @@ int main() {
 			#else
 			*/
 
-			// Nonpenalty
-			const Real beta = min(W, Gdt);
-			for(int i = 1; i <= M2; ++i) {
-				const Real gamma = beta * i / M2;
-				const Real interp = V(
-					max(S - gamma, 0.),
-					W - gamma
-				);
-				const Real cashflow = gamma;
-				const Real newValue = interp + cashflow;
-				if(newValue > best) {
-					best = newValue;
-				}
+			if(method & SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY) {
+				// Nonpenalty
+				const Real beta = min(W, Gdt);
+				//for(int i = 1; i <= 1; ++i) {
+					//const Real gamma = beta * i / M;
+					const Real gamma = beta;
+					const Real interp = V(
+						max(S - gamma, 0.),
+						W - gamma
+					);
+					const Real cashflow = gamma;
+					const Real newValue = interp + cashflow;
+					if(newValue > best) {
+						best = newValue;
+					}
+				//}
 			}
 
 			// Penalty
-			if(method == Method::EXPLICIT && W > Gdt) {
-				for(int i = 1; i <= M2; ++i) {
-					const Real gamma = Gdt + (W-Gdt) * i/M2;
+			if(
+				method & SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY
+				&& W > Gdt
+			) {
+				for(int i = 1; i <= M; ++i) {
+					const Real gamma = Gdt + (W-Gdt) * i/M;
 					const Real interp = V(
 						max(S - gamma, 0.),
 						W - gamma
@@ -576,7 +501,7 @@ int main() {
 			return best;
 		};
 
-		if(method != Method::IMPLICIT) {
+		if(method != IMPLICIT) {
 			for(int m = 0; m < N; ++m) {
 				stepper.add(
 					// Time at which the event takes place
@@ -630,16 +555,9 @@ int main() {
 			var = 0., mean = 1.
 		;
 
-		int controlSetSize;
-		if(method != Method::EXPLICIT) {
-			controlSetSize = impulseControls->size();
-		} else {
-			controlSetSize = 2*M2 + 1;
-		}
-
 		int max = 1;
 
-		if(method != Method::EXPLICIT) {
+		if(method != EXPLICIT) {
 			auto its = tolerance->iterations();
 
 			var = 0.;
@@ -650,14 +568,14 @@ int main() {
 		}
 
 		cout
-			<< setw(td) << grid.size()    << "\t"
-			<< setw(td) << controlSetSize << "\t"
-			<< setw(td) << N              << "\t"
-			<< setw(td) << value          << "\t"
-			<< setw(td) << mean           << "\t"
-			<< setw(td) << sqrt(var)      << "\t"
-			<< setw(td) << max            << "\t"
-			<< setw(td) << change         << "\t"
+			<< setw(td) << grid.size() << "\t"
+			<< setw(td) << M           << "\t"
+			<< setw(td) << N           << "\t"
+			<< setw(td) << value       << "\t"
+			<< setw(td) << mean        << "\t"
+			<< setw(td) << sqrt(var)   << "\t"
+			<< setw(td) << max         << "\t"
+			<< setw(td) << change      << "\t"
 			<< setw(td) << ratio
 			<< endl
 		;
