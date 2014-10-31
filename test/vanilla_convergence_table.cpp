@@ -204,6 +204,20 @@ int main(int argc, char **argv) {
 		}
 	);
 
+	/*
+	const Real sqrtLast = max(asset, strike);
+	const Real last = sqrtLast * sqrtLast;
+	RectilinearGrid1 grid(
+		Axis::cluster(
+			0.,     // First node
+			last,   // Last node
+			32,     // Number of points
+			strike, // Feature
+			1.      // Intensity
+		)
+	);
+	*/
+
 	// Payoff function
 	Function1 payoff = call ? callPayoff(strike) : putPayoff(strike);
 

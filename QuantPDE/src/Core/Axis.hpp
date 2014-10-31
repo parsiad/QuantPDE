@@ -2,7 +2,7 @@
 #define QUANT_PDE_CORE_AXIS_HPP
 
 #include <cassert>          // assert
-#include <cmath>            // std::floor
+#include <cmath>            // std::asinh, std::floor, std::sinh
 #include <cstring>          // std::memcpy
 #include <initializer_list> // std::initializer_list
 #include <iostream>         // std::ostream
@@ -173,6 +173,31 @@ public:
 		for(Index i = 0; i < points; ++i) {
 			axis.n[i] = begin + dx * i;
 		}
+		return axis;
+	}
+
+	/**
+	 * Creates an axis with points clustered around a single feature.
+	 * @param begin The first tick (inclusive).
+	 * @param end The last tick (inclusive).
+	 * @param points The total number of points.
+	 * @param feature The point to cluster around.
+	 * @param intensity Controls the fraction of points that lie around the
+	                    feature.
+	 */
+	static Axis cluster(Real begin, Real end, Index points, Real feature,
+			Real intensity = 1.) {
+		assert(intensity > 0.);
+
+		const Real xi_0 = asinh( (begin - feature) / intensity);
+		const Real dxi = ( asinh( (end - feature) / intensity ) - xi_0 )
+				/ (points - 1);
+
+		Axis axis(points);
+		for(Index i = 0; i < points; ++i) {
+			axis.n[i] = feature + intensity * sinh(xi_0 + i * dxi);
+		}
+
 		return axis;
 	}
 

@@ -1,4 +1,4 @@
-- Control lookback to store controls
+- Control lookback to store controls (do this inside ControlledLinearSystem)
 
 - Controls that do not need to be interpolated are currently interpolated
   for an unecessary cost of O(NlgN) per iteration (N is the number of nodes in
@@ -25,3 +25,4 @@
 
 - Parallelize
 	- General producer/consumer queue
+	- Parallelize policy iteration by splitting domain
