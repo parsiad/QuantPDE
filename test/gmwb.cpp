@@ -192,9 +192,7 @@ public:
 			for(Index i = 0; i < S.size(); ++i) {
 				const Real G = contractRate(t, S[i], W[j]);
 				const Real g = raw(k) * G;
-
 				b(k) = g;
-
 				++k;
 			}
 		}
@@ -203,30 +201,6 @@ public:
 	}
 
 };
-
-/*
-class CombinedContinuousWithdrawal final : public ControlledLinearSystem2 {
-
-	const RectilinearGrid2 &G;
-
-	Real r, v, q, G;
-	Controllable2 control;
-
-	template <typename G1>
-	CombinedContinuousWithdrawal(G1 &grid, Real r, Real v, Real q, Real G)
-			noexcept : grid(grid), r(r), v(v), q(q), G(G),
-			control( Control2(grid) ) {
-		registerControl( control );
-	}
-
-	virtual Matrix A(Real t) {
-	}
-
-	virtual Vector b(Real t) {
-	}
-
-}
-*/
 
 ////////////////////////////////////////////////////////////////////////////////
 

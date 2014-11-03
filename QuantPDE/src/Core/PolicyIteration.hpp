@@ -7,12 +7,36 @@
 
 namespace QuantPDE {
 
-template <Index Dimension, Index ControlDimension, bool Max>
-class PolicyIteration : public IterationNode {
+/**
+ * Positive or negative infinity.
+ * @tparam Positive If true, value becomes positive infinity. Negative infinity
+ *                  otherwise.
+ */
+template <bool Positive>
+struct SignedInfinity {
 
 	// Negative/positive infinity assert
 	static_assert(std::numeric_limits<Real>::is_iec559,
 			"IEEE 754 required");
+
+	/**
+	 * Positive or negative infinity.
+	 */
+	static constexpr Real value =
+			+std::numeric_limits<Real>::infinity();
+
+};
+
+template <>
+struct SignedInfinity<false> {
+
+	static constexpr Real value =
+			-std::numeric_limits<Real>::infinity();
+
+};
+
+template <Index Dimension, Index ControlDimension, bool Max>
+class PolicyIteration : public IterationNode {
 
 	typedef typename std::conditional<Max, std::greater<Real>,
 			std::less<Real>>::type Order;
@@ -36,11 +60,7 @@ class PolicyIteration : public IterationNode {
 		}
 
 		// Best configuration; initialize to plus-minus infinity
-		Vector best = domain->ones() * std::numeric_limits<Real>
-				::infinity();
-		if(Max) { // TODO: Optimize
-			best *= -1;
-		}
+		Vector best = domain->ones() * SignedInfinity<!Max>::value;
 
 		for(auto node : *controlDomain) {
 			Vector inputs[ControlDimension];
