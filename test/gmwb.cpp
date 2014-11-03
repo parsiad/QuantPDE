@@ -31,8 +31,7 @@ using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class ImpulseWithdrawal final : public ControlledLinearSystem2,
-		public IterationNode {
+class ImpulseWithdrawal final : public ControlledLinearSystem2 {
 
 	RectilinearGrid2 &grid;
 	Noncontrollable2 kappa;
@@ -108,8 +107,7 @@ public:
 
 };
 
-class ContinuousWithdrawal final : public ControlledLinearSystem2,
-		public IterationNode {
+class ContinuousWithdrawal final : public ControlledLinearSystem2 {
 
 	RectilinearGrid2 &grid;
 	Noncontrollable2 contractRate;
@@ -125,44 +123,46 @@ public:
 		registerControl(control);
 	}
 
-	inline Real dt() const {
-		return time(0) - nextTime();
-	}
-
 	virtual Matrix A(Real t) {
 		Matrix M = grid.matrix();
-
-		auto M_G = grid.indexer(M);
 
 		const Axis &S = grid[0];
 		const Axis &W = grid[1];
 
 		M.reserve(IntegerVector::Constant(grid.size(), 3));
 
+		// Control as a vector
+		const Vector &raw = ((const Control2 *) control.get())->raw();
+		Index k = S.size();
+
 		// W > 0
 		for(Index j = 1; j < W.size(); ++j) {
 			// S = 0
 			{
 				const Real G  = contractRate(t, S[0], W[j]);
-				const Real g  =      control(t, S[0], W[j]) * G;
+				const Real g = raw(k) * G;
 
 				const Real tW = g / (W[j] - W[j-1]);
 
-				M_G(0, j, 0, j    ) =   tW;
-				M_G(0, j, 0, j - 1) = - tW;
+				M.insert(k, k           ) = +tW;
+				M.insert(k, k - S.size()) = -tW;
+
+				++k;
 			}
 
 			// S > 0
 			for(Index i = 1; i < S.size(); ++i) {
 				const Real G  = contractRate(t, S[i], W[j]);
-				const Real g  =      control(t, S[i], W[j]) * G;
+				const Real g = raw(k) * G;
 
 				const Real tW = g / (W[j] - W[j-1]);
 				const Real tS = g / (S[i] - S[i-1]);
 
-				M_G(i, j, i    , j    ) = + tW + tS;
-				M_G(i, j, i    , j - 1) = - tW;
-				M_G(i, j, i - 1, j    ) =      - tS;
+				M.insert(k, k           ) = + tW + tS;
+				M.insert(k, k - S.size()) = - tW     ;
+				M.insert(k, k - 1       ) =      - tS;
+
+				++k;
 			}
 		}
 
@@ -173,14 +173,17 @@ public:
 	virtual Vector b(Real t) {
 		Vector b = grid.vector();
 
-		auto b_G = grid.indexer(b);
-
 		const Axis &S = grid[0];
 		const Axis &W = grid[1];
 
+		// Control as a vector
+		const Vector &raw = ((const Control2 *) control.get())->raw();
+		Index k = 0;
+
 		// W = 0 (no withdrawal)
 		for(Index i = 0; i < S.size(); ++i) {
-			b_G(i, 0) = 0.;
+			b(k) = 0.;
+			++k;
 		}
 
 		// W > 0
@@ -188,9 +191,11 @@ public:
 			// S >= 0
 			for(Index i = 0; i < S.size(); ++i) {
 				const Real G = contractRate(t, S[i], W[j]);
-				const Real g =      control(t, S[i], W[j]) * G;
+				const Real g = raw(k) * G;
 
-				b_G(i, j) = g;
+				b(k) = g;
+
+				++k;
 			}
 		}
 
@@ -198,6 +203,30 @@ public:
 	}
 
 };
+
+/*
+class CombinedContinuousWithdrawal final : public ControlledLinearSystem2 {
+
+	const RectilinearGrid2 &G;
+
+	Real r, v, q, G;
+	Controllable2 control;
+
+	template <typename G1>
+	CombinedContinuousWithdrawal(G1 &grid, Real r, Real v, Real q, Real G)
+			noexcept : grid(grid), r(r), v(v), q(q), G(G),
+			control( Control2(grid) ) {
+		registerControl( control );
+	}
+
+	virtual Matrix A(Real t) {
+	}
+
+	virtual Vector b(Real t) {
+	}
+
+}
+*/
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -221,9 +250,9 @@ int main() {
 	int method;
 
 	//method = SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY;
-	method = SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY;
+	//method = SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY;
 	//method = EXPLICIT;
-	//method = IMPLICIT;
+	method = IMPLICIT;
 
 	////////////////////////////////////////////////////////////////////////
 
@@ -347,7 +376,6 @@ int main() {
 			// Continuous withdrawal
 			continuousWithdrawal = unique_ptr<ContinuousWithdrawal>(
 					new ContinuousWithdrawal(grid, G));
-			continuousWithdrawal->setIteration(stepper);
 
 			// Continuous withdrawal policy iteration
 			continuousPolicy = unique_ptr<MinPolicyIteration2_1>(
