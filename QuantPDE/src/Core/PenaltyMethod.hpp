@@ -51,14 +51,20 @@ public:
 	}
 
 	virtual Matrix A(Real t) {
-		return left->A(t) + P * rA;
+		if(t == nextTime()) {
+			return left->A(t) + P * rA;
+		} else {
+			return left->A(t);
+		}
 	}
 
 	virtual Vector b(Real t) {
-		return left->b(t) + P * rb;
+		if(t == nextTime()) {
+			return left->b(t) + P * rb;
+		} else {
+			return left->b(t);
+		}
 	}
-
-	// TODO: Explicit discretizations
 
 };
 
