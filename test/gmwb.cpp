@@ -150,6 +150,7 @@ public:
 				++k;
 			}
 
+			#if 0
 			// S > 0
 			for(Index i = 1; i < S.size(); ++i) {
 				const Real G  = contractRate(t, S[i], W[j]);
@@ -164,6 +165,42 @@ public:
 
 				++k;
 			}
+			#endif
+
+			//#if 0
+			// 0 < S < S_max
+			for(Index i = 1; i < S.size() - 1; ++i) {
+				const Real G  = contractRate(t, S[i], W[j]);
+				const Real g = raw(k) * G;
+
+				const Real tW = g / (W[j  ] - W[j-1]);
+				const Real tS = g / (S[i+1] - S[i-1]);
+
+				M.insert(k, k + 1       ) =      + tS;
+				M.insert(k, k           ) = + tW     ;
+				M.insert(k, k - S.size()) = - tW     ;
+				M.insert(k, k - 1       ) =      - tS;
+
+				++k;
+			}
+
+			// S = S_max
+			{
+				const Index i = S.size() - 1;
+
+				const Real G  = contractRate(t, S[i], W[j]);
+				const Real g = raw(k) * G;
+
+				const Real tW = g / (W[j] - W[j-1]);
+				const Real tS = g / (S[i] - S[i-1]);
+
+				M.insert(k, k           ) = + tW + tS;
+				M.insert(k, k - S.size()) = - tW     ;
+				M.insert(k, k - 1       ) =      - tS;
+
+				++k;
+			}
+			//#endif
 		}
 
 		M.makeCompressed();
@@ -225,8 +262,8 @@ int main() {
 
 	//method = SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY;
 	//method = SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY;
-	//method = EXPLICIT;
-	method = IMPLICIT;
+	method = EXPLICIT;
+	//method = IMPLICIT;
 
 	////////////////////////////////////////////////////////////////////////
 
@@ -248,27 +285,10 @@ int main() {
 	int R = 1; // Minimum level of refinement
 	int Rmax = 10; // Maximum level of refinement
 
+	int points1 = 64;
+	int points2 = 50;
+
 	assert(r >= 0.);
-
-	////////////////////////////////////////////////////////////////////////
-	// Solution grid
-	////////////////////////////////////////////////////////////////////////
-
-	RectilinearGrid2 grid(
-		Axis {
-			0., 5., 10., 15., 20., 25.,
-			30., 35., 40., 45.,
-			50., 55., 60., 65., 70., 72.5, 75., 77.5, 80., 82., 84.,
-			86., 88., 90., 91., 92., 93., 94., 95.,
-			96., 97., 98., 99., 100.,
-			101., 102., 103., 104., 105., 106.,
-			107., 108., 109., 110., 112., 114.,
-			116., 118., 120., 123., 126.,
-			130., 135., 140., 145., 150., 160., 175., 200., 225.,
-			250., 300., 500., 750., 1000.
-		},
-		Axis::range(0., 5., 100.)
-	);
 
 	////////////////////////////////////////////////////////////////////////
 	// Table headers
@@ -298,8 +318,17 @@ int main() {
 	for(
 		int l = R;
 		l <= Rmax;
-		++l, N *= 2, M *= 2
+		++l, N *= 2, M *= 2, points1 *= 2, points2 *= 2
 	) {
+
+		////////////////////////////////////////////////////////////////
+		// Solution grid
+		////////////////////////////////////////////////////////////////
+
+		RectilinearGrid2 grid(
+			Axis::cluster(0., 1000., points1, 100., 100. / 2.),
+			Axis::cluster(0.,  100., points2, 100., 100. / 2.)
+		);
 
 		M = min(M, Mmax);
 
@@ -585,11 +614,6 @@ int main() {
 		previousChange = change;
 		previousValue = value;
 
-		////////////////////////////////////////////////////////////////
-		// Refine Solution grid
-		////////////////////////////////////////////////////////////////
-
-		grid.refine( RectilinearGrid2::NewTickBetweenEachPair() );
 	}
 
 	return 0;
