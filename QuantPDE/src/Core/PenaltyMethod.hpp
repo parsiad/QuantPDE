@@ -72,7 +72,8 @@ public:
 
 /**
  * Used to solve a problem of the form
- * \f$\min\left( LV, V - V_0 \right)=0\f$ where V_0 is a function of time and space.
+ * \f$\min\left( LV, V - V_0 \right)=0\f$ where V_0 is a function of time and
+ * space.
  *
  * There are two ways to pass V_0:
  * \code{.cpp}
