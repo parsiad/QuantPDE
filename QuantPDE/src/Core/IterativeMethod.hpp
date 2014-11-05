@@ -886,6 +886,8 @@ public:
  */
 class Iteration {
 
+private:
+
 	typedef CircularBuffer<std::tuple<Real, Vector>> CB;
 
 	virtual Vector iterateUntilDone(

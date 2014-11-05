@@ -7,6 +7,9 @@
 
 namespace QuantPDE {
 
+// gcc complains about SignedInfinity for some reason in debug mode; disable it
+
+#ifdef NDEBUG
 /**
  * Positive or negative infinity.
  * @tparam Positive If true, value becomes positive infinity. Negative infinity
@@ -34,6 +37,7 @@ struct SignedInfinity<false> {
 			-std::numeric_limits<Real>::infinity();
 
 };
+#endif
 
 template <Index Dimension, Index ControlDimension, bool Max>
 class PolicyIteration : public IterationNode {
@@ -60,7 +64,15 @@ class PolicyIteration : public IterationNode {
 		}
 
 		// Best configuration; initialize to plus-minus infinity
+		#ifdef NDEBUG
 		Vector best = domain->ones() * SignedInfinity<!Max>::value;
+		#else
+		Vector best = domain->ones()
+				* std::numeric_limits<Real>::infinity();
+		if(Max) {
+			best *= -1;
+		}
+		#endif
 
 		for(auto node : *controlDomain) {
 			Vector inputs[ControlDimension];
