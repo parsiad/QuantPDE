@@ -194,9 +194,11 @@ public:
 				/ (points - 1);
 
 		Axis axis(points);
-		for(Index i = 0; i < points; ++i) {
+		axis.n[0] = begin;
+		for(Index i = 1; i < points - 1; ++i) {
 			axis.n[i] = feature + intensity * sinh(xi_0 + i * dxi);
 		}
+		axis.n[points - 1] = end;
 
 		return axis;
 	}

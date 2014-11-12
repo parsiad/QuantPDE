@@ -58,7 +58,7 @@ public:
 			// Amount withdrawn pre-penalty
 			const Real gamma = control(t, S, W) * W;
 
-			const Real Splus = std::max(S - gamma, 0.);
+			const Real Splus = max(S - gamma, 0.);
 			const Real Wplus = W - gamma;
 
 			// Interpolation data
@@ -99,7 +99,7 @@ public:
 			const Real gamma = control(t, S, W) * W;
 
 			// Cashflow minus adjustment
-			*node = (1 - kappa(t, S, W)) * gamma - epsilon;
+			*node = (1 - kappa(t, S, W)) * gamma;
 		}
 
 		return b;
@@ -239,6 +239,13 @@ public:
 
 };
 
+inline Real Vminus(const Interpolant2 &V, Real S, Real W, Real gamma) {
+	return V(
+		max(S - gamma, 0.),
+		W - gamma
+	);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 int main() {
@@ -282,11 +289,12 @@ int main() {
 	int M = 2; // Initial control set partition
 	int Mmax = INT_MAX; //16; // Maximum control set partition size
 
-	int R = 1; // Minimum level of refinement
 	int Rmax = 10; // Maximum level of refinement
 
-	int points1 = 64;
-	int points2 = 50;
+	//int points1 = 64;
+	//int points2 = 50;
+
+	//Real far = 1000.; // Far boundary
 
 	assert(r >= 0.);
 
@@ -311,24 +319,43 @@ int main() {
 		<< endl
 	;
 
+	// Peter's grid
+	RectilinearGrid2 grid(
+		Axis {
+			0., 5., 10., 15., 20., 25.,
+			30., 35., 40., 45.,
+			50., 55., 60., 65., 70., 72.5, 75., 77.5, 80., 82., 84.,
+			86., 88., 90.,91., 92., 93., 94., 95.,
+			96., 97., 98., 99., 100.,
+			101., 102., 103., 104., 105., 106.,
+			107., 108., 109., 110., 112., 114.,
+			116., 118., 120., 123., 126.,
+			130., 135., 140., 145., 150., 160., 175., 200., 225.,
+			250., 300., 500.,750., 1000.
+		},
+		Axis::range(0., 2., 100.)
+	);
+
 	////////////////////////////////////////////////////////////////////////
 	// Refinement loop
 	////////////////////////////////////////////////////////////////////////
 
 	for(
-		int l = R;
+		int l = 0;
 		l <= Rmax;
-		++l, N *= 2, M *= 2, points1 *= 2, points2 *= 2
+		++l, N *= 2, M *= 2//, points1 *= 2, points2 *= 2, far *= 2.
 	) {
 
 		////////////////////////////////////////////////////////////////
 		// Solution grid
 		////////////////////////////////////////////////////////////////
 
+		/*
 		RectilinearGrid2 grid(
-			Axis::cluster(0., 1000., points1, 100., 100. / 2.),
-			Axis::cluster(0.,  100., points2, 100., 100. / 2.)
+			Axis::cluster(0.,   far, points1, w_0, w_0 / 5.),
+			Axis::cluster(0.,  100., points2, w_0, w_0 / 5.)
 		);
+		*/
 
 		M = min(M, Mmax);
 
@@ -459,77 +486,57 @@ int main() {
 		////////////////////////////////////////////////////////////////
 
 		auto withdrawal = [=] (const Interpolant2 &V, Real S, Real W) {
+
+			// No withdrawal
 			Real best = V(S, W);
 
 			// Contract withdrawal amount
 			const Real Gdt = G * T / N;
 
-			/*
-			#if   defined(GMWB_CONTRACT_WITHDRAWAL)
-				// Constant withdrawal
-				const Real gamma = min(W, Gdt);
-				const Real interp = V(
-					max(S - gamma, 0.),
-					W - gamma
-				);
-				const Real cashflow = gamma;
-
-				best = interp + cashflow;
-			#elif defined(GMWB_SURRENDER)
-				const Real gamma = W;
-
-				const Real interp = V(
-					max(S - gamma, 0.),
-					W - gamma
-				);
-				const Real cashflow = gamma  - kappa
-						* max(gamma - Gdt, 0.);
-
-				best = interp + cashflow;
-			#else
-			*/
-
 			if(method & SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY) {
 				// Nonpenalty
+
 				const Real beta = min(W, Gdt);
-				//for(int i = 1; i <= 1; ++i) {
-					//const Real gamma = beta * i / M;
+
+				//for(int i = 1; i <= M; ++i) {
+					//const Real gamma = beta * i/M;
 					const Real gamma = beta;
-					const Real interp = V(
-						max(S - gamma, 0.),
-						W - gamma
-					);
-					const Real cashflow = gamma;
-					const Real newValue = interp + cashflow;
+
+					const Real newValue =
+						Vminus(V, S, W, gamma)
+						+ gamma;
+
 					if(newValue > best) {
 						best = newValue;
 					}
 				//}
+
 			}
 
 			// Penalty
 			if(
-				method & SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY
+				(method & SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY)
 				&& W > Gdt
 			) {
+
 				for(int i = 1; i <= M; ++i) {
+
 					const Real gamma = Gdt + (W-Gdt) * i/M;
-					const Real interp = V(
-						max(S - gamma, 0.),
-						W - gamma
-					);
-					const Real cashflow = gamma - kappa
-							* (gamma - Gdt);
-					const Real newValue = interp + cashflow;
+
+					const Real newValue =
+						Vminus(V, S, W, gamma)
+						+ gamma - kappa*(gamma-Gdt);
+
 					if(newValue > best) {
 						best = newValue;
 					}
+
 				}
+
 			}
 
-			//#endif
-
 			return best;
+
 		};
 
 		if(method != IMPLICIT) {
@@ -551,7 +558,7 @@ int main() {
 		////////////////////////////////////////////////////////////////
 
 		Function2 payoff = [=] (Real S, Real W) {
-			return max(S, (1 - kappa) * W - epsilon);
+			return max(S, (1 - kappa) * W);
 		};
 
 		////////////////////////////////////////////////////////////////
@@ -613,6 +620,9 @@ int main() {
 
 		previousChange = change;
 		previousValue = value;
+
+		// Refine grid
+		grid.refine( RectilinearGrid2::NewTickBetweenEachPair() );
 
 	}
 
