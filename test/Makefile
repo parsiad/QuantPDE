@@ -3,29 +3,35 @@ BINARIES_DIRECTORY:=build
 SOURCES:=$(wildcard *.cpp)
 BINARIES:=$(addprefix $(BINARIES_DIRECTORY)/, $(SOURCES:.cpp=))
 
-EIGEN:=-I/usr/local/include/eigen3 -I/usr/include/eigen3
+EIGEN:=-I/usr/include/eigen3
 GCC:=/usr/bin/gcc-4.8
 
-DEBUG_DIRECTIVES:=-static -g3
-PRODUCTION_DIRECTIVES:=-O2 -DNDEBUG
+OPTS:=
+
+DEBUG_OPTS:=-static -g3
+OPTIMIZE_OPTS:=-O2 -DNDEBUG
 
 ifdef PROFILE
-DIRECTIVES:=$(DEBUG_DIRECTIVES) $(PRODUCTION_DIRECTIVES)
-ifdef DEBUG
-DIRECTIVES:=$(DEBUG_DIRECTIVES)
+OPTS:=$(OPTS) $(DEBUG_OPTS) $(OPTIMIZE_OPTS)
 else
-DIRECTIVES:=$(PRODUCTION_DIRECTIVES)
+ifdef DEBUG
+OPTS:=$(OPTS) $(DEBUG_OPTS)
+else
+OPTS:=$(OPTS) $(OPTIMIZE_OPTS)
 endif
 endif
 
 ifdef CUDA
 CXX:=nvcc
-OPTIONS:=-x cu --compiler-bindir $(GCC)
+OPTS:=$(OPTS) -x cu --compiler-bindir $(GCC)
 else
+ifdef OPENCL
+OPTS:=$(OPTS) -DVIENNACL_WITH_OPENCL -lOpenCL
+endif
 ifdef CLANG
 CXX:=clang++
 endif
-OPTIONS:=-Wall -pedantic -msse2
+OPTS:=$(OPTS) -Wall -pedantic -msse2
 endif
 
 all: $(BINARIES)
@@ -33,8 +39,8 @@ all: $(BINARIES)
 $(BINARIES_DIRECTORY)/% : %.cpp
 	mkdir -p $(BINARIES_DIRECTORY)
 	$(CXX) \
-			$(OPTIONS) $(CFLAGS) -std=c++11 \
-			-I../ $(EIGEN) $(DIRECTIVES) -o $@ $<
+			-std=c++11 $(OPTS) $(CFLAGS) \
+			-I../ $(EIGEN) -o $@ $<
 
 clean:
 	$(RM) -r $(BINARIES_DIRECTORY)
