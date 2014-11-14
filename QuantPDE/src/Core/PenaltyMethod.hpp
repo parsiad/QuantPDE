@@ -27,6 +27,7 @@ class PenaltyMethod : public IterationNode {
 
 		// Build penalty matrix
 		P.setZero();
+		P.reserve( IntegerVector::Constant( domain->size(), 1 ) );
 		for(Index i = 0; i < domain->size(); ++i) {
 			if( predicate(i) < -epsilon ) {
 				P.insert(i, i) = large;
@@ -46,7 +47,6 @@ public:
 		left(&constraint), right(&penalizedConstraint),
 		large( 1. / tolerance ),
 		P( domain.size(), domain.size() ) {
-		P.reserve( IntegerVector::Constant( domain.size(), 1 ) );
 		assert(tolerance > 0);
 	}
 

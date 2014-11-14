@@ -125,11 +125,10 @@ public:
 
 	virtual Matrix A(Real t) {
 		Matrix M = grid.matrix();
+		M.reserve(IntegerVector::Constant(grid.size(), 4));
 
 		const Axis &S = grid[0];
 		const Axis &W = grid[1];
-
-		M.reserve(IntegerVector::Constant(grid.size(), 3));
 
 		// Control as a vector
 		const Vector &raw = ((const Control2 *) control.get())->raw();
@@ -269,8 +268,8 @@ int main() {
 
 	//method = SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY;
 	//method = SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY;
-	method = EXPLICIT;
-	//method = IMPLICIT;
+	//method = EXPLICIT;
+	method = IMPLICIT;
 
 	////////////////////////////////////////////////////////////////////////
 
@@ -289,6 +288,7 @@ int main() {
 	int M = 2; // Initial control set partition
 	int Mmax = INT_MAX; //16; // Maximum control set partition size
 
+	int Rmin = 0;
 	int Rmax = 10; // Maximum level of refinement
 
 	//int points1 = 64;
@@ -345,6 +345,12 @@ int main() {
 		l <= Rmax;
 		++l, N *= 2, M *= 2//, points1 *= 2, points2 *= 2, far *= 2.
 	) {
+
+		if( l < Rmin ) {
+			// Refine grid
+			grid.refine(RectilinearGrid2::NewTickBetweenEachPair());
+			continue;
+		}
 
 		////////////////////////////////////////////////////////////////
 		// Solution grid
@@ -622,7 +628,7 @@ int main() {
 		previousValue = value;
 
 		// Refine grid
-		grid.refine( RectilinearGrid2::NewTickBetweenEachPair() );
+		grid.refine(RectilinearGrid2::NewTickBetweenEachPair());
 
 	}
 
