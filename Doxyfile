@@ -693,7 +693,7 @@ LAYOUT_FILE            =
 # search path. Do not use file names with spaces, bibtex cannot handle them. See
 # also \cite for info how to create references.
 
-CITE_BIB_FILES         =
+CITE_BIB_FILES         = Doxygen.bib
 
 #---------------------------------------------------------------------------
 # Configuration options related to warning and progress messages
@@ -1593,7 +1593,7 @@ EXTRA_SEARCH_MAPPINGS  =
 # If the GENERATE_LATEX tag is set to YES doxygen will generate LaTeX output.
 # The default value is: YES.
 
-GENERATE_LATEX         = NO
+GENERATE_LATEX         = YES
 
 # The LATEX_OUTPUT tag is used to specify where the LaTeX docs will be put. If a
 # relative path is entered the value of OUTPUT_DIRECTORY will be put in front of

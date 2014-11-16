@@ -9,15 +9,19 @@ namespace QuantPDE {
 namespace Modules {
 
 /**
- * Represents the operator \f$\mathcal{L}\f$ in
- * \f$V_{t}+\mathcal{L}V\equiv V_{t}+\frac{1}{2}\sigma^{2}S^{2}V_{SS}+\left(r-q\right)SV_{S}-rV\f$
- * \f$r\f$, \f$\sigma\f$, and \f$q\f$ are the usual interest rate, volatility
- * and (continuous) rate of dividends.
+ * Represents the (discretized) operator \f$\mathcal{L}\f$ defined by
+ * \f$
+ *     \mathcal{L} V \equiv
+ *     - \frac{1}{2} \sigma^2 S^2 V_{SS} - \left( r - q \right) S V_S + r V
+ * \f$
+ * where \f$r\f$, \f$\sigma\f$, and \f$q\f$ are the usual interest rate,
+ * volatility, and (continuous) dividend rate.
  *
- * The boundary conditions imposed are \f$V_t - rV = 0\f$ at \f$S=0\f$ and
- * \f$V_t - qV = 0\f$ at \f$S\rightarrow \infty\f$. The latter is derived by
+ * The boundary conditions imposed are \f$ V_t - rV = 0 \f$ at \f$ S = 0 \f$ and
+ * \f$ V_t - qV = 0 \f$ as \f$ S\rightarrow \infty \f$. The latter is derived by
  * assuming that the option is linear in the asset for large enough values of
- * the asset.
+ * the asset. See @cite windcliff2004analysis for discussion on the linear
+ * boundary condition.
  *
  * @tparam SIndex The index of the risky asset.
 **/
@@ -233,27 +237,34 @@ public:
 typedef BlackScholes<1, 0> BlackScholes1;
 
 /**
- * Represents the operator \f$\mathcal{L}\f$ in
- * \f$V_{t}+\mathcal{L}V\equiv V_{t}+\frac{1}{2}\sigma^{2}S^{2}V_{SS}+\left(r-q-\lambda\kappa\right)SV_{S}-\left(r+\lambda\right)V+\lambda\int_{0}^{\infty}V\left(t,S\eta\right)g\left(\eta\right)d\eta.\f$
- * \f$r\f$, \f$\sigma\f$, and \f$q\f$ are the usual interest rate, volatility
- * and (continuous) rate of dividends. \f$\lambda\f$ is the mean arrival
- * time of the Poisson process responsible for generating the jumps.
- * Assuming a jump has occured, \f$g\left(\eta\right)\f$ is the probability
- * density of a jump of amplitude \f$\eta\f$, with
- * \f$\kappa\equiv E\left[\eta\right]-1\f$ describing the expected relative
- * change in the stock.
+ * Represents the (discretized) operator \f$ \mathcal{L} \f$ defined by
+ * \f$
+ *     \mathcal{L} V \equiv
+ *     -\frac{1}{2} \sigma^2 S^2 V_{SS}
+ *     + \left( r - q - \lambda \kappa \right) S V_S
+ *     - \left( r + \lambda \right) V
+ *     + \lambda \int_0^{\infty}
+ *         V \left( t, S \eta \right)
+ *         g \left( \eta \right)
+ *     d\eta.
+ * \f$
+ * where \f$ r \f$, \f$ \sigma \f$, and \f$ q \f$ are the usual interest rate,
+ * volatility and (continuous) rate of dividends.
+ * \f$ \lambda \f$ is the mean arrival time of the Poisson process responsible
+ * for generating the jumps.
+ * Assuming a jump has occured, \f$ g \left( \eta \right) \f$ is the probability
+ * density of a jump of amplitude \f$ \eta \f$, with
+ * \f$ \kappa \equiv E \left[ \eta \right] - 1 \f$ describing the expected
+ * relative change in the stock.
  *
- * The boundary conditions imposed are \f$V_t - rV = 0\f$ at \f$S=0\f$ and
- * \f$V_t - qV = 0\f$ at \f$S\rightarrow \infty\f$. The latter is derived by
+ * The boundary conditions imposed are \f$ V_t - rV = 0 \f$ at \f$ S = 0 \f$ and
+ * \f$ V_t - qV = 0 \f$ as \f$ S\rightarrow \infty \f$. The latter is derived by
  * assuming that the option is linear in the asset for large enough values of
- * the asset.
+ * the asset. See @cite windcliff2004analysis for discussion on the linear
+ * boundary condition.
  *
  * The integral introduced by the jump term is handled using the FFT correlation
- * integral method described in [1].
- *
- * [1] d'Halluin, Yann, Peter A. Forsyth, and Kenneth R. Vetzal. "Robust
- * numerical methods for contingent claims under jump diffusion processes." IMA
- * Journal of Numerical Analysis 25.1 (2005): 87-112.
+ * integral method described in @cite d2005robust .
 **/
 class BlackScholesJumpDiffusion final : public IterationNode,
 		public BlackScholes1 {
