@@ -241,9 +241,9 @@ typedef BlackScholes<1, 0> BlackScholes1;
  * \f$
  *     \mathcal{L} V \equiv
  *     -\frac{1}{2} \sigma^2 S^2 V_{SS}
- *     + \left( r - q - \lambda \kappa \right) S V_S
- *     - \left( r + \lambda \right) V
- *     + \lambda \int_0^{\infty}
+ *     - \left( r - q - \lambda \kappa \right) S V_S
+ *     + \left( r + \lambda \right) V
+ *     - \lambda \int_0^{\infty}
  *         V \left( t, S \eta \right)
  *         g \left( \eta \right)
  *     d\eta.
