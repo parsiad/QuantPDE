@@ -260,6 +260,7 @@ class Controllable final {
 
 		Constant &operator=(const Constant &that) & noexcept {
 			constant = that.constant;
+			return *this;
 		}
 
 		virtual Real value(std::array<Real, Dimension + 1> coordinates)
@@ -297,10 +298,12 @@ class Controllable final {
 
 		FunctionST &operator=(const FunctionST &that) & noexcept {
 			function = that.function;
+			return *this;
 		}
 
 		FunctionST &operator=(FunctionST &&that) & noexcept {
 			function = std::move(that.function);
+			return *this;
 		}
 
 		virtual Real value(std::array<Real, Dimension + 1> coordinates)
@@ -335,10 +338,12 @@ class Controllable final {
 
 		FunctionS &operator=(const FunctionS &that) & noexcept {
 			function = that.function;
+			return *this;
 		}
 
 		FunctionS &operator=(FunctionS &&that) & noexcept {
 			function = std::move(that.function);
+			return *this;
 		}
 
 		virtual Real value(std::array<Real, Dimension + 1> coordinates)
@@ -397,11 +402,13 @@ public:
 		Control &operator=(const Control &that) & noexcept {
 			factory = that.factory;
 			interpolant = that.interpolant;
+			return *this;
 		}
 
 		Control &operator=(Control &&that) & noexcept {
 			factory = std::move(that.factory);
 			interpolant = std::move(that.interpolant);
+			return *this;
 		}
 
 		virtual Real value(std::array<Real, Dimension + 1> coordinates)
@@ -516,6 +523,7 @@ public:
 	 */
 	Controllable &operator=(const Controllable &that) & noexcept {
 		base = that.base->clone();
+		return *this;
 	}
 
 	/**
@@ -523,6 +531,7 @@ public:
 	 */
 	Controllable &operator=(Controllable &&that) & noexcept {
 		base = std::move(that.base);
+		return *this;
 	}
 
 	/**
