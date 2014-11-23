@@ -286,7 +286,7 @@ int Mmax = INT_MAX; //16; // Maximum control set partition size
 int Rmin = 0;
 int Rmax = 10; // Maximum level of refinement
 
-bool newton = true;
+bool newton = false;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Solution grid

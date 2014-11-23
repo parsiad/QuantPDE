@@ -31,7 +31,7 @@ endif
 ifdef CLANG
 CXX:=clang++
 endif
-OPTS:=$(OPTS) -Wall -pedantic -msse2
+OPTS:=$(OPTS) -Wall -pedantic
 endif
 
 all: $(BINARIES)
