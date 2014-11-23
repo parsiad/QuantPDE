@@ -38,9 +38,27 @@ QUANT_PDE_ASSERT(condition) {
 
 // Reals
 namespace QuantPDE {
+	#if defined(VIENNACL_WITH_OPENCL) || defined(VIENNACL_WITH_CUDA)
+	typedef float Real;
+	#else
 	typedef double Real;
+	#endif
+
+	Real max(Real x, Real y) { return x > y ? x : y; }
+	Real min(Real x, Real y) { return x < y ? x : y; }
+
+	template <typename T>
+	struct ToleranceScalar {
+		static constexpr T value = 1e-6;
+	};
+
+	template<>
+	struct ToleranceScalar<float> {
+		static constexpr float value = 1e-3;
+	};
+
 	static constexpr Real epsilon = 1e-12;
-	static constexpr Real tolerance = 1e-6;
+	static constexpr Real tolerance = ToleranceScalar<Real>::value;
 	static constexpr Real scale = 1.;
 }
 

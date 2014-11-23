@@ -12,10 +12,10 @@
 
 // Must be set prior to any ViennaCL includes if you want to use ViennaCL
 // algorithms on Eigen objects
-#define VIENNACL_WITH_EIGEN 1
+#define VIENNACL_WITH_EIGEN
 
 // ViennaCL headers
-//#include <viennacl/linalg/ilu.hpp>
+#include <viennacl/linalg/ilu.hpp>
 #include <viennacl/linalg/bicgstab.hpp>
 
 #endif
@@ -142,16 +142,50 @@ public:
 			// initial guess. Solve instead Ax = b - Ax_0 and then
 			// translate back x_sol = x + x_0.
 
-			Vector c = b - A * guess;
+			Vector rhs = b - A * guess;
 
-			//viennacl::linalg::ilut_tag ilut_config;
-			//viennacl::linalg::ilut_precond<Matrix> vcl_ilut(vcl_matrix, ilut_config);
+			////////////////////////////////////////////////////////
+			// Solve directly on Eigen objects (no preconditioner)
+			////////////////////////////////////////////////////////
 
-			Vector v = viennacl::linalg::solve(
-				A, c,
-				viennacl::linalg::bicgstab_tag()
-				/*, vcl_ilut*/
-			) + guess;
+			//Vector v = viennacl::linalg::solve(
+			//	A, rhs,
+			//	viennacl::linalg::bicgstab_tag()
+			//) + guess;
+
+			////////////////////////////////////////////////////////
+			// Copy and solve
+			////////////////////////////////////////////////////////
+
+			typedef viennacl::compressed_matrix<Real> vcl_sparse;
+
+			// Eigen -> ViennaCL
+			int dim = rhs.size();
+
+			viennacl::vector<Real> vcl_rhs(dim);
+			viennacl::copy(rhs, vcl_rhs);
+
+			vcl_sparse vcl_A(dim, dim);
+			viennacl::copy(A, vcl_A);
+
+			// Preconditioner
+			viennacl::linalg::ilut_tag ilut_config;
+			viennacl::linalg::ilut_precond<vcl_sparse> vcl_ilut(
+					vcl_A, ilut_config);
+
+			// Solve
+			viennacl::vector<Real> vcl_result;
+			vcl_result = viennacl::linalg::solve(
+				vcl_A,
+				vcl_rhs,
+				viennacl::linalg::bicgstab_tag(),
+				vcl_ilut
+			);
+
+			// ViennaCL -> Eigen
+			Vector v;
+			viennacl::copy(vcl_result, v);
+			v += guess; // Adjust for initial guess
 
 		#endif
 
