@@ -265,8 +265,8 @@ constexpr int IMPLICIT = 0;
 
 //int method = SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY;
 //int method = SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY;
-int method = EXPLICIT;
-//int method = IMPLICIT;
+//int method = EXPLICIT;
+int method = IMPLICIT;
 
 Real T = 10.; // 14.28;
 Real r = .05;
@@ -288,10 +288,9 @@ int Rmax = 10; // Maximum level of refinement
 
 bool newton = true;
 
-//int points1 = 64;
-//int points2 = 50;
-
-//Real far = 1000.; // Far boundary
+////////////////////////////////////////////////////////////////////////////////
+// Solution grid
+////////////////////////////////////////////////////////////////////////////////
 
 // Peter's grid
 RectilinearGrid2 grid(
@@ -310,9 +309,19 @@ RectilinearGrid2 grid(
 	Axis::range(0., 2., 100.)
 );
 
+/*
+constexpr int points1 = 64;
+constexpr int points2 = 50;
+
+RectilinearGrid2 grid(
+	Axis::cluster(0., 1000., points1, w0, w0 / 5.),
+	Axis::cluster(0.,  100., points2, w0, w0 / 5.)
+);
+*/
+
 ////////////////////////////////////////////////////////////////////////////////
 
-Real solve(Real alpha) {
+std::tuple<Real, Real, Real, int> solve(Real alpha) {
 
 	////////////////////////////////////////////////////////////////////////
 	// Iteration tree
@@ -529,7 +538,21 @@ Real solve(Real alpha) {
 		solver  // Linear system solver
 	);
 
-	return V(w0, w0);
+	Real mean = 1., var = 0.;
+	int max = 1;
+
+	if(method != EXPLICIT) {
+		auto its = toleranceIteration->iterations();
+
+		mean = accumulate(its.begin(),its.end(),0.)/its.size();
+
+		var = 0.;
+		for(auto x : its) { var += (x - mean) * (x - mean); }
+
+		max = ( *max_element(its.begin(), its.end()) );
+	}
+
+	return make_tuple( V(w0, w0), mean, var, max );
 
 }
 
@@ -579,24 +602,14 @@ int main() {
 			continue;
 		}
 
-		////////////////////////////////////////////////////////////////
-		// Solution grid
-		////////////////////////////////////////////////////////////////
-
-		/*
-		RectilinearGrid2 grid(
-			Axis::cluster(0.,   far, points1, w0, w0 / 5.),
-			Axis::cluster(0.,  100., points2, w0, w0 / 5.)
-		);
-		*/
-
 		M = min(M, Mmax);
 
 		////////////////////////////////////////////////////////////////
 		// Outermost Newton iteration to find fair fee
 		////////////////////////////////////////////////////////////////
 
-		Real value;
+		Real value, mean, var;
+		int max;
 
 		if(newton) {
 			// Spacing
@@ -612,7 +625,8 @@ int main() {
 			;
 
 			while(true) {
-				value = solve(alpha);
+				// f(alpha)
+				std::tie(value, mean, var, max) = solve(alpha);
 				const Real f0 = value - w0;
 
 				cout
@@ -627,9 +641,14 @@ int main() {
 					break;
 				}
 
-				const Real f1 = solve(alpha + epsilon) - w0;
+				// f(alpha + epsilon)
+				auto tmp = solve(alpha + epsilon);
+				const Real f1 = std::get<0>(tmp) - w0;
+
+				// f'(alpha)
 				const Real fp = (f1 - f0) / epsilon;
 
+				// Next iterand
 				alpha -= f1 / fp;
 			}
 
@@ -640,7 +659,7 @@ int main() {
 			printHeaders();
 		} else {
 			// No Newton iteration
-			value = solve(alpha);
+			std::tie(value, mean, var, max) = solve(alpha);
 		}
 
 		////////////////////////////////////////////////////////////////
@@ -657,23 +676,8 @@ int main() {
 
 		Real
 			change = value - previousValue,
-			ratio = previousChange / change,
-			var = 0., mean = 1.
+			ratio = previousChange / change
 		;
-
-		int max = 1;
-
-		/*
-		if(method != EXPLICIT) {
-			auto its = tolerance->iterations();
-
-			var = 0.;
-			mean = accumulate(its.begin(),its.end(),0.)/its.size();
-
-			for(auto x : its) { var += (x - mean) * (x - mean); }
-			max = ( *max_element(its.begin(), its.end()) );
-		}
-		*/
 
 		cout
 			<< setw(td) << grid.size() << "\t"
