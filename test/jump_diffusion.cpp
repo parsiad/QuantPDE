@@ -218,7 +218,7 @@ int main(int argc, char **argv) {
 	// Makes the linear system to solve at each iteration
 	////////////////////////////////////////////////////////////////////////
 
-	BlackScholesJumpDiffusion bs(
+	BlackScholesJumpDiffusion1 bs(
 		grid,
 
 		r, // Interest

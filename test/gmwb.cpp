@@ -8,7 +8,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <QuantPDE/Core>
-#include <QuantPDE/Modules/Lambdas>
 #include <QuantPDE/Modules/Operators>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,6 +21,7 @@
 #include <memory>    // unique_ptr
 #include <numeric>   // accumulate
 #include <tuple>     // get
+#include <utility>   // forward
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,6 +31,156 @@ using namespace QuantPDE::Modules;
 using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class InfinitesimalGenerator final : public ControlledLinearSystem2 {
+
+	const RectilinearGrid2 &grid;
+
+	const Real r, v, q;
+	Controllable2 control;
+
+public:
+
+	template <typename G1>
+	InfinitesimalGenerator(
+		G1 &grid,
+		Real interest,
+		Real volatility,
+		Real dividends,
+		Controllable2 &&control
+	) noexcept :
+		grid(grid),
+		r( interest ),
+		v( volatility ),
+		q( dividends ),
+		control( forward<Controllable2>(control) )
+	{
+		registerControl( this->control );
+	}
+
+	virtual Matrix A(Real) {
+		Matrix M = grid.matrix();
+		M.reserve( IntegerVector::Constant(grid.size(), 4) );
+
+		// Axes
+		const Axis &W = grid[0];
+		const Axis &A = grid[1];
+
+		// Control as a vector
+		Index k = 0;
+		const Vector &raw = ((const Control2 *) control.get())->raw();
+
+		// A
+		for(Index j = 0; j < A.size(); ++j) {
+
+			// W = 0
+			if(j > 0) {
+				const Real dA  = A[j] - A[j-1];
+				const Real tmp = raw(k) / dA;
+
+				M.insert(k, k           ) =  tmp + r;
+				M.insert(k, k - W.size()) = -tmp;
+			} else {
+				M.insert(k, k) = r;
+			}
+			++k;
+
+			// 0 < W < W_max
+			for(Index i = 1; i < W.size() - 1; ++i) {
+
+				// Deltas
+				const Real
+					dWb = W[i  ] - W[i-1],
+					dWc = W[i+1] - W[i-1],
+					dWf = W[i+1] - W[i  ]
+				;
+
+				const Real tmp1 = v * v * W[i] * W[i];
+				const Real tmp2 = (r - q) * W[i] - raw(k);
+
+				const Real alpha_common = tmp1 / dWb / dWc ;
+				const Real  beta_common = tmp1 / dWf / dWc ;
+
+				// Central
+				Real alpha_i = alpha_common - tmp2 / dWc ;
+				Real  beta_i =  beta_common + tmp2 / dWc ;
+				if(alpha_i < 0.) {
+					// Forward
+					alpha_i = alpha_common;
+					 beta_i = beta_common + tmp2 / dWf ;
+				} else if(beta_i < 0.) {
+					// Backward
+					alpha_i = alpha_common - tmp2 / dWb;
+					 beta_i =  beta_common;
+				}
+
+				M.insert(k, k - 1) = -alpha_i;
+				M.insert(k, k + 1) = - beta_i;
+
+				// Branching is slow, but peanuts compared to
+				// the other work that we have to do
+				const Real base = alpha_i + beta_i + r;
+				if(j > 0) {
+					const Real dA  = A[j] - A[j-1];
+					const Real tmp = raw(k) / dA;
+
+					M.insert(k, k           ) =  tmp + base;
+					M.insert(k, k - W.size()) = -tmp;
+				} else {
+					M.insert(k, k) = base;
+				}
+
+				++k;
+
+			}
+
+			// W = W_max
+			if(j > 0) {
+				const Real dA  = A[j] - A[j-1];
+				const Real tmp = raw(k) / dA;
+
+				M.insert(k, k           ) =  tmp + q;
+				M.insert(k, k - W.size()) = -tmp;
+			} else {
+				M.insert(k, k) = q;
+			}
+			++k;
+
+		}
+
+		M.makeCompressed();
+		return M;
+	}
+
+	virtual Vector b(Real) {
+		Vector b = grid.vector();
+
+		const Axis &W = grid[0];
+		const Axis &A = grid[1];
+
+		// Control as a vector
+		Index k = 0;
+		const Vector &raw = ((const Control2 *) control.get())->raw();
+
+		// A = 0 (no withdrawal)
+		for(Index i = 0; i < W.size(); ++i) {
+			b(k) = 0.;
+			++k;
+		}
+
+		// A > 0
+		for(Index j = 1; j < A.size(); ++j) {
+			// W >= 0
+			for(Index i = 0; i < W.size(); ++i) {
+				b(k) = raw(k);
+				++k;
+			}
+		}
+
+		return b;
+	}
+
+};
 
 class ImpulseWithdrawal final : public ControlledLinearSystem2 {
 
@@ -42,8 +192,14 @@ class ImpulseWithdrawal final : public ControlledLinearSystem2 {
 public:
 
 	template <typename G, typename F1>
-	ImpulseWithdrawal(G &grid, F1 &&kappa) noexcept
-			: grid(grid), kappa(kappa), control( Control2(grid) ) {
+	ImpulseWithdrawal(
+		G &grid,
+		F1 &&kappa
+	) noexcept :
+		grid(grid),
+		kappa(kappa),
+		control( Control2(grid) )
+	{
 		registerControl( control );
 	}
 
@@ -51,28 +207,31 @@ public:
 		Matrix M = grid.matrix();
 		M.reserve(IntegerVector::Constant(grid.size(), 4));
 
+		// Control as a vector
 		Index k = 0;
+		const Vector &raw = ((const Control2 *) control.get())->raw();
+
 		for(auto node : grid) {
-			const Real S = node[0]; // Investment
-			const Real W = node[1]; // Withdrawal
+			const Real W = node[0]; // Investment
+			const Real A = node[1]; // Withdrawal
 
 			// Amount withdrawn pre-penalty
-			const Real gamma = control(t, S, W) * W;
+			const Real gamma = raw(k) * A;
 
-			const Real Splus = max(S - gamma, 0.);
-			const Real Wplus = W - gamma;
+			const Real Wplus = max(W - gamma, 0.);
+			const Real Aplus = A - gamma;
 
 			// Interpolation data
-			auto data = interpolationData<2>(grid, {{Splus,Wplus}});
+			auto data = interpolationData<2>(grid, {{Wplus,Aplus}});
 
 			const Index i0 = std::get<0>( data[0] );
 			const Index i1 = std::get<0>( data[1] );
 			const Real  w0 = std::get<1>( data[0] );
 			const Real  w1 = std::get<1>( data[1] );
 
-			assert( (grid[0][i0+1] - Splus)
+			assert( (grid[0][i0+1] - Wplus)
 					/ (grid[0][i0+1] - grid[0][i0]) == w0 );
-			assert( (grid[1][i1+1] - Wplus)
+			assert( (grid[1][i1+1] - Aplus)
 					/ (grid[1][i1+1] - grid[1][i1]) == w1 );
 
 			const Index j = grid.index(i0, i1);
@@ -92,15 +251,19 @@ public:
 	virtual Vector b(Real t) {
 		Vector b = grid.vector();
 
+		// Control as a vector
+		Index k = 0;
+		const Vector &raw = ((const Control2 *) control.get())->raw();
+
 		for(auto node : accessor(grid, b)) {
-			const Real S = (&node)[0]; // Investment
-			const Real W = (&node)[1]; // Withdrawal
+			const Real W = (&node)[0]; // Investment
+			const Real A = (&node)[1]; // Withdrawal
 
 			// Amount withdrawn, pre-penalty
-			const Real gamma = control(t, S, W) * W;
+			const Real gamma = raw(k) * A;
 
 			// Cashflow minus adjustment
-			*node = (1 - kappa(t, S, W)) * gamma;
+			*node = (1 - kappa(t, W, A)) * gamma;
 		}
 
 		return b;
@@ -108,6 +271,7 @@ public:
 
 };
 
+#if 0
 class ContinuousWithdrawal final : public ControlledLinearSystem2 {
 
 	RectilinearGrid2 &grid;
@@ -238,11 +402,12 @@ public:
 	}
 
 };
+#endif
 
-inline Real Vminus(const Interpolant2 &V, Real S, Real W, Real gamma) {
+inline Real Vminus(const Interpolant2 &V, Real W, Real A, Real gamma) {
 	return V(
-		max(S - gamma, 0.),
-		W - gamma
+		max(W - gamma, 0.),
+		A - gamma
 	);
 }
 
@@ -293,6 +458,7 @@ bool newton = false;
 ////////////////////////////////////////////////////////////////////////////////
 
 // Peter's grid
+/*
 RectilinearGrid2 grid(
 	Axis {
 		0., 5., 10., 15., 20., 25.,
@@ -308,16 +474,17 @@ RectilinearGrid2 grid(
 	},
 	Axis::range(0., 2., 100.)
 );
+*/
 
-/*
+// Automatic grid
 constexpr int points1 = 64;
 constexpr int points2 = 50;
-
+constexpr Real density = 2.5;
+constexpr Real boundaryMultiplier = 10.;
 RectilinearGrid2 grid(
-	Axis::cluster(0., 1000., points1, w0, w0 / 5.),
-	Axis::cluster(0.,  100., points2, w0, w0 / 5.)
+	Axis::cluster(0., w0 * boundaryMultiplier, points1, w0, w0 / density),
+	Axis::cluster(0., w0                     , points2, w0, w0 / density)
 );
-*/
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -334,11 +501,9 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 	);
 
 	// Tolerance iteration
-	unique_ptr<ToleranceIteration> toleranceIteration;
+	ToleranceIteration toleranceIteration;
 	if(method != EXPLICIT) {
-		toleranceIteration = unique_ptr<ToleranceIteration>(
-				new ToleranceIteration());
-		stepper.setInnerIteration(*toleranceIteration);
+		stepper.setInnerIteration(toleranceIteration);
 	}
 
 	////////////////////////////////////////////////////////////////////////
@@ -346,6 +511,62 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 	////////////////////////////////////////////////////////////////////////
 
 	typedef ReverseLinearBDFOne Discretization;
+
+	// (Controlled) infinitesimal generator
+	typedef unique_ptr<ControlledLinearSystem2> SystemPointer;
+	SystemPointer generator;
+	if(method & SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY) {
+		generator = SystemPointer(
+			(ControlledLinearSystem2 *) new BlackScholes<2, 0>(
+				grid, r, v, alpha
+			)
+		);
+	} else {
+		generator = SystemPointer(
+			(ControlledLinearSystem2 *) new InfinitesimalGenerator(
+				grid, r, v, alpha, Control2(grid)
+			)
+		);
+	}
+
+	// Generator policy
+	RectilinearGrid1 generatorControls( Axis { 0., G } );
+	MinPolicyIteration2_1 generatorPolicy(
+		grid,
+		generatorControls,
+		*generator
+	);
+	generatorPolicy.setIteration(toleranceIteration);
+
+	// Discretization
+	Discretization discretization(grid, generatorPolicy);
+	discretization.setIteration(stepper);
+
+	// Impulse
+	RectilinearGrid1 impulseControls( Axis::range( 1. / M, 1. / M, 1. ) );
+	ImpulseWithdrawal impulseWithdrawal(grid, kappa);
+	MinPolicyIteration2_1 impulsePolicy(
+		grid,
+		impulseControls,
+		impulseWithdrawal
+	);
+	impulsePolicy.setIteration(toleranceIteration);
+
+	// Penalty
+	PenaltyMethod penalty(grid, discretization, impulsePolicy);
+	penalty.setIteration(toleranceIteration);
+
+	IterationNode *root;
+	if(method & SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY) {
+		// Use the explicit formulation for the impulses
+		root = &discretization;
+	} else {
+		// Use the penalty method for the impulses
+		root = &penalty;
+	}
+
+	#if 0
+	LinearSystem *discretizee;
 
 	unique_ptr<BlackScholes<2, 0>> blackScholes(
 		new BlackScholes<2,0>(
@@ -358,15 +579,10 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 	unique_ptr<ContinuousWithdrawal> continuousWithdrawal;
 	unique_ptr<MinPolicyIteration2_1> continuousPolicy;
 	unique_ptr<LinearSystemSum> sum;
-	LinearSystem *discretizee;
 	if(method & SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY) {
 		// Using semi-lagrangian for continuous withdrawal
 		discretizee = blackScholes.get();
 	} else {
-		// Continuous control grid
-		continuousControls = unique_ptr<RectilinearGrid1>(
-				new RectilinearGrid1(Axis { 0., 1. }));
-
 		// Continuous withdrawal
 		continuousWithdrawal = unique_ptr<ContinuousWithdrawal>(
 				new ContinuousWithdrawal(grid, G));
@@ -375,7 +591,7 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 		continuousPolicy = unique_ptr<MinPolicyIteration2_1>(
 			new MinPolicyIteration2_1(
 				grid,
-				*continuousControls,
+				continuousControls,
 				*continuousWithdrawal
 			)
 		);
@@ -444,15 +660,16 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 		// Impulse root
 		root = penalty.get();
 	}
+	#endif
 
 	////////////////////////////////////////////////////////////////////////
 	// Exercise events
 	////////////////////////////////////////////////////////////////////////
 
-	auto withdrawal = [=] (const Interpolant2 &V, Real S, Real W) {
+	auto withdrawal = [=] (const Interpolant2 &V, Real W, Real A) {
 
 		// No withdrawal
-		Real best = V(S, W);
+		Real best = V(W, A);
 
 		// Contract withdrawal amount
 		const Real Gdt = G * T / N;
@@ -460,14 +677,14 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 		if(method & SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY) {
 			// Nonpenalty
 
-			const Real beta = min(W, Gdt);
+			const Real beta = min(A, Gdt);
 
 			//for(int i = 1; i <= M; ++i) {
 				//const Real gamma = beta * i/M;
 				const Real gamma = beta;
 
 				const Real newValue =
-					Vminus(V, S, W, gamma)
+					Vminus(V, W, A, gamma)
 					+ gamma;
 
 				if(newValue > best) {
@@ -480,15 +697,15 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 		// Penalty
 		if(
 			(method & SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY)
-			&& W > Gdt
+			&& A > Gdt
 		) {
 
 			for(int i = 1; i <= M; ++i) {
 
-				const Real gamma = Gdt + (W-Gdt) * i/M;
+				const Real gamma = Gdt + (A-Gdt) * i/M;
 
 				const Real newValue =
-					Vminus(V, S, W, gamma)
+					Vminus(V, W, A, gamma)
 					+ gamma - kappa*(gamma-Gdt);
 
 				if(newValue > best) {
@@ -521,8 +738,8 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 	// Payoff
 	////////////////////////////////////////////////////////////////////////
 
-	Function2 payoff = [=] (Real S, Real W) {
-		return max(S, (1 - kappa) * W);
+	Function2 payoff = [=] (Real W, Real A) {
+		return max(W, (1 - kappa) * A);
 	};
 
 	////////////////////////////////////////////////////////////////////////
@@ -542,7 +759,7 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 	int max = 1;
 
 	if(method != EXPLICIT) {
-		auto its = toleranceIteration->iterations();
+		auto its = toleranceIteration.iterations();
 
 		mean = accumulate(its.begin(),its.end(),0.)/its.size();
 

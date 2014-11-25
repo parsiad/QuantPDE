@@ -2,6 +2,7 @@
 #define QUANT_PDE_MODULES_BLACK_SCHOLES_HPP
 
 #include <complex> // std::complex, std::conj
+#include <utility> // std::forward
 #include <vector>  // std::vector
 
 namespace QuantPDE {
@@ -30,7 +31,8 @@ class BlackScholes : public ControlledLinearSystem<Dimension> {
 
 	static_assert(Dimension > 0, "Dimension must be positive");
 	static_assert(SIndex >=0 && SIndex < Dimension,
-			"The asset index must be between 0 (inclusive) and Dimension (exclusive)");
+			"The asset index must be between 0 (inclusive) and "
+			"Dimension (exclusive)");
 
 	Controllable<Dimension> r, v, q;
 	Real kappa;
@@ -198,11 +200,11 @@ public:
 				// Central
 				Real alpha_i = alpha_common - tmp2 / dSc;
 				Real beta_i  =  beta_common + tmp2 / dSc;
-				if(alpha_i < 0) {
+				if(alpha_i < 0.) {
 					// Forward
 					alpha_i = alpha_common;
 					beta_i  =  beta_common + tmp2 / dSf;
-				} else if(beta_i < 0) {
+				} else if(beta_i < 0.) {
 					// Backward
 					alpha_i = alpha_common - tmp2 / dSb;
 					beta_i  =  beta_common;
@@ -457,6 +459,8 @@ public:
 	}
 
 };
+
+typedef BlackScholesJumpDiffusion BlackScholesJumpDiffusion1;
 
 } // Modules
 
