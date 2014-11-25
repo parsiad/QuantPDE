@@ -233,7 +233,7 @@ int main(int argc, char **argv) {
 		///////////////////////////////////////////////////////////////
 
 		// Refine the grid
-		grid.refine( RectilinearGrid1::NewTickBetweenEachPair() );
+		grid = grid.refined();
 
 		///////////////////////////////////////////////////////////////
 		// Solve problem

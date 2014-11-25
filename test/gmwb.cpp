@@ -479,11 +479,11 @@ RectilinearGrid2 grid(
 // Automatic grid
 constexpr int points1 = 64;
 constexpr int points2 = 50;
-constexpr Real density = 2.5;
+constexpr Real intensity = 2.5;
 constexpr Real boundaryMultiplier = 10.;
 RectilinearGrid2 grid(
-	Axis::cluster(0., w0 * boundaryMultiplier, points1, w0, w0 / density),
-	Axis::cluster(0., w0                     , points2, w0, w0 / density)
+	Axis::cluster(0., w0 * boundaryMultiplier, points1, w0, intensity),
+	Axis::cluster(0., w0                     , points2, w0, intensity)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -815,7 +815,7 @@ int main() {
 
 		if( l < Rmin ) {
 			// Refine grid
-			grid.refine(RectilinearGrid2::NewTickBetweenEachPair());
+			grid = grid.refined();
 			continue;
 		}
 
@@ -913,7 +913,7 @@ int main() {
 		previousValue = value;
 
 		// Refine grid
-		grid.refine(RectilinearGrid2::NewTickBetweenEachPair());
+		grid = grid.refined();
 
 	}
 

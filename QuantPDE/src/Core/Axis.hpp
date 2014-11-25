@@ -189,14 +189,16 @@ public:
 			Real intensity = 1.) {
 		assert(intensity > 0.);
 
-		const Real xi_0 = asinh( (begin - feature) / intensity);
-		const Real dxi = ( asinh( (end - feature) / intensity ) - xi_0 )
+		const Real c = feature / intensity;
+
+		const Real xi_0 = asinh( (begin - feature) / c);
+		const Real dxi = ( asinh( (end - feature) / c ) - xi_0 )
 				/ (points - 1);
 
 		Axis axis(points);
 		axis.n[0] = begin;
 		for(Index i = 1; i < points - 1; ++i) {
-			axis.n[i] = feature + intensity * sinh(xi_0 + i * dxi);
+			axis.n[i] = feature + c * sinh(xi_0 + i * dxi);
 		}
 		axis.n[points - 1] = end;
 

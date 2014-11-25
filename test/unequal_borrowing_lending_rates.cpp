@@ -176,7 +176,7 @@ int main(int argc, char **argv) {
 
 	// Refine grid
 	for(int r = 0; r < R; ++r) {
-		grid.refine( RectilinearGrid1::NewTickBetweenEachPair() );
+		grid = grid.refined();
 	}
 
 	////////////////////////////////////////////////////////////////////////

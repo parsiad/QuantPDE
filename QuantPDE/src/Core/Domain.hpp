@@ -9,12 +9,10 @@
 #include <type_traits> // std::conditional
 #include <utility>     // std::forward, std::move
 
-// TODO: Specialize Refiner?
-
 namespace QuantPDE {
 
 template <Index Dimension> class InterpolantFactoryWrapper;
-template <Index Dimension> class Refiner;
+//template <Index Dimension> class Refiner;
 
 /**
  * A (finite) set of points in some space.
@@ -523,11 +521,13 @@ QUANT_PDE_TMP(NON_CONST)
 
 	////////////////////////////////////////////////////////////////////////
 
+	#if 0
 	/**
 	 * Refines the domain in-place.
 	 * @param refiner
 	 */
 	virtual void refine(const Refiner<Dimension> &refiner) = 0;
+	#endif
 
 	/**
 	 * @param index An index.
@@ -646,6 +646,7 @@ typename D::VectorAccessorSHARED accessor(D &domain, F &&function) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#if 0
 /**
  * A routine used to refine a domain.
  */
@@ -683,6 +684,7 @@ public:
 			(*this) = dynamic_cast<DERIVED_CLASS &&>(    \
 					*REFINER.refine( *this ) );  \
 		} while(0)
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1012,6 +1014,7 @@ class RectilinearGrid : public Domain<Dimension> {
 
 public:
 
+	#if 0
 	/**
 	 * Refines a rectilinear grid by refining each axis as follows: for each
 	 * two adjacent (distinct) ticks on the axis, a new tick is inserted
@@ -1058,6 +1061,36 @@ public:
 		}
 
 	};
+	#endif
+
+	/**
+	 * A refined grid constructed as follows: for each pair of adjacent tick
+	 * on each axis, a new tick is placed in between them.
+	 * @return A refined grid.
+	 */
+	RectilinearGrid refined() {
+		RectilinearGrid refined;
+
+		for(Index k = 0; k < Dimension; ++k) {
+			// Refine k-th axis
+
+			const Axis &n = (*this)[k];
+			Axis &m = refined.axes[k];
+
+			m = Axis( n.size() * 2 - 1 );
+
+			m[0] = n[0];
+			Index i = 1, j = 1;
+			while(i < n.size()) {
+				m[j++] = ( n[i-1] + n[i] ) / 2.;
+				m[j++] = n[i++];
+			}
+		}
+
+		refined.initialize();
+
+		return refined;
+	}
 
 	/**
 	 * Constructor.
@@ -1325,9 +1358,11 @@ public:
 
 	////////////////////////////////////////////////////////////////////////
 
+	#if 0
 	virtual void refine(const Refiner<Dimension> &refiner) {
 		QUANT_PDE_REFINE_IN_PLACE(RectilinearGrid, refiner);
 	}
+	#endif
 
 	/**
 	 * @param index An index corresponding to a node on the grid.
