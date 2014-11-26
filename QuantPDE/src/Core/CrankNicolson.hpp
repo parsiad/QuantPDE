@@ -17,19 +17,18 @@ namespace QuantPDE {
  *
  * @see QuantPDE::TimeIteration
  */
-template <bool Forward>
-class CrankNicolson : public IterationNode {
+template <Index Dimension, bool Forward>
+class CrankNicolson : public Discretization<Dimension> {
 
-	const DomainBase *domain;
-	LinearSystem *system;
+	LinearSystem &system;
 
 	inline Real dt() const {
 		const Real
-			t1 = nextTime(),
-			t0 = time(0)
+			t1 = this->nextTime(),
+			t0 = this->time(0)
 		;
 
-		auto dt = Forward ? t1 - t0 : t0 - t1;
+		const Real dt = Forward ? t1 - t0 : t0 - t1;
 		assert(dt > epsilon);
 
 		return dt;
@@ -37,25 +36,25 @@ class CrankNicolson : public IterationNode {
 
 	virtual Matrix A(Real t1) {
 		return
-			domain->identity()
-			+ system->A(t1) * dt() / 2.
+			this->domain.identity()
+			+ system.A(t1) * dt() / 2.
 		;
 	}
 
-	virtual Vector b(Real t1) {
-		const Real    t0 = time(0);
-		const Vector &v0 = iterand(0);
+	virtual Vector bd(Real t1) {
+		const Real    t0 = this->time(0);
+		const Vector &v0 = this->iterand(0);
 
 		return (
-			domain->identity()
-			- system->A(t0) * dt() / 2.
-		) * v0 + ( system->b(t1) + system->b(t0) ) / 2.;
+			this->domain.identity()
+			- system.A(t0) * dt() / 2.
+		) * v0 + ( system.b(t1) + system.b(t0) ) / 2.;
 	}
 
 public:
 
 	virtual bool isATheSame() const {
-		return isTimestepTheSame() && system->isATheSame();
+		return this->isTimestepTheSame() && system.isATheSame();
 	}
 
 	/**
@@ -64,16 +63,30 @@ public:
 	 *               \f$A\left(t\right)\f$ and \f$b\left(t\right)\f$.
 	 */
 	template <typename D>
-	CrankNicolson(D &domain, LinearSystem &system) noexcept :
-			domain(&domain), system(&system) {
+	CrankNicolson(
+		D &domain,
+		LinearSystem &system
+	) noexcept :
+		Discretization<Dimension>(domain),
+		system(system) {
 	}
 
 };
 
-typedef CrankNicolson<false> ReverseCrankNicolson;
-typedef CrankNicolson<true > ForwardCrankNicolson;
+template <Index Dimension>
+using ReverseCrankNicolson = CrankNicolson<Dimension, false>;
+
+template <Index Dimension>
+using ForwardCrankNicolson = CrankNicolson<Dimension, true>;
+
+typedef ReverseCrankNicolson<1> ReverseCrankNicolson1;
+typedef ReverseCrankNicolson<2> ReverseCrankNicolson2;
+typedef ReverseCrankNicolson<3> ReverseCrankNicolson3;
+
+typedef ForwardCrankNicolson<1> ForwardCrankNicolson1;
+typedef ForwardCrankNicolson<2> ForwardCrankNicolson2;
+typedef ForwardCrankNicolson<3> ForwardCrankNicolson3;
 
 } // QuantPDE
 
 #endif
-

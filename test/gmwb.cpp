@@ -520,7 +520,7 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 	// Linear system tree
 	////////////////////////////////////////////////////////////////////////
 
-	typedef ReverseLinearBDFOne Discretization;
+	typedef ReverseBDFOne2 Discretization;
 
 	// (Controlled) infinitesimal generator
 	InfinitesimalGenerator generator(

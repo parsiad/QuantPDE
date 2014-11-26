@@ -819,6 +819,52 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/**
+ * A linear system that allows expressing boundary conditions (currently only
+ * Dirichlet boundary conditions).
+ */
+template <Index Dimension>
+class Discretization : public IterationNode {
+
+	std::unordered_map< Index, Function<Dimension> > boundary;
+
+protected:
+
+	const Domain<Dimension> &domain;
+
+public:
+
+	/**
+	 * Constructor.
+	 */
+	template <typename D>
+	Discretization(D &domain) noexcept : LinearSystem(), domain(domain) {
+	}
+
+	/**
+	 * @return The right-hand-side vector (b) before boundary conditions are
+	 *         applied.
+	 */
+	virtual Vector bd(Real time) = 0;
+
+	virtual Vector b(Real time) final {
+		Vector b = bd( time );
+		// TODO: Modify b
+		return b;
+	}
+
+	/**
+	 * Creates a Dirichlet boundary condition at the specified node.
+	 */
+	template <typename ...Ts, typename F>
+	void addDirichletNode(Ts ...indices, F &&function) {
+		// TODO
+	}
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO: Make solution object so that Iteration can seem stateless
 
 /**

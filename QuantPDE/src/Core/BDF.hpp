@@ -1,49 +1,47 @@
-#ifndef QUANT_PDE_CORE_LINEAR_BDF_HPP
-#define QUANT_PDE_CORE_LINEAR_BDF_HPP
+#ifndef QUANT_PDE_CORE_BDF_HPP
+#define QUANT_PDE_CORE_BDF_HPP
 
 namespace QuantPDE {
 
-template <bool Forward, size_t Lookback>
-class LinearBDFBase : public IterationNode {
-
-	const DomainBase *domain;
+template <Index Dimension, bool Forward, size_t Lookback>
+class BDFBase : public Discretization<Dimension> {
 
 	inline Real difference(Real t1, Real t0) const {
-		auto dt = Forward ? t1 - t0 : t0 - t1;
+		const Real dt = Forward ? t1 - t0 : t0 - t1;
 		assert(dt > epsilon);
 		return dt;
 	}
 
 protected:
 
-	LinearSystem *op;
+	LinearSystem &op;
 
 	inline bool _isATheSame1() const {
 		return false;
 	}
 
 	inline bool _isATheSame2() const {
-		return isTimestepTheSame() && op->isATheSame();
+		return this->isTimestepTheSame() && op.isATheSame();
 	}
 
 #define QUANT_PDE_TMP \
-	const Real t0 = time(0); \
+	const Real t0 = this->time(0); \
 	const Real h0 = difference(t1, t0);
 
 	inline Matrix _A1(Real t1) {
 		QUANT_PDE_TMP;
 
 		return
-			domain->identity()
-			+ op->A(t1) * h0;
+			this->domain.identity()
+			+ op.A(t1) * h0;
 	}
 
 	inline Vector _b1(Real t1) {
 		QUANT_PDE_TMP;
 
-		const Vector &v0 = iterand(0);
+		const Vector &v0 = this->iterand(0);
 
-		return v0 + h0 * op->b(t1);
+		return v0 + h0 * op.b(t1);
 	}
 
 #undef QUANT_PDE_TMP
@@ -67,8 +65,8 @@ ans =
 */
 
 #define QUANT_PDE_TMP \
-	const Real t1 = time(0); \
-	const Real t0 = time(1); \
+	const Real t1 = this->time(0); \
+	const Real t0 = this->time(1); \
 	const Real h1 = difference(t2, t1); \
 	const Real h0 = difference(t2, t0); \
 	const Real hh = (h0*h1)/(h0 + h1); \
@@ -77,8 +75,8 @@ ans =
 		QUANT_PDE_TMP;
 
 		return
-			domain->identity()
-			+ hh * op->A(t2)
+			this->domain.identity()
+			+ hh * op.A(t2)
 		;
 
 		// Constant timestep case:
@@ -94,8 +92,8 @@ ans =
 		QUANT_PDE_TMP;
 
 		const Vector
-			&v1 = iterand(0),
-			&v0 = iterand(1)
+			&v1 = this->iterand(0),
+			&v0 = this->iterand(1)
 		;
 
 		return
@@ -104,7 +102,7 @@ ans =
 					  h0 / h1 * v1
 					- h1 / h0 * v0
 				) / ( h0 - h1 )
-				+ op->b(t2)
+				+ op.b(t2)
 			) * hh
 		;
 
@@ -140,9 +138,9 @@ ans =
 */
 
 #define QUANT_PDE_TMP \
-	const Real t2 = time(0); \
-	const Real t1 = time(1); \
-	const Real t0 = time(2); \
+	const Real t2 = this->time(0); \
+	const Real t1 = this->time(1); \
+	const Real t0 = this->time(2); \
 	const Real h2 = difference(t3, t2); \
 	const Real h1 = difference(t3, t1); \
 	const Real h0 = difference(t3, t0); \
@@ -152,8 +150,8 @@ ans =
 		QUANT_PDE_TMP;
 
 		return
-			domain->identity()
-			+ hh * op->A(t3)
+			this->domain.identity()
+			+ hh * op.A(t3)
 		;
 
 		// Constant timestep case:
@@ -169,9 +167,9 @@ ans =
 		QUANT_PDE_TMP;
 
 		const Vector
-			&v2 = iterand(0),
-			&v1 = iterand(1),
-			&v0 = iterand(2)
+			&v2 = this->iterand(0),
+			&v1 = this->iterand(1),
+			&v0 = this->iterand(2)
 		;
 
 		return
@@ -179,7 +177,7 @@ ans =
 				  (h0*h1)/(h2*(h0 - h2)*(h1 - h2)) * v2
 				- (h0*h2)/(h1*(h0 - h1)*(h1 - h2)) * v1
 				+ (h1*h2)/(h0*(h0 - h1)*(h0 - h2)) * v0
-				+ op->b(t3)
+				+ op.b(t3)
 			) * hh
 		;
 
@@ -218,10 +216,10 @@ ans =
 */
 
 #define QUANT_PDE_TMP \
-	const Real t3 = time(0); \
-	const Real t2 = time(1); \
-	const Real t1 = time(2); \
-	const Real t0 = time(3); \
+	const Real t3 = this->time(0); \
+	const Real t2 = this->time(1); \
+	const Real t1 = this->time(2); \
+	const Real t0 = this->time(3); \
 	const Real h3 = difference(t4, t3); \
 	const Real h2 = difference(t4, t2); \
 	const Real h1 = difference(t4, t1); \
@@ -232,8 +230,8 @@ ans =
 		QUANT_PDE_TMP;
 
 		return
-			domain->identity()
-			+ hh * op->A(t4)
+			this->domain.identity()
+			+ hh * op.A(t4)
 		;
 
 
@@ -249,10 +247,10 @@ ans =
 		QUANT_PDE_TMP;
 
 		const Vector
-			&v3 = iterand(0),
-			&v2 = iterand(1),
-			&v1 = iterand(2),
-			&v0 = iterand(3)
+			&v3 = this->iterand(0),
+			&v2 = this->iterand(1),
+			&v1 = this->iterand(2),
+			&v0 = this->iterand(3)
 		;
 
 		return
@@ -261,7 +259,7 @@ ans =
 				- (h0*h1*h3)/(h2*(h0 - h2)*(h1 - h2)*(h2 - h3)) * v2
 				+ (h0*h2*h3)/(h1*(h0 - h1)*(h1 - h2)*(h1 - h3)) * v1
 				- (h1*h2*h3)/(h0*(h0 - h1)*(h0 - h2)*(h0 - h3)) * v0
-				+ op->b(t4)
+				+ op.b(t4)
 			) * hh
 		;
 
@@ -303,11 +301,11 @@ ans =
 */
 
 #define QUANT_PDE_TMP \
-	const Real t4 = time(0); \
-	const Real t3 = time(1); \
-	const Real t2 = time(2); \
-	const Real t1 = time(3); \
-	const Real t0 = time(4); \
+	const Real t4 = this->time(0); \
+	const Real t3 = this->time(1); \
+	const Real t2 = this->time(2); \
+	const Real t1 = this->time(3); \
+	const Real t0 = this->time(4); \
 	const Real h4 = difference(t5, t4); \
 	const Real h3 = difference(t5, t3); \
 	const Real h2 = difference(t5, t2); \
@@ -319,8 +317,8 @@ ans =
 		QUANT_PDE_TMP;
 
 		return
-			domain->identity()
-			+ hh * op->A(t5)
+			this->domain.identity()
+			+ hh * op.A(t5)
 		;
 
 		// Constant timestep case:
@@ -336,11 +334,11 @@ ans =
 		QUANT_PDE_TMP;
 
 		const Vector
-			&v4 = iterand(0),
-			&v3 = iterand(1),
-			&v2 = iterand(2),
-			&v1 = iterand(3),
-			&v0 = iterand(4)
+			&v4 = this->iterand(0),
+			&v3 = this->iterand(1),
+			&v2 = this->iterand(2),
+			&v1 = this->iterand(3),
+			&v0 = this->iterand(4)
 		;
 
 		return
@@ -350,7 +348,7 @@ ans =
 				+ (h0*h1*h3*h4)/(h2*(h0 - h2)*(h1 - h2)*(h2 - h3)*(h2 - h4)) * v2
 				- (h0*h2*h3*h4)/(h1*(h0 - h1)*(h1 - h2)*(h1 - h3)*(h1 - h4)) * v1
 				+ (h1*h2*h3*h4)/(h0*(h0 - h1)*(h0 - h2)*(h0 - h3)*(h0 - h4)) * v0
-				+ op->b(t5)
+				+ op.b(t5)
 			) * hh
 		;
 
@@ -395,12 +393,12 @@ ans =
 */
 
 #define QUANT_PDE_TMP \
-	const Real t5 = time(0); \
-	const Real t4 = time(1); \
-	const Real t3 = time(2); \
-	const Real t2 = time(3); \
-	const Real t1 = time(4); \
-	const Real t0 = time(5); \
+	const Real t5 = this->time(0); \
+	const Real t4 = this->time(1); \
+	const Real t3 = this->time(2); \
+	const Real t2 = this->time(3); \
+	const Real t1 = this->time(4); \
+	const Real t0 = this->time(5); \
 	const Real h5 = difference(t6, t5); \
 	const Real h4 = difference(t6, t4); \
 	const Real h3 = difference(t6, t3); \
@@ -413,8 +411,8 @@ ans =
 		QUANT_PDE_TMP;
 
 		return
-			domain->identity()
-			+ hh * op->A(t6)
+			this->domain.identity()
+			+ hh * op.A(t6)
 		;
 
 		// Constant timestep case:
@@ -430,12 +428,12 @@ ans =
 		QUANT_PDE_TMP;
 
 		const Vector
-			&v5 = iterand(0),
-			&v4 = iterand(1),
-			&v3 = iterand(2),
-			&v2 = iterand(3),
-			&v1 = iterand(4),
-			&v0 = iterand(5)
+			&v5 = this->iterand(0),
+			&v4 = this->iterand(1),
+			&v3 = this->iterand(2),
+			&v2 = this->iterand(3),
+			&v1 = this->iterand(4),
+			&v0 = this->iterand(5)
 		;
 
 		return
@@ -446,7 +444,7 @@ ans =
 				- (h0*h1*h3*h4*h5)/(h2*(h0 - h2)*(h1 - h2)*(h2 - h3)*(h2 - h4)*(h2 - h5)) * v2
 				+ (h0*h2*h3*h4*h5)/(h1*(h0 - h1)*(h1 - h2)*(h1 - h3)*(h1 - h4)*(h1 - h5)) * v1
 				- (h1*h2*h3*h4*h5)/(h0*(h0 - h1)*(h0 - h2)*(h0 - h3)*(h0 - h4)*(h0 - h5)) * v0
-				+ op->b(t6)
+				+ op.b(t6)
 			) * hh
 		;
 
@@ -468,30 +466,42 @@ ans =
 public:
 
 	template <typename D>
-	LinearBDFBase(D &domain, LinearSystem &op) noexcept : domain(&domain),
-			op(&op) {
+	BDFBase(
+		D &domain,
+		LinearSystem &op
+	) noexcept :
+		Discretization<Dimension>(domain),
+		op(op)
+	{
 	}
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <bool Forward>
-class LinearBDFOne : public LinearBDFBase<Forward, 1> {
+template <Index Dimension, bool Forward>
+class BDFOne : public BDFBase<Dimension, Forward, 1> {
 
 	virtual Matrix A(Real t) {
 		return this->_A1(t);
 	}
 
-	virtual Vector b(Real t) {
+	virtual Vector bd(Real t) {
 		return this->_b1(t);
 	}
 
 public:
 
 	template <typename D>
-	LinearBDFOne(D &domain, LinearSystem &op) noexcept
-			: LinearBDFBase<Forward, 1>(domain, op) {
+	BDFOne(
+		D &domain,
+		LinearSystem &op
+	) noexcept :
+		BDFBase<Dimension, Forward, 1>(
+			domain,
+			op
+		)
+	{
 	}
 
 	virtual bool isATheSame() const {
@@ -500,44 +510,61 @@ public:
 
 };
 
-typedef LinearBDFOne<false> ReverseLinearBDFOne;
-typedef LinearBDFOne<true > ForwardLinearBDFOne;
+template <Index Dimension>
+using ReverseBDFOne = BDFOne<Dimension, false>;
+
+template <Index Dimension>
+using ForwardBDFOne = BDFOne<Dimension, true>;
+
+typedef ReverseBDFOne<1> ReverseBDFOne1;
+typedef ReverseBDFOne<2> ReverseBDFOne2;
+typedef ReverseBDFOne<3> ReverseBDFOne3;
+
+typedef ForwardBDFOne<1> ForwardBDFOne1;
+typedef ForwardBDFOne<2> ForwardBDFOne2;
+typedef ForwardBDFOne<3> ForwardBDFOne3;
 
 // More commonly referred to as the implicit Euler method
-typedef ReverseLinearBDFOne ReverseImplicitEuler;
-typedef ForwardLinearBDFOne ForwardImplicitEuler;
+
+typedef ReverseBDFOne1 ReverseImplicitEuler1;
+typedef ReverseBDFOne2 ReverseImplicitEuler2;
+typedef ReverseBDFOne3 ReverseImplicitEuler3;
+
+typedef ForwardBDFOne1 ForwardImplicitEuler1;
+typedef ForwardBDFOne2 ForwardImplicitEuler2;
+typedef ForwardBDFOne3 ForwardImplicitEuler3;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <bool Forward>
-class LinearBDFTwo : public LinearBDFBase<Forward, 2> {
+template <Index Dimension, bool Forward>
+class BDFTwo : public BDFBase<Dimension, Forward, 2> {
 
-	bool   (LinearBDFTwo<Forward>::*_isATheSame)() const;
-	Matrix (LinearBDFTwo<Forward>::*_A)(Real);
-	Vector (LinearBDFTwo<Forward>::*_b)(Real);
-	void   (LinearBDFTwo<Forward>::*_onIterationEnd)();
+	bool   (BDFTwo<Dimension, Forward>::*_isATheSame)() const;
+	Matrix (BDFTwo<Dimension, Forward>::*_A)(Real);
+	Vector (BDFTwo<Dimension, Forward>::*_b)(Real);
+	void   (BDFTwo<Dimension, Forward>::*_onIterationEnd)();
 
 	////////////////////////////////////////////////////////////////////////
 
 	void _onIterationEnd1() {
-		_A = &LinearBDFTwo::_A2;
-		_b = &LinearBDFTwo::_b2;
-		_onIterationEnd = &LinearBDFTwo::_onIterationEnd2;
+		_A = &BDFTwo::_A2;
+		_b = &BDFTwo::_b2;
+		_onIterationEnd = &BDFTwo::_onIterationEnd2;
 	}
 
 	void _onIterationEnd2() {
-		_isATheSame = &LinearBDFTwo::_isATheSame2;
-		_onIterationEnd = &LinearBDFTwo::_onIterationEnd3;
+		_isATheSame = &BDFTwo::_isATheSame2;
+		_onIterationEnd = &BDFTwo::_onIterationEnd3;
 	}
 
 	void _onIterationEnd3() {
 	}
 
 	virtual void clear() {
-		_isATheSame = &LinearBDFTwo::_isATheSame1;
-		_A = &LinearBDFTwo::_A1;
-		_b = &LinearBDFTwo::_b1;
-		_onIterationEnd = &LinearBDFTwo::_onIterationEnd1;
+		_isATheSame = &BDFTwo::_isATheSame1;
+		_A = &BDFTwo::_A1;
+		_b = &BDFTwo::_b1;
+		_onIterationEnd = &BDFTwo::_onIterationEnd1;
 	}
 
 	virtual void onIterationEnd() {
@@ -548,7 +575,7 @@ class LinearBDFTwo : public LinearBDFBase<Forward, 2> {
 		return (this->*_A)(t);
 	}
 
-	virtual Vector b(Real t) {
+	virtual Vector bd(Real t) {
 		return (this->*_b)(t);
 	}
 
@@ -559,12 +586,19 @@ class LinearBDFTwo : public LinearBDFBase<Forward, 2> {
 public:
 
 	template <typename D>
-	LinearBDFTwo(D &domain, LinearSystem &op) noexcept
-			: LinearBDFBase<Forward, 2>(domain, op),
-			_isATheSame(nullptr),
-			_A(nullptr),
-			_b(nullptr),
-			_onIterationEnd(nullptr) {
+	BDFTwo(
+		D &domain,
+		LinearSystem &op
+	) noexcept :
+		BDFBase<Dimension, Forward, 2>(
+			domain,
+			op
+		),
+		_isATheSame(nullptr),
+		_A(nullptr),
+		_b(nullptr),
+		_onIterationEnd(nullptr)
+	{
 	}
 
 	virtual bool isATheSame() const {
@@ -573,46 +607,57 @@ public:
 
 };
 
-typedef LinearBDFTwo<false> ReverseLinearBDFTwo;
-typedef LinearBDFTwo<true > ForwardLinearBDFTwo;
+template <Index Dimension>
+using ReverseBDFTwo = BDFTwo<Dimension, false>;
+
+template <Index Dimension>
+using ForwardBDFTwo = BDFTwo<Dimension, true>;
+
+typedef ReverseBDFTwo<1> ReverseBDFTwo1;
+typedef ReverseBDFTwo<2> ReverseBDFTwo2;
+typedef ReverseBDFTwo<3> ReverseBDFTwo3;
+
+typedef ForwardBDFTwo<1> ForwardBDFTwo1;
+typedef ForwardBDFTwo<2> ForwardBDFTwo2;
+typedef ForwardBDFTwo<3> ForwardBDFTwo3;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <bool Forward>
-class LinearBDFThree : public LinearBDFBase<Forward, 3> {
+template <Index Dimension, bool Forward>
+class BDFThree : public BDFBase<Dimension, Forward, 3> {
 
-	bool   (LinearBDFThree<Forward>::*_isATheSame)() const;
-	Matrix (LinearBDFThree<Forward>::*_A)(Real);
-	Vector (LinearBDFThree<Forward>::*_b)(Real);
-	void   (LinearBDFThree<Forward>::*_onIterationEnd)();
+	bool   (BDFThree<Dimension, Forward>::*_isATheSame)() const;
+	Matrix (BDFThree<Dimension, Forward>::*_A)(Real);
+	Vector (BDFThree<Dimension, Forward>::*_b)(Real);
+	void   (BDFThree<Dimension, Forward>::*_onIterationEnd)();
 
 	////////////////////////////////////////////////////////////////////////
 
 	void _onIterationEnd1() {
-		_A = &LinearBDFThree::_A2;
-		_b = &LinearBDFThree::_b2;
-		_onIterationEnd = &LinearBDFThree::_onIterationEnd2;
+		_A = &BDFThree::_A2;
+		_b = &BDFThree::_b2;
+		_onIterationEnd = &BDFThree::_onIterationEnd2;
 	}
 
 	void _onIterationEnd2() {
-		_A = &LinearBDFThree::_A3;
-		_b = &LinearBDFThree::_b3;
-		_onIterationEnd = &LinearBDFThree::_onIterationEnd3;
+		_A = &BDFThree::_A3;
+		_b = &BDFThree::_b3;
+		_onIterationEnd = &BDFThree::_onIterationEnd3;
 	}
 
 	void _onIterationEnd3() {
-		_isATheSame = &LinearBDFThree::_isATheSame2;
-		_onIterationEnd = &LinearBDFThree::_onIterationEnd4;
+		_isATheSame = &BDFThree::_isATheSame2;
+		_onIterationEnd = &BDFThree::_onIterationEnd4;
 	}
 
 	void _onIterationEnd4() {
 	}
 
 	virtual void clear() {
-		_isATheSame = &LinearBDFThree::_isATheSame1;
-		_A = &LinearBDFThree::_A1;
-		_b = &LinearBDFThree::_b1;
-		_onIterationEnd = &LinearBDFThree::_onIterationEnd1;
+		_isATheSame = &BDFThree::_isATheSame1;
+		_A = &BDFThree::_A1;
+		_b = &BDFThree::_b1;
+		_onIterationEnd = &BDFThree::_onIterationEnd1;
 	}
 
 	virtual void onIterationEnd() {
@@ -623,7 +668,7 @@ class LinearBDFThree : public LinearBDFBase<Forward, 3> {
 		return (this->*_A)(t);
 	}
 
-	virtual Vector b(Real t) {
+	virtual Vector bd(Real t) {
 		return (this->*_b)(t);
 	}
 
@@ -634,8 +679,19 @@ class LinearBDFThree : public LinearBDFBase<Forward, 3> {
 public:
 
 	template <typename D>
-	LinearBDFThree(D &domain, LinearSystem &op) noexcept
-			: LinearBDFBase<Forward, 3>(domain, op) {
+	BDFThree(
+		D &domain,
+		LinearSystem &op
+	) noexcept :
+		BDFBase<Dimension, Forward, 3>(
+			domain,
+			op
+		),
+		_isATheSame(nullptr),
+		_A(nullptr),
+		_b(nullptr),
+		_onIterationEnd(nullptr)
+	{
 	}
 
 	virtual bool isATheSame() const {
@@ -644,52 +700,63 @@ public:
 
 };
 
-typedef LinearBDFThree<false> ReverseLinearBDFThree;
-typedef LinearBDFThree<true > ForwardLinearBDFThree;
+template <Index Dimension>
+using ReverseBDFThree = BDFThree<Dimension, false>;
+
+template <Index Dimension>
+using ForwardBDFThree = BDFThree<Dimension, true>;
+
+typedef ReverseBDFThree<1> ReverseBDFThree1;
+typedef ReverseBDFThree<2> ReverseBDFThree2;
+typedef ReverseBDFThree<3> ReverseBDFThree3;
+
+typedef ForwardBDFThree<1> ForwardBDFThree1;
+typedef ForwardBDFThree<2> ForwardBDFThree2;
+typedef ForwardBDFThree<3> ForwardBDFThree3;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <bool Forward>
-class LinearBDFFour : public LinearBDFBase<Forward, 4> {
+template <Index Dimension, bool Forward>
+class BDFFour : public BDFBase<Dimension, Forward, 4> {
 
-	bool   (LinearBDFFour<Forward>::*_isATheSame)() const;
-	Matrix (LinearBDFFour<Forward>::*_A)(Real);
-	Vector (LinearBDFFour<Forward>::*_b)(Real);
-	void   (LinearBDFFour<Forward>::*_onIterationEnd)();
+	bool   (BDFFour<Dimension, Forward>::*_isATheSame)() const;
+	Matrix (BDFFour<Dimension, Forward>::*_A)(Real);
+	Vector (BDFFour<Dimension, Forward>::*_b)(Real);
+	void   (BDFFour<Dimension, Forward>::*_onIterationEnd)();
 
 	////////////////////////////////////////////////////////////////////////
 
 	void _onIterationEnd1() {
-		_A = &LinearBDFFour::_A2;
-		_b = &LinearBDFFour::_b2;
-		_onIterationEnd = &LinearBDFFour::_onIterationEnd2;
+		_A = &BDFFour::_A2;
+		_b = &BDFFour::_b2;
+		_onIterationEnd = &BDFFour::_onIterationEnd2;
 	}
 
 	void _onIterationEnd2() {
-		_A = &LinearBDFFour::_A3;
-		_b = &LinearBDFFour::_b3;
-		_onIterationEnd = &LinearBDFFour::_onIterationEnd3;
+		_A = &BDFFour::_A3;
+		_b = &BDFFour::_b3;
+		_onIterationEnd = &BDFFour::_onIterationEnd3;
 	}
 
 	void _onIterationEnd3() {
-		_A = &LinearBDFFour::_A4;
-		_b = &LinearBDFFour::_b4;
-		_onIterationEnd = &LinearBDFFour::_onIterationEnd4;
+		_A = &BDFFour::_A4;
+		_b = &BDFFour::_b4;
+		_onIterationEnd = &BDFFour::_onIterationEnd4;
 	}
 
 	void _onIterationEnd4() {
-		_isATheSame = &LinearBDFFour::_isATheSame2;
-		_onIterationEnd = &LinearBDFFour::_onIterationEnd5;
+		_isATheSame = &BDFFour::_isATheSame2;
+		_onIterationEnd = &BDFFour::_onIterationEnd5;
 	}
 
 	void _onIterationEnd5() {
 	}
 
 	virtual void clear() {
-		_isATheSame = &LinearBDFFour::_isATheSame1;
-		_A = &LinearBDFFour::_A1;
-		_b = &LinearBDFFour::_b1;
-		_onIterationEnd = &LinearBDFFour::_onIterationEnd1;
+		_isATheSame = &BDFFour::_isATheSame1;
+		_A = &BDFFour::_A1;
+		_b = &BDFFour::_b1;
+		_onIterationEnd = &BDFFour::_onIterationEnd1;
 	}
 
 	virtual void onIterationEnd() {
@@ -700,7 +767,7 @@ class LinearBDFFour : public LinearBDFBase<Forward, 4> {
 		return (this->*_A)(t);
 	}
 
-	virtual Vector b(Real t) {
+	virtual Vector bd(Real t) {
 		return (this->*_b)(t);
 	}
 
@@ -711,12 +778,19 @@ class LinearBDFFour : public LinearBDFBase<Forward, 4> {
 public:
 
 	template <typename D>
-	LinearBDFFour(D &domain, LinearSystem &op) noexcept
-			: LinearBDFBase<Forward, 4>(domain, op),
-			_isATheSame(nullptr),
-			_A(nullptr),
-			_b(nullptr),
-			_onIterationEnd(nullptr) {
+	BDFFour(
+		D &domain,
+		LinearSystem &op
+	) noexcept :
+		BDFBase<Dimension, Forward, 4>(
+			domain,
+			op
+		),
+		_isATheSame(nullptr),
+		_A(nullptr),
+		_b(nullptr),
+		_onIterationEnd(nullptr)
+	{
 	}
 
 	virtual bool isATheSame() const {
@@ -725,58 +799,69 @@ public:
 
 };
 
-typedef LinearBDFFour<false> ReverseLinearBDFFour;
-typedef LinearBDFFour<true > ForwardLinearBDFFour;
+template <Index Dimension>
+using ReverseBDFFour = BDFFour<Dimension, false>;
+
+template <Index Dimension>
+using ForwardBDFFour = BDFFour<Dimension, true>;
+
+typedef ReverseBDFFour<1> ReverseBDFFour1;
+typedef ReverseBDFFour<2> ReverseBDFFour2;
+typedef ReverseBDFFour<3> ReverseBDFFour3;
+
+typedef ForwardBDFFour<1> ForwardBDFFour1;
+typedef ForwardBDFFour<2> ForwardBDFFour2;
+typedef ForwardBDFFour<3> ForwardBDFFour3;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <bool Forward>
-class LinearBDFFive : public LinearBDFBase<Forward, 5> {
+template <Index Dimension, bool Forward>
+class BDFFive : public BDFBase<Dimension, Forward, 5> {
 
-	bool   (LinearBDFFive<Forward>::*_isATheSame)() const;
-	Matrix (LinearBDFFive<Forward>::*_A)(Real);
-	Vector (LinearBDFFive<Forward>::*_b)(Real);
-	void   (LinearBDFFive<Forward>::*_onIterationEnd)();
+	bool   (BDFFive<Dimension, Forward>::*_isATheSame)() const;
+	Matrix (BDFFive<Dimension, Forward>::*_A)(Real);
+	Vector (BDFFive<Dimension, Forward>::*_b)(Real);
+	void   (BDFFive<Dimension, Forward>::*_onIterationEnd)();
 
 	////////////////////////////////////////////////////////////////////////
 
 	void _onIterationEnd1() {
-		_A = &LinearBDFFive::_A2;
-		_b = &LinearBDFFive::_b2;
-		_onIterationEnd = &LinearBDFFive::_onIterationEnd2;
+		_A = &BDFFive::_A2;
+		_b = &BDFFive::_b2;
+		_onIterationEnd = &BDFFive::_onIterationEnd2;
 	}
 
 	void _onIterationEnd2() {
-		_A = &LinearBDFFive::_A3;
-		_b = &LinearBDFFive::_b3;
-		_onIterationEnd = &LinearBDFFive::_onIterationEnd3;
+		_A = &BDFFive::_A3;
+		_b = &BDFFive::_b3;
+		_onIterationEnd = &BDFFive::_onIterationEnd3;
 	}
 
 	void _onIterationEnd3() {
-		_A = &LinearBDFFive::_A4;
-		_b = &LinearBDFFive::_b4;
-		_onIterationEnd = &LinearBDFFive::_onIterationEnd4;
+		_A = &BDFFive::_A4;
+		_b = &BDFFive::_b4;
+		_onIterationEnd = &BDFFive::_onIterationEnd4;
 	}
 
 	void _onIterationEnd4() {
-		_A = &LinearBDFFive::_A5;
-		_b = &LinearBDFFive::_b5;
-		_onIterationEnd = &LinearBDFFive::_onIterationEnd5;
+		_A = &BDFFive::_A5;
+		_b = &BDFFive::_b5;
+		_onIterationEnd = &BDFFive::_onIterationEnd5;
 	}
 
 	void _onIterationEnd5() {
-		_isATheSame = &LinearBDFFive::_isATheSame2;
-		_onIterationEnd = &LinearBDFFive::_onIterationEnd6;
+		_isATheSame = &BDFFive::_isATheSame2;
+		_onIterationEnd = &BDFFive::_onIterationEnd6;
 	}
 
 	void _onIterationEnd6() {
 	}
 
 	virtual void clear() {
-		_isATheSame = &LinearBDFFive::_isATheSame1;
-		_A = &LinearBDFFive::_A1;
-		_b = &LinearBDFFive::_b1;
-		_onIterationEnd = &LinearBDFFive::_onIterationEnd1;
+		_isATheSame = &BDFFive::_isATheSame1;
+		_A = &BDFFive::_A1;
+		_b = &BDFFive::_b1;
+		_onIterationEnd = &BDFFive::_onIterationEnd1;
 	}
 
 	virtual void onIterationEnd() {
@@ -787,7 +872,7 @@ class LinearBDFFive : public LinearBDFBase<Forward, 5> {
 		return (this->*_A)(t);
 	}
 
-	virtual Vector b(Real t) {
+	virtual Vector bd(Real t) {
 		return (this->*_b)(t);
 	}
 
@@ -798,12 +883,19 @@ class LinearBDFFive : public LinearBDFBase<Forward, 5> {
 public:
 
 	template <typename D>
-	LinearBDFFive(D &domain, LinearSystem &op) noexcept
-			: LinearBDFBase<Forward, 5>(domain, op),
-			_isATheSame(nullptr),
-			_A(nullptr),
-			_b(nullptr),
-			_onIterationEnd(nullptr) {
+	BDFFive(
+		D &domain,
+		LinearSystem &op
+	) noexcept :
+		BDFBase<Dimension, Forward, 5>(
+			domain,
+			op
+		),
+		_isATheSame(nullptr),
+		_A(nullptr),
+		_b(nullptr),
+		_onIterationEnd(nullptr)
+	{
 	}
 
 	virtual bool isATheSame() const {
@@ -812,64 +904,75 @@ public:
 
 };
 
-typedef LinearBDFFive<false> ReverseLinearBDFFive;
-typedef LinearBDFFive<true > ForwardLinearBDFFive;
+template <Index Dimension>
+using ReverseBDFFive = BDFFive<Dimension, false>;
+
+template <Index Dimension>
+using ForwardBDFFive = BDFFive<Dimension, true>;
+
+typedef ReverseBDFFive<1> ReverseBDFFive1;
+typedef ReverseBDFFive<2> ReverseBDFFive2;
+typedef ReverseBDFFive<3> ReverseBDFFive3;
+
+typedef ForwardBDFFive<1> ForwardBDFFive1;
+typedef ForwardBDFFive<2> ForwardBDFFive2;
+typedef ForwardBDFFive<3> ForwardBDFFive3;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <bool Forward>
-class LinearBDFSix : public LinearBDFBase<Forward, 6> {
+template <Index Dimension, bool Forward>
+class BDFSix : public BDFBase<Dimension, Forward, 6> {
 
-	bool   (LinearBDFSix<Forward>::*_isATheSame)() const;
-	Matrix (LinearBDFSix<Forward>::*_A)(Real);
-	Vector (LinearBDFSix<Forward>::*_b)(Real);
-	void   (LinearBDFSix<Forward>::*_onIterationEnd)();
+	bool   (BDFSix<Dimension, Forward>::*_isATheSame)() const;
+	Matrix (BDFSix<Dimension, Forward>::*_A)(Real);
+	Vector (BDFSix<Dimension, Forward>::*_b)(Real);
+	void   (BDFSix<Dimension, Forward>::*_onIterationEnd)();
 
 	////////////////////////////////////////////////////////////////////////
 
 	void _onIterationEnd1() {
-		_A = &LinearBDFSix::_A2;
-		_b = &LinearBDFSix::_b2;
-		_onIterationEnd = &LinearBDFSix::_onIterationEnd2;
+		_A = &BDFSix::_A2;
+		_b = &BDFSix::_b2;
+		_onIterationEnd = &BDFSix::_onIterationEnd2;
 	}
 
 	void _onIterationEnd2() {
-		_A = &LinearBDFSix::_A3;
-		_b = &LinearBDFSix::_b3;
-		_onIterationEnd = &LinearBDFSix::_onIterationEnd3;
+		_A = &BDFSix::_A3;
+		_b = &BDFSix::_b3;
+		_onIterationEnd = &BDFSix::_onIterationEnd3;
 	}
 
 	void _onIterationEnd3() {
-		_A = &LinearBDFSix::_A4;
-		_b = &LinearBDFSix::_b4;
-		_onIterationEnd = &LinearBDFSix::_onIterationEnd4;
+		_A = &BDFSix::_A4;
+		_b = &BDFSix::_b4;
+		_onIterationEnd = &BDFSix::_onIterationEnd4;
 	}
 
 	void _onIterationEnd4() {
-		_A = &LinearBDFSix::_A5;
-		_b = &LinearBDFSix::_b5;
-		_onIterationEnd = &LinearBDFSix::_onIterationEnd5;
+		_A = &BDFSix::_A5;
+		_b = &BDFSix::_b5;
+		_onIterationEnd = &BDFSix::_onIterationEnd5;
 	}
 
 	void _onIterationEnd5() {
-		_A = &LinearBDFSix::_A6;
-		_b = &LinearBDFSix::_b6;
-		_onIterationEnd = &LinearBDFSix::_onIterationEnd6;
+		_A = &BDFSix::_A6;
+		_b = &BDFSix::_b6;
+		_onIterationEnd = &BDFSix::_onIterationEnd6;
 	}
 
 	void _onIterationEnd6() {
-		_isATheSame = &LinearBDFSix::_isATheSame2;
-		_onIterationEnd = &LinearBDFSix::_onIterationEnd7;
+		_isATheSame = &BDFSix::_isATheSame2;
+		_onIterationEnd = &BDFSix::_onIterationEnd7;
 	}
 
 	void _onIterationEnd7() {
 	}
 
 	virtual void clear() {
-		_isATheSame = &LinearBDFSix::_isATheSame1;
-		_A = &LinearBDFSix::_A1;
-		_b = &LinearBDFSix::_b1;
-		_onIterationEnd = &LinearBDFSix::_onIterationEnd1;
+		_isATheSame = &BDFSix::_isATheSame1;
+		_A = &BDFSix::_A1;
+		_b = &BDFSix::_b1;
+		_onIterationEnd = &BDFSix::_onIterationEnd1;
 	}
 
 	virtual void onIterationEnd() {
@@ -880,7 +983,7 @@ class LinearBDFSix : public LinearBDFBase<Forward, 6> {
 		return (this->*_A)(t);
 	}
 
-	virtual Vector b(Real t) {
+	virtual Vector bd(Real t) {
 		return (this->*_b)(t);
 	}
 
@@ -891,12 +994,19 @@ class LinearBDFSix : public LinearBDFBase<Forward, 6> {
 public:
 
 	template <typename D>
-	LinearBDFSix(D &domain, LinearSystem &op) noexcept
-			: LinearBDFBase<Forward, 6>(domain, op),
-			_isATheSame(nullptr),
-			_A(nullptr),
-			_b(nullptr),
-			_onIterationEnd(nullptr) {
+	BDFSix(
+		D &domain,
+		LinearSystem &op
+	) noexcept :
+		BDFBase<Dimension, Forward, 6>(
+			domain,
+			op
+		),
+		_isATheSame(nullptr),
+		_A(nullptr),
+		_b(nullptr),
+		_onIterationEnd(nullptr)
+	{
 	}
 
 	virtual bool isATheSame() const {
@@ -905,8 +1015,19 @@ public:
 
 };
 
-typedef LinearBDFSix<false> ReverseLinearBDFSix;
-typedef LinearBDFSix<true > ForwardLinearBDFSix;
+template <Index Dimension>
+using ReverseBDFSix = BDFSix<Dimension, false>;
+
+template <Index Dimension>
+using ForwardBDFSix = BDFSix<Dimension, true>;
+
+typedef ReverseBDFSix<1> ReverseBDFSix1;
+typedef ReverseBDFSix<2> ReverseBDFSix2;
+typedef ReverseBDFSix<3> ReverseBDFSix3;
+
+typedef ForwardBDFSix<1> ForwardBDFSix1;
+typedef ForwardBDFSix<2> ForwardBDFSix2;
+typedef ForwardBDFSix<3> ForwardBDFSix3;
 
 } // QuantPDE
 

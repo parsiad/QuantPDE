@@ -21,6 +21,24 @@ using namespace std;
 
 int main() {
 
+// Strike price
+const Real K = 100.;
+
+// Automatic grid
+RectilinearGrid1 grid(
+    Axis::cluster(
+        0.,     // Left-hand boundary
+        10000., // Right-hand boundary
+        64,     // Number of nodes
+        K,      // Feature to cluster nodes around
+        5.      // Intensity with which to cluster around K
+    )
+);
+
+std::cout << grid << std::endl;
+
+// Hand-picked grid (this is generally not a robust approach)
+/*
 RectilinearGrid1 grid(
     Axis {
         0., 10., 20., 30., 40., 50., 60., 70.,
@@ -38,9 +56,7 @@ RectilinearGrid1 grid(
         10000.
     }
 );
-
-// Strike price
-const Real K = 100.;
+*/
 
 // Payoff for a put option
 auto payoff = [K] (Real S) {
@@ -62,7 +78,7 @@ const int E = 10;
 ReverseConstantStepper stepper(t0, T, dt);
 
 // Discrete dividends (remove #if and corresponding #endif to uncomment)
-#if 0
+/*
 // A discrete dividend of one dollar
 const Real D = 1.;
 
@@ -79,7 +95,7 @@ for(int e = 0; e < E; ++e) {
     // Add the event
     stepper.add(te, dividendEvent, grid);
 }
-#endif
+*/
 
 // Relates the value of V- to V (see the above derivation)
 auto exerciseEvent = [K] (const Interpolant1 &V, Real S) {
@@ -114,7 +130,7 @@ const Real q = 0.;
 BlackScholes1 bs(grid, r, v, q);
 
 // Backward-differentiation formula of order two
-ReverseLinearBDFTwo bdf2(grid, bs);
+ReverseBDFTwo1 bdf2(grid, bs);
 bdf2.setIteration(stepper);
 
 // Linear system solver

@@ -3,11 +3,10 @@
 
 namespace QuantPDE {
 
-template <bool Forward>
-class Rannacher : public IterationNode {
+template <Index Dimension, bool Forward>
+class Rannacher : public Discretization<Dimension> {
 
-	const DomainBase *domain;
-	LinearSystem *op;
+	LinearSystem &op;
 
 	bool   (Rannacher::*_isATheSame)() const;
 	Matrix (Rannacher::*_A)(Real);
@@ -15,13 +14,13 @@ class Rannacher : public IterationNode {
 	void   (Rannacher::*_onIterationEnd)();
 
 	inline Real difference(Real t1, Real t0) const {
-		auto dt = Forward ? t1 - t0 : t0 - t1;
+		const Real dt = Forward ? t1 - t0 : t0 - t1;
 		assert(dt > epsilon);
 		return dt;
 	}
 
 	bool _isATheSame1() const {
-		return isTimestepTheSame() && op->isATheSame();
+		return this->isTimestepTheSame() && op.isATheSame();
 	}
 
 	bool _isATheSame2() const {
@@ -30,43 +29,43 @@ class Rannacher : public IterationNode {
 	}
 
 	Matrix _A1(Real t1) {
-		const Real t0 = time(0);
+		const Real t0 = this->time(0);
 		const Real h0 = difference(t1, t0);
 
 		return
-			domain->identity()
-			+ op->A(t1) * h0;
+			this->domain.identity()
+			+ op.A(t1) * h0;
 	}
 
 	Vector _b1(Real t1) {
-		const Real t0 = time(0);
+		const Real t0 = this->time(0);
 		const Real h0 = difference(t1, t0);
 
-		const Vector &v0 = iterand(0);
+		const Vector &v0 = this->iterand(0);
 
-		return v0 + op->b(t1) * h0;
+		return v0 + op.b(t1) * h0;
 	}
 
 	Matrix _A2(Real t1) {
-		const Real t0 = time(0);
+		const Real t0 = this->time(0);
 		const Real h0 = difference(t1, t0);
 
 		return
-			domain->identity()
-			+ op->A(t1) * h0 / 2.
+			this->domain.identity()
+			+ op.A(t1) * h0 / 2.
 		;
 	}
 
 	Vector _b2(Real t1) {
-		const Real t0 = time(0);
+		const Real t0 = this->time(0);
 		const Real h0 = difference(t1, t0);
 
-		const Vector &v0 = iterand(0);
+		const Vector &v0 = this->iterand(0);
 
 		return (
-			domain->identity()
-			- op->A(t0) * h0 / 2.
-		) * v0 + ( op->b(t1) + op->b(t0) ) / 2.;
+			this->domain.identity()
+			- op.A(t0) * h0 / 2.
+		) * v0 + ( op.b(t1) + op.b(t0) ) / 2.;
 	}
 
 	void _onIterationEnd1() {
@@ -92,7 +91,7 @@ class Rannacher : public IterationNode {
 		return (this->*_A)(t);
 	}
 
-	virtual Vector b(Real t) {
+	virtual Vector bd(Real t) {
 		return (this->*_b)(t);
 	}
 
@@ -118,15 +117,34 @@ public:
 	}
 
 	template <typename D>
-	Rannacher(D &domain, LinearSystem &op) noexcept : domain(&domain),
-			op(&op), _isATheSame(nullptr), _A(nullptr), _b(nullptr),
-			_onIterationEnd(nullptr) {
+	Rannacher(
+		D &domain,
+		LinearSystem &op
+	) noexcept :
+		Discretization<Dimension>(domain),
+		op(op),
+		_isATheSame(nullptr),
+		_A(nullptr),
+		_b(nullptr),
+		_onIterationEnd(nullptr)
+	{
 	}
 
 };
 
-typedef Rannacher<false> ReverseRannacher;
-typedef Rannacher<true> ForwardRannacher;
+template <Index Dimension>
+using ReverseRannacher = Rannacher<Dimension, false>;
+
+template <Index Dimension>
+using ForwardRannacher = Rannacher<Dimension, true>;
+
+typedef ReverseRannacher<1> ReverseRannacher1;
+typedef ReverseRannacher<2> ReverseRannacher2;
+typedef ReverseRannacher<3> ReverseRannacher3;
+
+typedef ForwardRannacher<1> ForwardRannacher1;
+typedef ForwardRannacher<2> ForwardRannacher2;
+typedef ForwardRannacher<3> ForwardRannacher3;
 
 } // QuantPDE
 

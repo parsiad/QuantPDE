@@ -258,7 +258,7 @@ int main(int argc, char **argv) {
 	policy->setIteration(tolerance); // Associate with k-iteration
 
 	// BDF2 (timestepping)
-	ReverseLinearBDFTwo bdf2(grid, *policy);
+	ReverseBDFTwo1 bdf2(grid, *policy);
 	bdf2.setIteration(stepper); // Associate with n-iteration
 
 	////////////////////////////////////////////////////////////////////////

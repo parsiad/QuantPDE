@@ -31,7 +31,7 @@
 #include "src/Core/PenaltyMethod.hpp"
 #include "src/Core/PolicyIteration.hpp"
 
-#include "src/Core/LinearBDF.hpp"
+#include "src/Core/BDF.hpp"
 #include "src/Core/CrankNicolson.hpp"
 #include "src/Core/Rannacher.hpp"
 

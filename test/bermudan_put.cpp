@@ -264,7 +264,7 @@ int main(int argc, char **argv) {
 		q  // Dividend rate
 	);
 
-	ReverseLinearBDFTwo bdf2(grid, bs);
+	ReverseBDFTwo1 bdf2(grid, bs);
 	bdf2.setIteration(stepper);
 
 	////////////////////////////////////////////////////////////////////////
