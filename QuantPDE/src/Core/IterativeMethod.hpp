@@ -1,14 +1,15 @@
 #ifndef QUANT_PDE_CORE_ITERATIVE_METHOD_HPP
 #define QUANT_PDE_CORE_ITERATIVE_METHOD_HPP
 
-#include <array>        // std::array
-#include <cstdlib>      // std:abs, size_t
-#include <list>         // std::list
-#include <memory>       // std::shared_ptr, std::unique_ptr
-#include <queue>        // std::priority_queue
-#include <tuple>        // std::tuple
-#include <utility>      // std::forward, std::move
-#include <vector>       // std::vector
+#include <array>         // std::array
+#include <cstdlib>       // std:abs, size_t
+#include <list>          // std::list
+#include <memory>        // std::shared_ptr, std::unique_ptr
+#include <queue>         // std::priority_queue
+#include <tuple>         // std::tuple
+#include <unordered_map> // std::unordered_map
+#include <utility>       // std::forward, std::move
+#include <vector>        // std::vector
 
 namespace QuantPDE {
 
@@ -113,6 +114,7 @@ public:
 
 class Iteration;
 
+// TODO: Document
 class LinearSystem {
 
 public:
@@ -368,7 +370,6 @@ public:
 
 	class Control final : public Base {
 
-		Vector input;
 		WF factory;
 		WI interpolant;
 
@@ -429,17 +430,11 @@ public:
 		}
 
 		virtual void setInput(const Vector &input) {
-			this->input = input;
 			interpolant = factory.make(input);
 		}
 
 		virtual void setInput(Vector &&input) {
-			this->input = input;
 			interpolant = factory.make( std::move(input) );
-		}
-
-		const Vector &raw() const {
-			return input;
 		}
 
 		virtual B clone() const {
@@ -573,34 +568,6 @@ public:
 		base->setInput( std::forward<V>(input) );
 	}
 
-	/**
-	 * This is useful if we wish to access a control directly, avoiding the
-	 * cost of searching for nodes on a domain via their coordinates.
-	 * \code{.cpp}
-	 * public Test final : public ControlledLinearSystem1 {
-	 * 	Controllable1 control;
-	 * 	RectilinearGrid1 grid;
-	 *
-	 * 	template <typename G>
-	 * 	Test(G &grid) : grid(grid), control( Control1(grid) ) {
-	 * 		registerControl( control );
-	 * 	}
-	 *
-	 * 	// ...
-	 *
-	 * 	const Vector &getControlValues() {
-	 * 		return ((const Control1 *) control.get())->rawControl();
-	 * 	}
-	 *
-	 * 	// ...
-	 * };
-	 * \endcode{.cpp}
-	 * @return A pointer to the wrapped base class.
-	 */
-	const Base *get() const {
-		return base.get();
-	}
-
 };
 
 typedef Controllable<1> Controllable1;
@@ -638,7 +605,7 @@ class ControlledLinearSystemBase : virtual public LinearSystem {
 	/**
 	 * @return The number of controls.
 	 */
-	virtual size_t controlDimension() const = 0;
+	virtual Index controlDimension() const = 0;
 
 public:
 
@@ -663,6 +630,53 @@ public:
 };
 
 /**
+ * A controllable linear system that gives direct access to the underlying
+ * controls.
+ */
+template <Index Dimension, Index ControlDimension>
+class RawControlledLinearSystem : public ControlledLinearSystemBase {
+
+	Vector inputs[ControlDimension];
+
+	virtual void setInputs(Vector *inputs) {
+		for(Index i = 0; i < ControlDimension; ++i) {
+			this->inputs[i] = inputs[i];
+		}
+	}
+
+	virtual Index controlDimension() const {
+		return ControlDimension;
+	}
+
+protected:
+
+	const Vector &control(Index i) {
+		return inputs[i];
+	}
+
+public:
+
+	/**
+	 * Constructor.
+	 */
+	RawControlledLinearSystem() noexcept : LinearSystem() {
+	}
+
+};
+
+typedef RawControlledLinearSystem<1, 1> RawControlledLinearSystem1_1;
+typedef RawControlledLinearSystem<2, 1> RawControlledLinearSystem2_1;
+typedef RawControlledLinearSystem<3, 1> RawControlledLinearSystem3_1;
+
+typedef RawControlledLinearSystem<1, 2> RawControlledLinearSystem1_2;
+typedef RawControlledLinearSystem<2, 2> RawControlledLinearSystem2_2;
+typedef RawControlledLinearSystem<3, 2> RawControlledLinearSystem3_2;
+
+typedef RawControlledLinearSystem<1, 3> RawControlledLinearSystem1_3;
+typedef RawControlledLinearSystem<2, 3> RawControlledLinearSystem2_3;
+typedef RawControlledLinearSystem<3, 3> RawControlledLinearSystem3_3;
+
+/**
  * A controllable linear system using wrappers as the controls.
  * @see QuantPDE::Controllable
  */
@@ -677,7 +691,7 @@ class ControlledLinearSystem : public ControlledLinearSystemBase {
 		}
 	}
 
-	virtual size_t controlDimension() const {
+	virtual Index controlDimension() const {
 		return controls.size();
 	}
 

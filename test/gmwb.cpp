@@ -14,14 +14,14 @@
 
 #include <algorithm> // max, min
 #include <climits>   // INT_MAX
-#include <cmath>     // sqrt
+#include <cmath>     // exp, sqrt
 #include <cstdlib>   // abs
 #include <iomanip>   // setw
 #include <iostream>  // cout
-#include <memory>    // unique_ptr
 #include <numeric>   // accumulate
 #include <tuple>     // get
-#include <utility>   // forward
+
+//#include <memory>    // unique_ptr
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,12 +32,13 @@ using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class InfinitesimalGenerator final : public ControlledLinearSystem2 {
+class InfinitesimalGenerator final : public RawControlledLinearSystem2_1 {
 
 	const RectilinearGrid2 &grid;
-
 	const Real r, v, q;
-	Controllable2 control;
+
+	const bool controlled;
+	const Vector zero;
 
 public:
 
@@ -47,15 +48,15 @@ public:
 		Real interest,
 		Real volatility,
 		Real dividends,
-		Controllable2 &&control
+		bool controlled = true
 	) noexcept :
-		grid(grid),
+		grid( grid ),
 		r( interest ),
 		v( volatility ),
 		q( dividends ),
-		control( forward<Controllable2>(control) )
+		controlled( controlled ),
+		zero( grid.zero() )
 	{
-		registerControl( this->control );
 	}
 
 	virtual Matrix A(Real) {
@@ -68,7 +69,7 @@ public:
 
 		// Control as a vector
 		Index k = 0;
-		const Vector &raw = ((const Control2 *) control.get())->raw();
+		const Vector &raw = controlled ? control(0) : zero;
 
 		// A
 		for(Index j = 0; j < A.size(); ++j) {
@@ -152,7 +153,7 @@ public:
 		return M;
 	}
 
-	virtual Vector b(Real) {
+	virtual Vector b(Real t) {
 		Vector b = grid.vector();
 
 		const Axis &W = grid[0];
@@ -160,7 +161,7 @@ public:
 
 		// Control as a vector
 		Index k = 0;
-		const Vector &raw = ((const Control2 *) control.get())->raw();
+		const Vector &raw = controlled ? control(0) : zero;
 
 		// A = 0 (no withdrawal)
 		for(Index i = 0; i < W.size(); ++i) {
@@ -168,39 +169,47 @@ public:
 			++k;
 		}
 
+		//const Real Wmax = W[ W.size() - 1 ];
+
 		// A > 0
 		for(Index j = 1; j < A.size(); ++j) {
-			// W >= 0
-			for(Index i = 0; i < W.size(); ++i) {
+			// 0 <= W < W_max
+			for(Index i = 0; i < W.size() - 1; ++i) {
 				b(k) = raw(k);
 				++k;
 			}
+
+			// W = W_max
+			b(k) = raw(k);
+			++k;
 		}
 
 		return b;
 	}
 
+	virtual bool isATheSame() const {
+		return !controlled;
+	}
+
 };
 
-class ImpulseWithdrawal final : public ControlledLinearSystem2 {
+class ImpulseWithdrawal final : public RawControlledLinearSystem2_1 {
 
-	RectilinearGrid2 &grid;
-	Noncontrollable2 kappa;
+	const RectilinearGrid2 &grid;
 
-	Controllable2 control;
+	//Noncontrollable2 kappa;
+	const Real kappa;
 
 public:
 
-	template <typename G, typename F1>
+	template <typename G>
 	ImpulseWithdrawal(
 		G &grid,
-		F1 &&kappa
+		Real kappa
 	) noexcept :
 		grid(grid),
-		kappa(kappa),
-		control( Control2(grid) )
+		kappa(kappa)
 	{
-		registerControl( control );
 	}
 
 	virtual Matrix A(Real t) {
@@ -209,7 +218,7 @@ public:
 
 		// Control as a vector
 		Index k = 0;
-		const Vector &raw = ((const Control2 *) control.get())->raw();
+		const Vector &raw = control(0);
 
 		for(auto node : grid) {
 			const Real W = node[0]; // Investment
@@ -253,17 +262,18 @@ public:
 
 		// Control as a vector
 		Index k = 0;
-		const Vector &raw = ((const Control2 *) control.get())->raw();
+		const Vector &raw = control(0);
 
 		for(auto node : accessor(grid, b)) {
-			const Real W = (&node)[0]; // Investment
+			//const Real W = (&node)[0]; // Investment
 			const Real A = (&node)[1]; // Withdrawal
 
 			// Amount withdrawn, pre-penalty
 			const Real gamma = raw(k) * A;
 
 			// Cashflow minus adjustment
-			*node = (1 - kappa(t, W, A)) * gamma;
+			*node = (1 - kappa) * gamma;
+			//*node = (1 - kappa(t, W, A)) * gamma;
 		}
 
 		return b;
@@ -458,7 +468,6 @@ bool newton = false;
 ////////////////////////////////////////////////////////////////////////////////
 
 // Peter's grid
-/*
 RectilinearGrid2 grid(
 	Axis {
 		0., 5., 10., 15., 20., 25.,
@@ -474,8 +483,8 @@ RectilinearGrid2 grid(
 	},
 	Axis::range(0., 2., 100.)
 );
-*/
 
+/*
 // Automatic grid
 constexpr int points1 = 64;
 constexpr int points2 = 50;
@@ -485,6 +494,7 @@ RectilinearGrid2 grid(
 	Axis::cluster(0., w0 * boundaryMultiplier, points1, w0, intensity),
 	Axis::cluster(0., w0                     , points2, w0, intensity)
 );
+*/
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -513,33 +523,29 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 	typedef ReverseLinearBDFOne Discretization;
 
 	// (Controlled) infinitesimal generator
-	typedef unique_ptr<ControlledLinearSystem2> SystemPointer;
-	SystemPointer generator;
-	if(method & SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY) {
-		generator = SystemPointer(
-			(ControlledLinearSystem2 *) new BlackScholes<2, 0>(
-				grid, r, v, alpha
-			)
-		);
-	} else {
-		generator = SystemPointer(
-			(ControlledLinearSystem2 *) new InfinitesimalGenerator(
-				grid, r, v, alpha, Control2(grid)
-			)
-		);
-	}
+	InfinitesimalGenerator generator(
+		grid, r, v, alpha,
+		!(method & SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY)
+	);
 
 	// Generator policy
 	RectilinearGrid1 generatorControls( Axis { 0., G } );
 	MinPolicyIteration2_1 generatorPolicy(
 		grid,
 		generatorControls,
-		*generator
+		generator
 	);
 	generatorPolicy.setIteration(toleranceIteration);
 
+	LinearSystem *discretize;
+	if(method & SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY) {
+		discretize = &generator;
+	} else {
+		discretize = &generatorPolicy;
+	}
+
 	// Discretization
-	Discretization discretization(grid, generatorPolicy);
+	Discretization discretization(grid, *discretize);
 	discretization.setIteration(stepper);
 
 	// Impulse
