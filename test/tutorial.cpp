@@ -35,8 +35,6 @@ RectilinearGrid1 grid(
     )
 );
 
-std::cout << grid << std::endl;
-
 // Hand-picked grid (this is generally not a robust approach)
 /*
 RectilinearGrid1 grid(

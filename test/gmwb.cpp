@@ -47,10 +47,13 @@ constexpr int IMPLICIT = 0;
 // Options
 ////////////////////////////////////////////////////////////////////////////////
 
+// Dirichlet boundary condition
+#define DIRICHLET
+
 //int method = SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS;
 //int method = SEMI_LAGRANGIAN_WITHDRAWAL_IMPULSE;
-//int method = EXPLICIT;
-int method = IMPLICIT;
+int method = EXPLICIT;
+//int method = IMPLICIT;
 
 Real T = 10.; // 14.28;
 Real r = .05;
@@ -72,6 +75,7 @@ int Rmax = 10; // Maximum level of refinement
 
 bool newton = false;
 bool sumops = false;
+bool lambda = false;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Solution grid
@@ -212,7 +216,7 @@ public:
 			}
 
 			// W = W_max
-			/*
+			#ifndef DIRICHLET
 			if(j > 0) {
 				const Real dA  = A[j] - A[j-1];
 				const Real tmp = raw(k) / dA;
@@ -222,7 +226,7 @@ public:
 			} else {
 				M.insert(k, k) = q;
 			}
-			*/
+			#endif
 			++k;
 
 		}
@@ -258,7 +262,9 @@ public:
 			}
 
 			// W = W_max
-			//b(k) = raw(k);
+			#ifndef DIRICHLET
+			b(k) = raw(k);
+			#endif
 			++k;
 		}
 
@@ -396,7 +402,7 @@ public:
 				++k;
 			}
 
-			//#if 0
+			#if 0
 			// 0 < W < W_max [UPWIND EVERYWHERE]
 			for(Index i = 1; i < W.size() - 1; ++i) {
 				const Real tA = raw(k) / (A[j] - A[j-1]);
@@ -408,9 +414,9 @@ public:
 
 				++k;
 			}
-			//#endif
+			#endif
 
-			#if 0
+			//#if 0
 			// 0 < W < W_max [CENTRAL EVERYWHERE]
 			for(Index i = 1; i < W.size() - 1; ++i) {
 				const Real tA = raw(k) / (A[j  ] - A[j-1]);
@@ -423,19 +429,21 @@ public:
 
 				++k;
 			}
-			#endif
+			//#endif
 
 			// W = W_max
-			/*{
+			#ifndef DIRICHLET
+			{
 				const Index i = W.size() - 1;
 
 				const Real tA = raw(k) / (A[j] - A[j-1]);
-				const Real tS = raw(k) / (W[i] - W[i-1]);
+				const Real tW = raw(k) / (W[i] - W[i-1]);
 
 				M.insert(k, k           ) = + tA + tW;
 				M.insert(k, k - W.size()) = - tA     ;
 				M.insert(k, k - 1       ) =      - tW;
-			}*/
+			}
+			#endif
 			++k;
 			//#endif
 		}
@@ -468,11 +476,145 @@ public:
 				++k;
 			}
 
-			//b(k) = raw(k);
+			#ifndef DIRICHLET
+			b(k) = raw(k);
+			#endif
 			++k;
 		}
 
 		return b;
+	}
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class WithdrawalEvent final : public EventBase {
+
+	const RectilinearGrid2 &grid;
+	const Real Gdt, kappa;
+
+	inline Real cashflow(Real gamma) const {
+		// Amount withdrawn (post-penalty)
+		return gamma - kappa * max(
+			gamma - Gdt,
+			0.
+		);
+	}
+
+	template <typename V>
+	Vector _doEvent(V &&Vplus) const {
+		Vector Vminus = grid.vector();
+
+		const Axis &W = grid[0];
+		const Axis &A = grid[1];
+
+		assert(W[0] == 0.);
+		assert(A[0] == 0.);
+
+		// Minimum withdrawal amount (exclusive)
+		Real L;
+		if(method & SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS) {
+			// Continuous withdrawal is handled here
+			L = 0.;
+		} else {
+			// Continuous withdrawal is not handled here
+			L = Gdt;
+		}
+
+		Index k = 0;
+		for(Index j = 0; j < A.size(); ++j) {
+
+			// Maximum withdrawal amount (inclusive)
+			Real U;
+			if(method & SEMI_LAGRANGIAN_WITHDRAWAL_IMPULSE) {
+				// Impulse withdrawal is handled here
+				U = A[j];
+			} else {
+				// Impulse withdrawal is not handled here
+				U = min(A[j], Gdt);
+			}
+
+			for(Index i = 0; i < W.size(); ++i) {
+
+				// Find the optimal control at this node
+
+				// No withdrawal
+				Real best = Vplus(k);
+
+				// Withdraw <= W[i]
+				for(Index ii = i; ii >= 0; --ii) {
+					// Amount withdrawn (pre-penalty)
+					const Real gamma = W[i] - W[ii];
+
+					// Skip anything outside the bounds
+					// TODO: Binary search to find starting
+					//       point instead
+					if( gamma <= L ) { continue; }
+					if( gamma >  U ) {    break; }
+
+					// Interpolate on the A axis
+					const Real Aplus = A[j] - gamma;
+					auto data = interpolationData(A, Aplus);
+
+					const Index jj = get<0>(data);
+					const Real   w = get<1>(data);
+
+					const Real newValue =
+						     w*Vplus(ii+ jj   *W.size())
+						+(1-w)*Vplus(ii+(jj+1)*W.size())
+						+cashflow(gamma);
+					;
+					if(newValue > best) {
+						best = newValue;
+					}
+				}
+
+				// Withdraw > W[i]
+				if(A[j] > W[i]) {
+					const Real Alast = A[j] - W[i];
+
+					for(Index jj = 0; A[jj] < Alast; ++jj) {
+						// Amount withdrawn
+						const Real gamma = A[j] - A[jj];
+
+						const Real newValue =
+							  Vplus(jj * W.size())
+							+ cashflow(gamma)
+						;
+						if(newValue > best) {
+							best = newValue;
+						}
+					}
+				}
+
+				Vminus(k++) = best;
+			}
+		}
+
+		return Vminus;
+	}
+
+	virtual Vector doEvent(const Vector &vector) const {
+		return _doEvent(vector);
+	}
+
+	virtual Vector doEvent(Vector &&vector) const {
+		return _doEvent(move(vector));
+	}
+
+public:
+
+	template <typename G>
+	WithdrawalEvent(
+		G &&grid,
+		Real Gdt,
+		Real kappa
+	) noexcept :
+		grid(grid),
+		Gdt(Gdt),
+		kappa(kappa)
+	{
 	}
 
 };
@@ -560,6 +702,7 @@ tuple<Real, Real, Real, int> solve(Real alpha) {
 	discretization.setIteration(stepper);
 
 	// Dirichlet boundary condition
+	#ifdef DIRICHLET
 	{
 		auto boundary = [=] (Real t, Real W, Real A) {
 			return exp( -alpha * (T - t) ) * W;
@@ -575,6 +718,7 @@ tuple<Real, Real, Real, int> solve(Real alpha) {
 			);
 		}
 	}
+	#endif
 
 	// Impulse
 	ImpulseWithdrawal impulseWithdrawal(grid, kappa);
@@ -658,15 +802,34 @@ tuple<Real, Real, Real, int> solve(Real alpha) {
 
 	if(method != IMPLICIT) {
 		for(int m = 0; m < N; ++m) {
-			stepper.add(
-				// Time at which the event takes place
-				T / N * m,
 
-				withdrawal,
+			if(lambda) {
+				stepper.add(
+					// Time at which the event takes place
+					T / N * m,
 
-				// Spatial grid to interpolate on
-				grid
-			);
+					withdrawal,
+
+					// Spatial grid to interpolate on
+					grid
+				);
+			} else {
+				const Real Gdt = G * T / N;
+
+				stepper.add(
+					// Time at which the event takes place
+					T / N * m,
+
+					unique_ptr<EventBase>( (EventBase *)
+						new WithdrawalEvent(
+							grid,
+							Gdt,
+							kappa
+						)
+					)
+				);
+			}
+
 		}
 	}
 
