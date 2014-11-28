@@ -34,7 +34,7 @@ class CrankNicolson : public Discretization<Dimension> {
 		return dt;
 	}
 
-	virtual Matrix A(Real t1) {
+	virtual Matrix Ad(Real t1) {
 		return
 			this->domain.identity()
 			+ system.A(t1) * dt() / 2.

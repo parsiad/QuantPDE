@@ -20,8 +20,8 @@
 #include <iostream>  // cout
 #include <numeric>   // accumulate
 #include <tuple>     // get
-
-//#include <memory>    // unique_ptr
+#include <utility>   // move
+#include <memory>    // unique_ptr
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,6 +29,82 @@ using namespace QuantPDE;
 using namespace QuantPDE::Modules;
 
 using namespace std;
+
+////////////////////////////////////////////////////////////////////////////////
+// Methods
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr int SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS = 1 << 0;
+constexpr int SEMI_LAGRANGIAN_WITHDRAWAL_IMPULSE = 1 << 1;
+
+constexpr int EXPLICIT =
+		  SEMI_LAGRANGIAN_WITHDRAWAL_IMPULSE
+		| SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS;
+
+constexpr int IMPLICIT = 0;
+
+////////////////////////////////////////////////////////////////////////////////
+// Options
+////////////////////////////////////////////////////////////////////////////////
+
+//int method = SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS;
+//int method = SEMI_LAGRANGIAN_WITHDRAWAL_IMPULSE;
+//int method = EXPLICIT;
+int method = IMPLICIT;
+
+Real T = 10.; // 14.28;
+Real r = .05;
+Real v = .2;
+
+Real alpha = 0.01389; // 0.036; // Hedging fee
+
+Real G = 10.; // 7.; // Contract rate
+Real kappa = 0.1; // Penalty rate
+
+Real w0 = 100.; // Initial value of the account
+
+int N = 32; // Initial number of timesteps
+int M = 2; // Initial control set partition
+int Mmax = INT_MAX; //16; // Maximum control set partition size
+
+int Rmin = 0;
+int Rmax = 10; // Maximum level of refinement
+
+bool newton = false;
+bool sumops = false;
+
+////////////////////////////////////////////////////////////////////////////////
+// Solution grid
+////////////////////////////////////////////////////////////////////////////////
+
+// Peter's grid
+RectilinearGrid2 grid(
+	Axis {
+		0., 5., 10., 15., 20., 25.,
+		30., 35., 40., 45.,
+		50., 55., 60., 65., 70., 72.5, 75., 77.5, 80., 82., 84.,
+		86., 88., 90.,91., 92., 93., 94., 95.,
+		96., 97., 98., 99., 100.,
+		101., 102., 103., 104., 105., 106.,
+		107., 108., 109., 110., 112., 114.,
+		116., 118., 120., 123., 126.,
+		130., 135., 140., 145., 150., 160., 175., 200., 225.,
+		250., 300., 500., 750., 1000.
+	},
+	Axis::range(0., 2., 100.)
+);
+
+/*
+// Automatic grid
+constexpr int points1 = 64;
+constexpr int points2 = 50;
+constexpr Real intensity = 2.5;
+constexpr Real boundaryMultiplier = 10.;
+RectilinearGrid2 grid(
+	Axis::cluster(0., w0 * boundaryMultiplier, points1, w0, intensity),
+	Axis::cluster(0., w0                     , points2, w0, intensity)
+);
+*/
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,6 +212,7 @@ public:
 			}
 
 			// W = W_max
+			/*
 			if(j > 0) {
 				const Real dA  = A[j] - A[j-1];
 				const Real tmp = raw(k) / dA;
@@ -145,6 +222,7 @@ public:
 			} else {
 				M.insert(k, k) = q;
 			}
+			*/
 			++k;
 
 		}
@@ -180,7 +258,7 @@ public:
 			}
 
 			// W = W_max
-			b(k) = raw(k);
+			//b(k) = raw(k);
 			++k;
 		}
 
@@ -192,6 +270,8 @@ public:
 	}
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class ImpulseWithdrawal final : public RawControlledLinearSystem2_1 {
 
@@ -233,10 +313,10 @@ public:
 			// Interpolation data
 			auto data = interpolationData<2>(grid, {{Wplus,Aplus}});
 
-			const Index i0 = std::get<0>( data[0] );
-			const Index i1 = std::get<0>( data[1] );
-			const Real  w0 = std::get<1>( data[0] );
-			const Real  w1 = std::get<1>( data[1] );
+			const Index i0 = get<0>( data[0] );
+			const Index i1 = get<0>( data[1] );
+			const Real  w0 = get<1>( data[0] );
+			const Real  w1 = get<1>( data[1] );
 
 			assert( (grid[0][i0+1] - Wplus)
 					/ (grid[0][i0+1] - grid[0][i0]) == w0 );
@@ -281,99 +361,82 @@ public:
 
 };
 
-#if 0
-class ContinuousWithdrawal final : public ControlledLinearSystem2 {
+////////////////////////////////////////////////////////////////////////////////
 
-	RectilinearGrid2 &grid;
-	Noncontrollable2 contractRate;
+class ContinuousWithdrawal final : public RawControlledLinearSystem2_1 {
 
-	Controllable2 control;
+	const RectilinearGrid2 &grid;
 
 public:
 
-	template <typename G, typename F1>
-	ContinuousWithdrawal(G &grid, F1 &&contractRate) noexcept
-			: grid(grid), contractRate(contractRate),
-			control( Control2(grid) ) {
-		registerControl(control);
+	template <typename G>
+	ContinuousWithdrawal(G &grid) noexcept : grid(grid) {
 	}
 
 	virtual Matrix A(Real t) {
 		Matrix M = grid.matrix();
 		M.reserve(IntegerVector::Constant(grid.size(), 4));
 
-		const Axis &S = grid[0];
-		const Axis &W = grid[1];
+		const Axis &W = grid[0];
+		const Axis &A = grid[1];
 
 		// Control as a vector
-		const Vector &raw = ((const Control2 *) control.get())->raw();
-		Index k = S.size();
+		const Vector &raw = control(0);
+		Index k = W.size();
 
-		// W > 0
-		for(Index j = 1; j < W.size(); ++j) {
-			// S = 0
+		// A > 0
+		for(Index j = 1; j < A.size(); ++j) {
+			// W = 0
 			{
-				const Real G  = contractRate(t, S[0], W[j]);
-				const Real g = raw(k) * G;
+				const Real tA = raw(k) / (A[j] - A[j-1]);
 
-				const Real tW = g / (W[j] - W[j-1]);
-
-				M.insert(k, k           ) = +tW;
-				M.insert(k, k - S.size()) = -tW;
+				M.insert(k, k           ) = +tA;
+				M.insert(k, k - W.size()) = -tA;
 
 				++k;
 			}
 
+			//#if 0
+			// 0 < W < W_max [UPWIND EVERYWHERE]
+			for(Index i = 1; i < W.size() - 1; ++i) {
+				const Real tA = raw(k) / (A[j] - A[j-1]);
+				const Real tW = raw(k) / (W[i] - W[i-1]);
+
+				M.insert(k, k           ) = + tA + tW;
+				M.insert(k, k - W.size()) = - tA     ;
+				M.insert(k, k - 1       ) =      - tW;
+
+				++k;
+			}
+			//#endif
+
 			#if 0
-			// S > 0
-			for(Index i = 1; i < S.size(); ++i) {
-				const Real G  = contractRate(t, S[i], W[j]);
-				const Real g = raw(k) * G;
+			// 0 < W < W_max [CENTRAL EVERYWHERE]
+			for(Index i = 1; i < W.size() - 1; ++i) {
+				const Real tA = raw(k) / (A[j  ] - A[j-1]);
+				const Real tW = raw(k) / (W[i+1] - W[i-1]);
 
-				const Real tW = g / (W[j] - W[j-1]);
-				const Real tS = g / (S[i] - S[i-1]);
-
-				M.insert(k, k           ) = + tW + tS;
-				M.insert(k, k - S.size()) = - tW     ;
-				M.insert(k, k - 1       ) =      - tS;
+				M.insert(k, k + 1       ) =      + tW;
+				M.insert(k, k           ) = + tA     ;
+				M.insert(k, k - W.size()) = - tA     ;
+				M.insert(k, k - 1       ) =      - tW;
 
 				++k;
 			}
 			#endif
 
-			//#if 0
-			// 0 < S < S_max
-			for(Index i = 1; i < S.size() - 1; ++i) {
-				const Real G  = contractRate(t, S[i], W[j]);
-				const Real g = raw(k) * G;
+			// W = W_max
+			/*{
+				const Index i = W.size() - 1;
 
-				const Real tW = g / (W[j  ] - W[j-1]);
-				const Real tS = g / (S[i+1] - S[i-1]);
+				const Real tA = raw(k) / (A[j] - A[j-1]);
+				const Real tS = raw(k) / (W[i] - W[i-1]);
 
-				M.insert(k, k + 1       ) =      + tS;
-				M.insert(k, k           ) = + tW     ;
-				M.insert(k, k - S.size()) = - tW     ;
-				M.insert(k, k - 1       ) =      - tS;
-
-				++k;
-			}
-
-			// S = S_max
-			{
-				const Index i = S.size() - 1;
-
-				const Real G  = contractRate(t, S[i], W[j]);
-				const Real g = raw(k) * G;
-
-				const Real tW = g / (W[j] - W[j-1]);
-				const Real tS = g / (S[i] - S[i-1]);
-
-				M.insert(k, k           ) = + tW + tS;
-				M.insert(k, k - S.size()) = - tW     ;
-				M.insert(k, k - 1       ) =      - tS;
-
-				++k;
-			}
+				M.insert(k, k           ) = + tA + tW;
+				M.insert(k, k - W.size()) = - tA     ;
+				M.insert(k, k - 1       ) =      - tW;
+			}*/
+			++k;
 			//#endif
 		}
 
@@ -384,35 +447,37 @@ public:
 	virtual Vector b(Real t) {
 		Vector b = grid.vector();
 
-		const Axis &S = grid[0];
-		const Axis &W = grid[1];
+		const Axis &W = grid[0];
+		const Axis &A = grid[1];
 
 		// Control as a vector
-		const Vector &raw = ((const Control2 *) control.get())->raw();
+		const Vector &raw = control(0);
 		Index k = 0;
 
-		// W = 0 (no withdrawal)
-		for(Index i = 0; i < S.size(); ++i) {
+		// A = 0 (no withdrawal)
+		for(Index i = 0; i < W.size(); ++i) {
 			b(k) = 0.;
 			++k;
 		}
 
-		// W > 0
-		for(Index j = 1; j < W.size(); ++j) {
-			// S >= 0
-			for(Index i = 0; i < S.size(); ++i) {
-				const Real G = contractRate(t, S[i], W[j]);
-				const Real g = raw(k) * G;
-				b(k) = g;
+		// A > 0
+		for(Index j = 1; j < A.size(); ++j) {
+			// W >= 0
+			for(Index i = 0; i < W.size() - 1; ++i) {
+				b(k) = raw(k);
 				++k;
 			}
+
+			//b(k) = raw(k);
+			++k;
 		}
 
 		return b;
 	}
 
 };
-#endif
+
+////////////////////////////////////////////////////////////////////////////////
 
 inline Real Vminus(const Interpolant2 &V, Real W, Real A, Real gamma) {
 	return V(
@@ -422,83 +487,8 @@ inline Real Vminus(const Interpolant2 &V, Real W, Real A, Real gamma) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Methods
-////////////////////////////////////////////////////////////////////////////////
 
-constexpr int SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY = 1 << 0;
-constexpr int SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY = 1 << 1;
-
-constexpr int EXPLICIT =
-		  SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY
-		| SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY;
-
-constexpr int IMPLICIT = 0;
-
-////////////////////////////////////////////////////////////////////////////////
-// Options
-////////////////////////////////////////////////////////////////////////////////
-
-//int method = SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY;
-//int method = SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY;
-//int method = EXPLICIT;
-int method = IMPLICIT;
-
-Real T = 10.; // 14.28;
-Real r = .05;
-Real v = .2;
-
-Real alpha = 0.01389; // 0.036; // Hedging fee
-
-Real G = 10.; // 7.; // Contract rate
-Real kappa = 0.1; // Penalty rate
-
-Real w0 = 100.; // Initial value of the account
-
-int N = 32; // Initial number of timesteps
-int M = 2; // Initial control set partition
-int Mmax = INT_MAX; //16; // Maximum control set partition size
-
-int Rmin = 0;
-int Rmax = 10; // Maximum level of refinement
-
-bool newton = false;
-
-////////////////////////////////////////////////////////////////////////////////
-// Solution grid
-////////////////////////////////////////////////////////////////////////////////
-
-// Peter's grid
-RectilinearGrid2 grid(
-	Axis {
-		0., 5., 10., 15., 20., 25.,
-		30., 35., 40., 45.,
-		50., 55., 60., 65., 70., 72.5, 75., 77.5, 80., 82., 84.,
-		86., 88., 90.,91., 92., 93., 94., 95.,
-		96., 97., 98., 99., 100.,
-		101., 102., 103., 104., 105., 106.,
-		107., 108., 109., 110., 112., 114.,
-		116., 118., 120., 123., 126.,
-		130., 135., 140., 145., 150., 160., 175., 200., 225.,
-		250., 300., 500.,750., 1000.
-	},
-	Axis::range(0., 2., 100.)
-);
-
-/*
-// Automatic grid
-constexpr int points1 = 64;
-constexpr int points2 = 50;
-constexpr Real intensity = 2.5;
-constexpr Real boundaryMultiplier = 10.;
-RectilinearGrid2 grid(
-	Axis::cluster(0., w0 * boundaryMultiplier, points1, w0, intensity),
-	Axis::cluster(0., w0                     , points2, w0, intensity)
-);
-*/
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::tuple<Real, Real, Real, int> solve(Real alpha) {
+tuple<Real, Real, Real, int> solve(Real alpha) {
 
 	////////////////////////////////////////////////////////////////////////
 	// Iteration tree
@@ -522,14 +512,17 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 
 	typedef ReverseBDFOne2 Discretization;
 
+	// Controls
+	RectilinearGrid1 generatorControls( Axis { 0., G } );
+	RectilinearGrid1 impulseControls( Axis::range( 1. / M, 1. / M, 1. ) );
+
 	// (Controlled) infinitesimal generator
 	InfinitesimalGenerator generator(
 		grid, r, v, alpha,
-		!(method & SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY)
+		!sumops && !(method & SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS)
 	);
 
 	// Generator policy
-	RectilinearGrid1 generatorControls( Axis { 0., G } );
 	MinPolicyIteration2_1 generatorPolicy(
 		grid,
 		generatorControls,
@@ -537,10 +530,28 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 	);
 	generatorPolicy.setIteration(toleranceIteration);
 
+	// Continuous withdrawal
+	ContinuousWithdrawal continuousWithdrawal(grid);
+
+	// Continuous withdrawal policy iteration
+	MinPolicyIteration2_1 continuousPolicy(
+		grid,
+		generatorControls,
+		continuousWithdrawal
+	);
+	continuousPolicy.setIteration(toleranceIteration);
+
+	// Sum of linear systems
+	LinearSystemSum sum(generator, continuousPolicy);
+
 	LinearSystem *discretize;
-	if(method & SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY) {
+	if(method & SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS) {
 		discretize = &generator;
+	} else if(sumops) {
+		// Sum of operators
+		discretize = &sum;
 	} else {
+		// Central as much as possible
 		discretize = &generatorPolicy;
 	}
 
@@ -548,8 +559,24 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 	Discretization discretization(grid, *discretize);
 	discretization.setIteration(stepper);
 
+	// Dirichlet boundary condition
+	{
+		auto boundary = [=] (Real t, Real W, Real A) {
+			return exp( -alpha * (T - t) ) * W;
+		};
+
+		const Axis &W = grid[0];
+		const Axis &A = grid[1];
+		const Index i = W.size() - 1;
+		for(Index j = 0; j < A.size(); ++j) {
+			discretization.addDirichletNode(
+				grid.index(i, j),
+				boundary
+			);
+		}
+	}
+
 	// Impulse
-	RectilinearGrid1 impulseControls( Axis::range( 1. / M, 1. / M, 1. ) );
 	ImpulseWithdrawal impulseWithdrawal(grid, kappa);
 	MinPolicyIteration2_1 impulsePolicy(
 		grid,
@@ -563,110 +590,13 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 	penalty.setIteration(toleranceIteration);
 
 	IterationNode *root;
-	if(method & SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY) {
+	if(method & SEMI_LAGRANGIAN_WITHDRAWAL_IMPULSE) {
 		// Use the explicit formulation for the impulses
 		root = &discretization;
 	} else {
 		// Use the penalty method for the impulses
 		root = &penalty;
 	}
-
-	#if 0
-	LinearSystem *discretizee;
-
-	unique_ptr<BlackScholes<2, 0>> blackScholes(
-		new BlackScholes<2,0>(
-			grid,
-			r, v, alpha
-		)
-	);
-
-	unique_ptr<RectilinearGrid1> continuousControls;
-	unique_ptr<ContinuousWithdrawal> continuousWithdrawal;
-	unique_ptr<MinPolicyIteration2_1> continuousPolicy;
-	unique_ptr<LinearSystemSum> sum;
-	if(method & SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY) {
-		// Using semi-lagrangian for continuous withdrawal
-		discretizee = blackScholes.get();
-	} else {
-		// Continuous withdrawal
-		continuousWithdrawal = unique_ptr<ContinuousWithdrawal>(
-				new ContinuousWithdrawal(grid, G));
-
-		// Continuous withdrawal policy iteration
-		continuousPolicy = unique_ptr<MinPolicyIteration2_1>(
-			new MinPolicyIteration2_1(
-				grid,
-				continuousControls,
-				*continuousWithdrawal
-			)
-		);
-		continuousPolicy->setIteration(*toleranceIteration);
-
-		// Sum of linear systems
-		sum = unique_ptr<LinearSystemSum>(
-			new LinearSystemSum(
-				  std::move(blackScholes    )
-				+ std::move(continuousPolicy)
-			)
-		);
-
-		discretizee = sum.get();
-	}
-
-	Discretization discretization(grid, *discretizee);
-	discretization.setIteration(stepper);
-
-	unique_ptr<RectilinearGrid1> impulseControls;
-	unique_ptr<ImpulseWithdrawal> impulseWithdrawal;
-	unique_ptr<MinPolicyIteration2_1> impulsePolicy;
-	unique_ptr<PenaltyMethod> penalty;
-	IterationNode *root;
-	if(method & SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY) {
-		// No impulse root
-		root = &discretization;
-	} else {
-		// Using semi-lagrangian for withdrawal at a penalty
-
-		// Impulse control grid
-		impulseControls = unique_ptr<RectilinearGrid1>(
-			new RectilinearGrid1(
-				Axis::range(
-					1. / M,
-					1. / M,
-					1.
-				)
-			)
-		);
-
-		// Impulse withdrawal
-		impulseWithdrawal = unique_ptr<ImpulseWithdrawal>(
-				new ImpulseWithdrawal(grid, kappa));
-
-		// Impulse withdrawal policy iteration
-		impulsePolicy = unique_ptr<MinPolicyIteration2_1>(
-			new MinPolicyIteration2_1(
-				grid,
-				*impulseControls,
-				*impulseWithdrawal
-			)
-		);
-		impulsePolicy->setIteration(*toleranceIteration);
-
-		// Penalty method
-		penalty = unique_ptr<PenaltyMethod>(
-			new PenaltyMethod(
-				grid,
-				discretization,
-				*impulsePolicy
-			)
-		);
-		penalty->setIteration(*toleranceIteration);
-
-		// Impulse root
-		root = penalty.get();
-	}
-	#endif
 
 	////////////////////////////////////////////////////////////////////////
 	// Exercise events
@@ -680,7 +610,7 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 		// Contract withdrawal amount
 		const Real Gdt = G * T / N;
 
-		if(method & SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY) {
+		if(method & SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS) {
 			// Nonpenalty
 
 			const Real beta = min(A, Gdt);
@@ -702,7 +632,7 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 
 		// Penalty
 		if(
-			(method & SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY)
+			(method & SEMI_LAGRANGIAN_WITHDRAWAL_IMPULSE)
 			&& A > Gdt
 		) {
 
@@ -849,7 +779,7 @@ int main() {
 
 			while(true) {
 				// f(alpha)
-				std::tie(value, mean, var, max) = solve(alpha);
+				tie(value, mean, var, max) = solve(alpha);
 				const Real f0 = value - w0;
 
 				cout
@@ -866,7 +796,7 @@ int main() {
 
 				// f(alpha + epsilon)
 				auto tmp = solve(alpha + epsilon);
-				const Real f1 = std::get<0>(tmp) - w0;
+				const Real f1 = get<0>(tmp) - w0;
 
 				// f'(alpha)
 				const Real fp = (f1 - f0) / epsilon;
@@ -882,7 +812,7 @@ int main() {
 			printHeaders();
 		} else {
 			// No Newton iteration
-			std::tie(value, mean, var, max) = solve(alpha);
+			tie(value, mean, var, max) = solve(alpha);
 		}
 
 		////////////////////////////////////////////////////////////////

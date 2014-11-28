@@ -482,7 +482,7 @@ public:
 template <Index Dimension, bool Forward>
 class BDFOne : public BDFBase<Dimension, Forward, 1> {
 
-	virtual Matrix A(Real t) {
+	virtual Matrix Ad(Real t) {
 		return this->_A1(t);
 	}
 
@@ -571,7 +571,7 @@ class BDFTwo : public BDFBase<Dimension, Forward, 2> {
 		(this->*_onIterationEnd)();
 	}
 
-	virtual Matrix A(Real t) {
+	virtual Matrix Ad(Real t) {
 		return (this->*_A)(t);
 	}
 
@@ -664,7 +664,7 @@ class BDFThree : public BDFBase<Dimension, Forward, 3> {
 		(this->*_onIterationEnd)();
 	}
 
-	virtual Matrix A(Real t) {
+	virtual Matrix Ad(Real t) {
 		return (this->*_A)(t);
 	}
 
@@ -763,7 +763,7 @@ class BDFFour : public BDFBase<Dimension, Forward, 4> {
 		(this->*_onIterationEnd)();
 	}
 
-	virtual Matrix A(Real t) {
+	virtual Matrix Ad(Real t) {
 		return (this->*_A)(t);
 	}
 
@@ -868,7 +868,7 @@ class BDFFive : public BDFBase<Dimension, Forward, 5> {
 		(this->*_onIterationEnd)();
 	}
 
-	virtual Matrix A(Real t) {
+	virtual Matrix Ad(Real t) {
 		return (this->*_A)(t);
 	}
 
@@ -979,7 +979,7 @@ class BDFSix : public BDFBase<Dimension, Forward, 6> {
 		(this->*_onIterationEnd)();
 	}
 
-	virtual Matrix A(Real t) {
+	virtual Matrix Ad(Real t) {
 		return (this->*_A)(t);
 	}
 

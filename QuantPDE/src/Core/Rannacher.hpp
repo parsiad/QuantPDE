@@ -87,7 +87,7 @@ class Rannacher : public Discretization<Dimension> {
 	void _onIterationEnd4() {
 	}
 
-	virtual Matrix A(Real t) {
+	virtual Matrix Ad(Real t) {
 		return (this->*_A)(t);
 	}
 

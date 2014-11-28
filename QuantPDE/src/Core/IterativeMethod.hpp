@@ -826,7 +826,7 @@ public:
 template <Index Dimension>
 class Discretization : public IterationNode {
 
-	std::unordered_map< Index, Function<Dimension> > boundary;
+	std::unordered_map< Index, Function<Dimension + 1> > boundary;
 
 protected:
 
@@ -842,6 +842,32 @@ public:
 	}
 
 	/**
+	 * @return The left-hand-side matrix (A) before boundary conditions are
+	 *         applied.
+	 */
+	virtual Matrix Ad(Real time) = 0;
+
+	virtual Matrix A(Real time) final {
+		Matrix A = Ad( time );
+
+		for(auto pair : boundary) {
+			// Zero out rows except for identity
+
+			if(pair.first > 0) {
+				//A.block(pair.first, 0, 1, pair.first).setZero();
+			}
+
+			if(pair.first < domain.size() - 1) {
+				//A.block(pair.first, pair.first + 1, 1,
+				//		domain.size() - 1 - pair.first)
+				//		.setZero();
+			}
+		}
+
+		return A;
+	}
+
+	/**
 	 * @return The right-hand-side vector (b) before boundary conditions are
 	 *         applied.
 	 */
@@ -849,16 +875,33 @@ public:
 
 	virtual Vector b(Real time) final {
 		Vector b = bd( time );
-		// TODO: Modify b
+
+		for(auto pair : boundary) {
+			const Index index = pair.first;
+
+			// Curry
+			auto function = curry<Dimension + 1>(pair.second, time);
+
+			// Get coordinates of this node
+			// TODO: Just store this so we do not incur this cost
+			//       every time
+			auto coordinates = domain.coordinates(index);
+
+			b(index) = packAndCall<Dimension>(
+				function,
+				coordinates.data()
+			);
+		}
+
 		return b;
 	}
 
 	/**
 	 * Creates a Dirichlet boundary condition at the specified node.
 	 */
-	template <typename ...Ts, typename F>
-	void addDirichletNode(Ts ...indices, F &&function) {
-		// TODO
+	template <typename F>
+	void addDirichletNode(Index index, F &&function) {
+		boundary[index] = std::forward<F>(function);
 	}
 
 };

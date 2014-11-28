@@ -143,8 +143,41 @@ typedef InterpolantFactory<3> InterpolantFactory3;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: Currently we have to call this by interpolationData<N>. Should be able
+//       infer template argument automatically
+
+inline std::tuple<Real, Real> interpolationData(const Axis &x, Real ci) {
+	Index length = x.size();
+
+	if(ci <= x[0]) {
+		return std::make_tuple(0, 1.);
+	}
+
+	if(ci >= x[length - 1]) {
+		return std::make_tuple(length - 2, 0.);
+	}
+
+	// Binary search to find tick
+	Index lo = 0, hi = length - 2, mid = 0;
+	Real weight = 0.;
+	while(lo <= hi) {
+		mid = (lo + hi) / 2;
+		if(ci < x[mid]) {
+			hi = mid - 1;
+		} else if(ci >= x[mid + 1]) {
+			lo = mid + 1;
+		} else {
+			weight = ( x[mid + 1] - ci )
+					/ ( x[mid + 1] - x[mid] );
+			break;
+		}
+	}
+
+	return std::make_tuple(mid, weight);
+}
+
 template <Index Dimension>
-std::array< std::tuple<Real, Real>, Dimension > interpolationData(
+inline std::array< std::tuple<Real, Real>, Dimension > interpolationData(
 	const RectilinearGrid<Dimension> &grid,
 	const std::array<Real, Dimension> &coordinates
 ) {
@@ -156,39 +189,9 @@ std::array< std::tuple<Real, Real>, Dimension > interpolationData(
 	// tick
 	// TODO: Optimize (loop unroll)
 	for(Index i = 0; i < Dimension; ++i) {
-
 		const Axis &x = grid[i];
-		Index length = x.size();
-
 		const Real ci = coordinates[i];
-
-		if(ci <= x[0]) {
-			result[i] = std::make_tuple(0, 1.);
-			continue;
-		}
-
-		if(ci >= x[length - 1]) {
-			result[i] = std::make_tuple(length - 2, 0.);
-			continue;
-		}
-
-		// Binary search to find tick
-		Index lo = 0, hi = length - 2, mid = 0;
-		Real weight = 0.;
-		while(lo <= hi) {
-			mid = (lo + hi) / 2;
-			if(ci < x[mid]) {
-				hi = mid - 1;
-			} else if(ci >= x[mid + 1]) {
-				lo = mid + 1;
-			} else {
-				weight = ( x[mid + 1] - ci )
-						/ ( x[mid + 1] - x[mid] );
-				break;
-			}
-		}
-
-		result[i] = std::make_tuple(mid, weight);
+		result[i] = interpolationData(x, ci);
 	}
 
 	return result;
