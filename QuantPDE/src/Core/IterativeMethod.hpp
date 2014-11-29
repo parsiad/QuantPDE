@@ -370,6 +370,7 @@ public:
 
 	class Control final : public Base {
 
+		Vector input; // TODO: Remove
 		WF factory;
 		WI interpolant;
 
@@ -430,15 +431,25 @@ public:
 		}
 
 		virtual void setInput(const Vector &input) {
+			this->input = input; // TODO: Remove
 			interpolant = factory.make(input);
 		}
 
 		virtual void setInput(Vector &&input) {
+			this->input = input; // TODO: Remove
 			interpolant = factory.make( std::move(input) );
 		}
 
 		virtual B clone() const {
 			return B(new Control(*this));
+		}
+
+		// TODO: Remove this
+		/**
+		 * @deprecated
+		 */
+		const Vector &raw() const {
+			return input;
 		}
 
 	};
@@ -567,6 +578,37 @@ public:
 	void setInput(V &&input) {
 		base->setInput( std::forward<V>(input) );
 	}
+
+	/**
+	 * This is useful if we wish to access a control directly, avoiding the
+	 * cost of searching for nodes on a domain via their coordinates.
+	 * \code{.cpp}
+	 * public Test final : public ControlledLinearSystem1 {
+	 * 	Controllable1 control;
+	 * 	RectilinearGrid1 grid;
+	 *
+	 * 	template <typename G>
+	 * 	Test(G &grid) : grid(grid), control( Control1(grid) ) {
+	 * 		registerControl( control );
+	 * 	}
+	 *
+	 * 	// ...
+	 *
+	 * 	const Vector &getControlValues() {
+	 * 		return ((const Control1 *) control.get())->rawControl();
+	 * 	}
+	 *
+	 * 	// ...
+	 * };
+	 * \endcode{.cpp}
+	 * @deprecated Use RawControlledLinearSystem instead.
+	 * @see RawControlledLinearSystem
+	 * @return A pointer to the wrapped base class.
+	 */
+	const Base *get() const {
+		return base.get();
+	}
+
 
 };
 

@@ -52,8 +52,8 @@ constexpr int IMPLICIT = 0;
 
 //int method = SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS;
 //int method = SEMI_LAGRANGIAN_WITHDRAWAL_IMPULSE;
-int method = EXPLICIT;
-//int method = IMPLICIT;
+//int method = EXPLICIT;
+int method = IMPLICIT;
 
 Real T = 10.; // 14.28;
 Real r = .05;
@@ -74,8 +74,8 @@ int Rmin = 0;
 int Rmax = 10; // Maximum level of refinement
 
 bool newton = false;
-bool sumops = false;
-bool lambda = false;
+bool sumops = true;
+bool lambda = true;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Solution grid
