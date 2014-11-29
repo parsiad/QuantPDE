@@ -53,7 +53,15 @@ typedef ConstantStepper<true > ForwardConstantStepper;
  *
  * The initial interval size \f$\Delta t^0\f$ is given, and subsequent interval
  * sizes are computed by
- * \f[\Delta t^{n}\equiv\frac{\text{target}}{\max_{i}\frac{\left|v_{i}^{n+1}-v_{i}^{n}\right|}{\max\left(\text{scale},\max_{j}\left(\left|v_{j}^{n+1}\right|\right)\right)}+\text{epsilon}}\Delta t^{n+1}\f]
+ * \f$
+ * \Delta t^n \equiv \frac{ \text{target} }{
+ * 	\max_i \frac{ \left| v_i^{n+1} - v_i^n \right| }{
+ * 		\max \left( \text{scale}, \max_j \left(
+ * 			\left| v_j^{n+1} \right|
+ * 		\right) \right)
+ * 	} + \text{epsilon}
+ * } \Delta t^{n+1}
+ * \f$
  */
 template <bool Forward>
 class VariableStepper final : public TimeIteration<Forward> {
@@ -75,12 +83,15 @@ class VariableStepper final : public TimeIteration<Forward> {
 			&v0 = this->iterand(1)
 		;
 
+		const Real quotient = relativeError( v1, v0, scale );
+
 		// Tested 2014-06-08
-		const Real quotient = ( v1 - v0 ).cwiseAbs().cwiseQuotient(
+		/*const Real quotient = ( v1 - v0 ).cwiseAbs().cwiseQuotient(
 			( scale * Vector::Ones( v1.size() ) ).cwiseMax(
 				v1.cwiseAbs().cwiseMax(v0.cwiseAbs())
 			)
-		).maxCoeff();
+		).maxCoeff();*/
+
 		dt *= target / (quotient + epsilon);
 
 		return dt;

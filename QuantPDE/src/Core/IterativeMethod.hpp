@@ -892,19 +892,21 @@ public:
 	virtual Matrix A(Real time) final {
 		Matrix A = Ad( time );
 
-		for(auto pair : boundary) {
-			// Zero out rows except for identity
+		// TODO: Zero out rows except for identity
 
+		#if 0
+		for(auto pair : boundary) {
 			if(pair.first > 0) {
-				//A.block(pair.first, 0, 1, pair.first).setZero();
+				A.block(pair.first, 0, 1, pair.first).setZero();
 			}
 
 			if(pair.first < domain.size() - 1) {
-				//A.block(pair.first, pair.first + 1, 1,
-				//		domain.size() - 1 - pair.first)
-				//		.setZero();
+				A.block(pair.first, pair.first + 1, 1,
+						domain.size() - 1 - pair.first)
+						.setZero();
 			}
 		}
+		#endif
 
 		return A;
 	}
@@ -1214,6 +1216,23 @@ bool IterationNode::isTimestepTheSame() const {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/**
+ * Computes the relative error between two vectors of the same size.
+ */
+inline Real relativeError(const Vector &a, const Vector &b,
+		Real scale = QuantPDE::scale) {
+
+	assert(a.size() == b.size());
+	assert(scale >= 0.);
+
+	return ( a - b ).cwiseAbs().cwiseQuotient(
+		( scale * Vector::Ones(a.size()) ).cwiseMax(
+			a.cwiseAbs().cwiseMax( b.cwiseAbs() )
+		)
+	).maxCoeff();
+
+}
+
 #define QUANT_PDE_TMP_OUTER_HEAD
 #define QUANT_PDE_TMP_OUTER_TAIL
 #define QUANT_PDE_TMP_TIMESTEP
@@ -1235,12 +1254,17 @@ bool IterationNode::isTimestepTheSame() const {
 		this->endNodes(); \
 	} while(0)
 
+/*
 #define QUANT_PDE_TMP_NOT_DONE \
 	( ( this->iterand(0) - this->iterand(1) ).cwiseAbs().cwiseQuotient( \
 		( scale * Vector::Ones(this->iterand(0).size()) ).cwiseMax( \
 			this->iterand(0).cwiseAbs() \
 		) \
 	).maxCoeff() > tolerance )
+*/
+
+#define QUANT_PDE_TMP_NOT_DONE \
+	( relativeError(this->iterand(0), this->iterand(1), scale) > tolerance )
 
 #define QUANT_PDE_TMP_ITERATE_UNTIL_DONE \
 	do { \
