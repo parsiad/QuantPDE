@@ -1254,15 +1254,6 @@ inline Real relativeError(const Vector &a, const Vector &b,
 		this->endNodes(); \
 	} while(0)
 
-/*
-#define QUANT_PDE_TMP_NOT_DONE \
-	( ( this->iterand(0) - this->iterand(1) ).cwiseAbs().cwiseQuotient( \
-		( scale * Vector::Ones(this->iterand(0).size()) ).cwiseMax( \
-			this->iterand(0).cwiseAbs() \
-		) \
-	).maxCoeff() > tolerance )
-*/
-
 #define QUANT_PDE_TMP_NOT_DONE \
 	( relativeError(this->iterand(0), this->iterand(1), scale) > tolerance )
 

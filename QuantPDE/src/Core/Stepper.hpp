@@ -83,16 +83,7 @@ class VariableStepper final : public TimeIteration<Forward> {
 			&v0 = this->iterand(1)
 		;
 
-		const Real quotient = relativeError( v1, v0, scale );
-
-		// Tested 2014-06-08
-		/*const Real quotient = ( v1 - v0 ).cwiseAbs().cwiseQuotient(
-			( scale * Vector::Ones( v1.size() ) ).cwiseMax(
-				v1.cwiseAbs().cwiseMax(v0.cwiseAbs())
-			)
-		).maxCoeff();*/
-
-		dt *= target / (quotient + epsilon);
+		dt *= target / (relativeError( v1, v0, scale ) + epsilon);
 
 		return dt;
 	}

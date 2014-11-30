@@ -50,12 +50,12 @@ using namespace std;
 // Methods
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr int SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY = 1 << 0;
-constexpr int SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY = 1 << 1;
+constexpr int SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS = 1 << 0;
+constexpr int SEMI_LAGRANGIAN_WITHDRAWAL_IMPULSE    = 1 << 1;
 
 constexpr int EXPLICIT =
-		  SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY
-		| SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY;
+		  SEMI_LAGRANGIAN_WITHDRAWAL_IMPULSE
+		| SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS;
 
 constexpr int IMPLICIT = 0;
 
@@ -63,8 +63,8 @@ constexpr int IMPLICIT = 0;
 // Options
 ////////////////////////////////////////////////////////////////////////////////
 
-//int method = SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY;
-//int method = SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY;
+//int method = SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS;
+//int method = SEMI_LAGRANGIAN_WITHDRAWAL_IMPULSE;
 //int method = EXPLICIT;
 int method = IMPLICIT;
 
@@ -400,7 +400,7 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 
 	// What to discretize
 	LinearSystem *discretize;
-	if(method & SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY) {
+	if(method & SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS) {
 		discretize = &blackScholes;
 	} else {
 		discretize = &sum;
@@ -425,7 +425,7 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 
 	// Root
 	IterationNode *root;
-	if(method & SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY) {
+	if(method & SEMI_LAGRANGIAN_WITHDRAWAL_IMPULSE) {
 		// No impulse root
 		root = &discretization;
 	} else {
@@ -445,7 +445,7 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 		// Contract withdrawal amount
 		const Real Gdt = G * T / N;
 
-		if(method & SEMI_LAGRANGIAN_WITHDRAWAL_NO_PENALTY) {
+		if(method & SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS) {
 			// Nonpenalty
 
 			const Real beta = min(W, Gdt);
@@ -467,7 +467,7 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 
 		// Penalty
 		if(
-			(method & SEMI_LAGRANGIAN_WITHDRAWAL_AT_PENALTY)
+			(method & SEMI_LAGRANGIAN_WITHDRAWAL_IMPULSE)
 			&& W > Gdt
 		) {
 
