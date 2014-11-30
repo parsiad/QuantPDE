@@ -8,11 +8,11 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 // ITERATED_OPTIMAL_STOPPING macro uses iterated optimal stopping to solve the
-// GMWB problem.
+// GMWB problem
 //
-// QuantPDE does not normally support optimal stopping and hence the
-// implementation is a bit of a hack, and will most likely suffer code rot in
-// future versions.
+// QuantPDE does not normally support iterated optimal stopping and hence the
+// implementation is a bit of a hack, and will most likely not compile in future
+// versions
 
 #ifdef ITERATED_OPTIMAL_STOPPING
 	#define private public
