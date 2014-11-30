@@ -370,7 +370,6 @@ public:
 
 	class Control final : public Base {
 
-		Vector input; // TODO: Remove
 		WF factory;
 		WI interpolant;
 
@@ -431,25 +430,15 @@ public:
 		}
 
 		virtual void setInput(const Vector &input) {
-			this->input = input; // TODO: Remove
 			interpolant = factory.make(input);
 		}
 
 		virtual void setInput(Vector &&input) {
-			this->input = input; // TODO: Remove
 			interpolant = factory.make( std::move(input) );
 		}
 
 		virtual B clone() const {
 			return B(new Control(*this));
-		}
-
-		// TODO: Remove this
-		/**
-		 * @deprecated
-		 */
-		const Vector &raw() const {
-			return input;
 		}
 
 	};
@@ -1303,9 +1292,7 @@ inline Real relativeError(const Vector &a, const Vector &b,
 /**
  * An iterative method that terminates when adjacent iterands are within a
  * certain error tolerance.
- *
- * The stopping condition is
- * \f[\max_{i}\frac{\left|x_{i}^{k+1}-x_{i}^{k}\right|}{\max\left(\text{scale},\max_{j}\left(\left|x_{j}^{k+1}\right|\right)\right)}<\text{tolerance}.\f]
+ * @see QuantPDE::relativeError
  */
 class ToleranceIteration final : public Iteration {
 
@@ -1614,6 +1601,32 @@ Real ForwardTimeIteration::terminalTime() const {
 #undef QUANT_PDE_TMP_TAIL
 #undef QUANT_PDE_TMP_NOT_DONE
 #undef QUANT_PDE_TMP_ITERATE_UNTIL_DONE
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO: Implement CombinedIteration
+
+/*
+template <bool Forward>
+class CombinedIteration final {
+
+	TimeIteration<Forward> &time;
+	ToleranceIteration tolerance;
+
+public:
+
+	template <typename T>
+	CombinedIteration(T &timeIteration) noexcept : time(timeIteration) {
+	}
+
+	CombinedIteration(const CombinedIteration &) = delete;
+	CombinedIteration &operator=(const CombinedIteration &) = delete;
+
+};
+
+typedef CombinedIteration<false> ReverseCombinedIteration;
+typedef CombinedIteration<true > ForwardCombinedIteration;
+*/
 
 } // QuantPDE
 

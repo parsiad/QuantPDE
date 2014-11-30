@@ -93,6 +93,7 @@ bool newton = false;
 ////////////////////////////////////////////////////////////////////////////////
 
 // Peter's grid
+/*
 RectilinearGrid2 grid(
 	Axis {
 		0., 5., 10., 15., 20., 25.,
@@ -108,22 +109,21 @@ RectilinearGrid2 grid(
 	},
 	Axis::range(0., 2., 100.)
 );
+*/
 
-/*
 constexpr int points1 = 64;
 constexpr int points2 = 50;
 
 RectilinearGrid2 grid(
-	Axis::cluster(0., 1000., points1, w0, w0 / 5.),
-	Axis::cluster(0.,  100., points2, w0, w0 / 5.)
+	Axis::cluster(0., 1000., points1, w0, 5.),
+	Axis::cluster(0.,  100., points2, w0, 5.)
 );
-*/
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class ImpulseWithdrawal final : public RawControlledLinearSystem2_1 {
 
-	RectilinearGrid2 &grid;
+	const RectilinearGrid2 &grid;
 	Noncontrollable2 kappa;
 
 public:
@@ -210,7 +210,7 @@ public:
 
 class ContinuousWithdrawal final : public RawControlledLinearSystem2_1 {
 
-	RectilinearGrid2 &grid;
+	const RectilinearGrid2 &grid;
 	Noncontrollable2 contractRate;
 
 public:
@@ -342,7 +342,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if 0
 class InfinitesimalGenerator final : public RawControlledLinearSystem2_1 {
 
 	const RectilinearGrid2 &grid;
@@ -447,7 +446,6 @@ public:
 			}
 
 			// W = W_max
-			#ifndef DIRICHLET
 			if(j > 0) {
 				const Real dA  = A[j] - A[j-1];
 				const Real tmp = raw(k) / dA;
@@ -457,7 +455,6 @@ public:
 			} else {
 				M.insert(k, k) = q;
 			}
-			#endif
 			++k;
 
 		}
@@ -493,9 +490,7 @@ public:
 			}
 
 			// W = W_max
-			#ifndef DIRICHLET
 			b(k) = raw(k);
-			#endif
 			++k;
 		}
 
@@ -508,6 +503,9 @@ public:
 
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+#if 0
 class WithdrawalEvent final : public EventBase {
 
 	const RectilinearGrid2 &grid;
@@ -682,8 +680,12 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 	////////////////////////////////////////////////////////////////////////
 
 	// Black-Scholes
-	BlackScholes<2, 0> blackScholes(grid, r, v, alpha);
+	InfinitesimalGenerator generator(
+		grid, r, v, alpha,
+		!( method & SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS )
+	);
 
+	/*
 	// Continuous withdrawal
 	RectilinearGrid1 continuousControls( Axis { 0., 1. } );
 	ContinuousWithdrawal continuousWithdrawal(grid, G);
@@ -696,13 +698,23 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 
 	// Sum
 	LinearSystemSum sum(blackScholes, continuousPolicy);
+	*/
+
+	RectilinearGrid1 generatorControls( Axis { 0., G } );
+	MinPolicyIteration2_1 generatorPolicy(
+		grid,
+		generatorControls,
+		generator
+	);
+	generatorPolicy.setIteration(toleranceIteration);
 
 	// What to discretize
 	LinearSystem *discretize;
 	if(method & SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS) {
-		discretize = &blackScholes;
+		discretize = &generator;
 	} else {
-		discretize = &sum;
+		discretize = &generatorPolicy;
+		//discretize = &sum;
 	}
 
 	Discretization discretization(grid, *discretize);
@@ -749,9 +761,9 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 
 			const Real beta = min(W, Gdt);
 
-			//for(int i = 1; i <= M; ++i) {
-				//const Real gamma = beta * i/M;
-				const Real gamma = beta;
+			for(int i = 1; i <= M; ++i) {
+				const Real gamma = beta * i/M;
+				//const Real gamma = beta;
 
 				const Real newValue =
 					Vminus(V, S, W, gamma)
@@ -760,7 +772,7 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 				if(newValue > best) {
 					best = newValue;
 				}
-			//}
+			}
 
 		}
 
@@ -1001,7 +1013,7 @@ int main() {
 	// Table headers
 	////////////////////////////////////////////////////////////////////////
 
-	cout.precision(6);
+	cout.precision(12);
 	Real previousValue = nan(""), previousChange = nan("");
 
 	if(!newton) {
@@ -1015,7 +1027,7 @@ int main() {
 	for(
 		int l = 0;
 		l <= Rmax;
-		++l, N *= 2, M *= 2//, points1 *= 2, points2 *= 2, far *= 2.
+		++l, N *= 2, M *= 2
 	) {
 
 		if( l < Rmin ) {
@@ -1101,9 +1113,14 @@ int main() {
 			ratio = previousChange / change
 		;
 
+		int tmp = M;
+		if(method == EXPLICIT) {
+			tmp *= 2;
+		}
+
 		cout
 			<< setw(td) << grid.size() << "\t"
-			<< setw(td) << M           << "\t"
+			<< setw(td) << tmp         << "\t"
 			<< setw(td) << N           << "\t"
 			<< setw(td) << value       << "\t"
 			<< setw(td) << mean        << "\t"
