@@ -34,6 +34,7 @@
 #include <climits>   // INT_MAX
 #include <cmath>     // sqrt
 #include <cstdlib>   // abs
+#include <getopt.h>  // getopt_long
 #include <iomanip>   // setw
 #include <iostream>  // cout
 #include <numeric>   // accumulate
@@ -66,7 +67,9 @@ constexpr int IMPLICIT = 0;
 //int method = SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS;
 //int method = SEMI_LAGRANGIAN_WITHDRAWAL_IMPULSE;
 //int method = EXPLICIT;
-int method = IMPLICIT;
+//int method = IMPLICIT;
+
+int method = 0;
 
 Real T = 10.; // 14.28;
 Real r = .05;
@@ -93,7 +96,6 @@ bool newton = false;
 ////////////////////////////////////////////////////////////////////////////////
 
 // Peter's grid
-/*
 RectilinearGrid2 grid(
 	Axis {
 		0., 5., 10., 15., 20., 25.,
@@ -109,8 +111,8 @@ RectilinearGrid2 grid(
 	},
 	Axis::range(0., 2., 100.)
 );
-*/
 
+/*
 constexpr int points1 = 64;
 constexpr int points2 = 50;
 
@@ -118,6 +120,7 @@ RectilinearGrid2 grid(
 	Axis::cluster(0., 1000., points1, w0, 5.),
 	Axis::cluster(0.,  100., points2, w0, 5.)
 );
+*/
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1007,7 +1010,52 @@ void printHeaders() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int main() {
+int main(int argc, char **argv) {
+
+	////////////////////////////////////////////////////////////////////////
+	// Options
+	////////////////////////////////////////////////////////////////////////
+
+	{
+		// Long option names
+		static struct option opts[] = {
+			{ "sl-continuous", 0, 0, 0 },
+			{ "sl-impulse",    0, 0, 0 },
+			{ nullptr,         0, 0, 0 }
+		};
+
+		int c;
+		int index;
+		while(
+			(
+				c = getopt_long(
+					argc,
+					argv,
+					"",
+					opts,
+					&index
+				)
+			) != -1
+		) {
+			switch(c) {
+
+				// Long options
+				case 0:
+					switch(index)
+					{
+						case 0:
+							method |= SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS;
+							break;
+						case 1:
+							method |= SEMI_LAGRANGIAN_WITHDRAWAL_IMPULSE;
+							break;
+						default:
+							break;
+					}
+				break;
+			}
+		}
+	}
 
 	////////////////////////////////////////////////////////////////////////
 	// Table headers
