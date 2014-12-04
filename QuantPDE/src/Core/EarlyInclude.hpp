@@ -57,9 +57,10 @@ namespace QuantPDE {
 		static constexpr float value = 1e-3;
 	};
 
-	static constexpr Real epsilon = 1e-12;
-	static constexpr Real tolerance = ToleranceScalar<Real>::value;
-	static constexpr Real scale = 1.;
+	constexpr Real epsilon = 1e-12;
+	constexpr Real tolerance = ToleranceScalar<Real>::value;
+	constexpr Real scale = 1.;
+	constexpr Real droptol = 1e-3;
 }
 
 #endif

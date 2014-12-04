@@ -2,17 +2,16 @@
 // gmwb.cpp
 // --------
 //
-// Computes the price of a GMWB using several different formulations.
+// Computes the price of a guaranteed minimum withdrawal benefit (GMWB) variable
+// annuity (insurance contract) using several formulations.
+//
+// The ITERATED_OPTIMAL_STOPPING macro uses iterated optimal stopping to solve
+// the GMWB problem. QuantPDE does not normally support iterated optimal
+// stopping and hence the implementation is a bit of a hack, and will most
+// likely not compile in future versions.
 //
 // Author: Parsiad Azimzadeh
 ////////////////////////////////////////////////////////////////////////////////
-
-// ITERATED_OPTIMAL_STOPPING macro uses iterated optimal stopping to solve the
-// GMWB problem
-//
-// QuantPDE does not normally support iterated optimal stopping and hence the
-// implementation is a bit of a hack, and will most likely not compile in future
-// versions
 
 #ifdef ITERATED_OPTIMAL_STOPPING
 	#define private public
@@ -31,6 +30,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <algorithm> // max, min
+#include <chrono>    // duration
 #include <climits>   // INT_MAX
 #include <cmath>     // sqrt
 #include <cstdlib>   // abs
@@ -38,6 +38,7 @@
 #include <iomanip>   // setw
 #include <iostream>  // cout
 #include <numeric>   // accumulate
+#include <thread>    // thread
 #include <tuple>     // get
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,6 +91,7 @@ int Rmin = 0;
 int Rmax = 10; // Maximum level of refinement
 
 bool newton = false;
+bool lambda = true;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Solution grid
@@ -121,6 +123,26 @@ RectilinearGrid2 grid(
 	Axis::cluster(0.,  100., points2, w0, 5.)
 );
 */
+
+////////////////////////////////////////////////////////////////////////////////
+// Jump functions
+////////////////////////////////////////////////////////////////////////////////
+
+inline Real Wplus(Real W, Real gamma) {
+	return max( W - gamma, 0. );
+}
+
+inline Real Aplus(Real A, Real gamma) {
+	return A - gamma;
+}
+
+inline Real Vminus(const Interpolant2 &V, Real W, Real A, Real gamma) {
+	return V( Wplus(W, gamma), Aplus(A, gamma) );
+}
+
+inline Real cashflow(Real gamma, Real Gdt, Real kappa) {
+	return gamma - kappa * max( gamma - Gdt, 0. );
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -211,6 +233,10 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// This results in a nonomonotone scheme and should not be used
+// (testing purposes only)
+
+#if 0
 class ContinuousWithdrawal final : public RawControlledLinearSystem2_1 {
 
 	const RectilinearGrid2 &grid;
@@ -342,6 +368,7 @@ public:
 	}
 
 };
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -449,6 +476,7 @@ public:
 			}
 
 			// W = W_max
+			#ifndef DIRICHLET_BOUNDARY_CONDITION
 			if(j > 0) {
 				const Real dA  = A[j] - A[j-1];
 				const Real tmp = raw(k) / dA;
@@ -458,6 +486,7 @@ public:
 			} else {
 				M.insert(k, k) = q;
 			}
+			#endif
 			++k;
 
 		}
@@ -493,7 +522,11 @@ public:
 			}
 
 			// W = W_max
+			#ifndef DIRICHLET_BOUNDARY_CONDITION
 			b(k) = raw(k);
+			#else
+			b(k) = 0.;
+			#endif
 			++k;
 		}
 
@@ -508,24 +541,20 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if 0
 class WithdrawalEvent final : public EventBase {
 
 	const RectilinearGrid2 &grid;
 	const Real Gdt, kappa;
 
-	inline Real cashflow(Real gamma) const {
-		// Amount withdrawn (post-penalty)
-		return gamma - kappa * max(
-			gamma - Gdt,
-			0.
-		);
-	}
-
 	template <typename V>
-	Vector _doEvent(V &&Vplus) const {
-		Vector Vminus = grid.vector();
+	Vector _doEvent(V &&Vp) const {
+		// Interpolant
+		PiecewiseLinear2 Vplus(grid, Vp);
 
+		// Solution before withdrawal
+		Vector Vm = grid.vector();
+
+		// Axes
 		const Axis &W = grid[0];
 		const Axis &A = grid[1];
 
@@ -560,9 +589,55 @@ class WithdrawalEvent final : public EventBase {
 				// Find the optimal control at this node
 
 				// No withdrawal
-				Real best = Vplus(k);
+				Real best = Vp(k);
 
-				// Withdraw <= W[i]
+				// Withdrawal at the contract rate
+				if(
+					method
+					& SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS
+				) {
+					const Real beta = min(A[j], Gdt);
+
+					const Real newValue =
+							Vminus(
+								Vplus,
+								W[i], A[j],
+								beta
+							)
+							+ cashflow(
+								beta,
+								Gdt, kappa
+							)
+					;
+
+					if(newValue > best) {
+						best = newValue;
+					}
+				}
+
+				// Full surrender at penalty
+				if(
+					(A[j] > Gdt) && (method
+					& SEMI_LAGRANGIAN_WITHDRAWAL_IMPULSE)
+				) {
+					const Real newValue =
+							Vminus(
+								Vplus,
+								W[i], A[j],
+								A[j]
+							)
+							+ cashflow(
+								A[j],
+								Gdt, kappa
+							)
+					;
+
+					if(newValue > best) {
+						best = newValue;
+					}
+				}
+
+				// Withdraw <= W[i] (along W axis)
 				for(Index ii = i; ii >= 0; --ii) {
 					// Amount withdrawn (pre-penalty)
 					const Real gamma = W[i] - W[ii];
@@ -574,23 +649,28 @@ class WithdrawalEvent final : public EventBase {
 					if( gamma >  U ) {    break; }
 
 					// Interpolate on the A axis
-					const Real Aplus = A[j] - gamma;
-					auto data = interpolationData(A, Aplus);
+					const Real Ap = Aplus(A[j], gamma);
+					auto data = interpolationData(A, Ap);
 
 					const Index jj = get<0>(data);
 					const Real   w = get<1>(data);
 
 					const Real newValue =
-						     w*Vplus(ii+ jj   *W.size())
-						+(1-w)*Vplus(ii+(jj+1)*W.size())
-						+cashflow(gamma);
+						     w *Vp(ii+ jj   *W.size())
+						+ (1-w)*Vp(ii+(jj+1)*W.size())
+						+ cashflow(
+							gamma,
+							Gdt, kappa
+						);
 					;
+
 					if(newValue > best) {
 						best = newValue;
 					}
 				}
 
 				// Withdraw > W[i]
+				/*
 				if(A[j] > W[i]) {
 					const Real Alast = A[j] - W[i];
 
@@ -599,20 +679,57 @@ class WithdrawalEvent final : public EventBase {
 						const Real gamma = A[j] - A[jj];
 
 						const Real newValue =
-							  Vplus(jj * W.size())
-							+ cashflow(gamma)
+							  Vp(jj * W.size())
+							+ cashflow(
+								gamma,
+								Gdt, kappa
+							)
 						;
+
 						if(newValue > best) {
 							best = newValue;
 						}
 					}
 				}
+				*/
 
-				Vminus(k++) = best;
+				// Withdraw <= A[j] (along A axis)
+				for(Index jj = j; jj >= 0; --jj) {
+					// Amount withdrawn pre-penalty
+					const Real gamma = A[j] - A[jj];
+
+					// Skip anything outside the bounds
+					// TODO: Binary search to find starting
+					//       point instead
+					if( gamma <= L ) { continue; }
+					if( gamma >  U ) {    break; }
+
+					// Interpolate on the W axis
+					const Real Wp = Wplus(W[i], gamma);
+					auto data = interpolationData(W, Wp);
+
+					const Index ii = get<0>(data);
+					const Real   w = get<1>(data);
+
+					const Real newValue =
+						     w *Vp( ii   +jj*W.size())
+						+ (1-w)*Vp((ii+1)+jj*W.size())
+						+ cashflow(
+							gamma,
+							Gdt, kappa
+						);
+					;
+
+					if(newValue > best) {
+						best = newValue;
+					}
+				}
+
+				Vm(k++) = best;
 			}
 		}
 
-		return Vminus;
+		return Vm;
 	}
 
 	virtual Vector doEvent(const Vector &vector) const {
@@ -638,23 +755,11 @@ public:
 	}
 
 };
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline Real Wplus(Real W, Real gamma) {
-	return max(W - gamma, 0.);
-}
-
-inline Real Aplus(Real A, Real gamma) {
-	return A - gamma;
-}
-
-inline Real Vminus(const Interpolant2 &V, Real W, Real A, Real gamma) {
-	return V( Wplus(W, gamma), Aplus(A, gamma) );
-}
-
-////////////////////////////////////////////////////////////////////////////////
+constexpr int progressWidth = 70;
+constexpr int progressSleep = 100;
 
 std::tuple<Real, Real, Real, int> solve(Real alpha) {
 
@@ -688,6 +793,8 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 		!( method & SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS )
 	);
 
+	// This results in a nonmonotone scheme and should not be used
+	// (testing purposes only)
 	/*
 	// Continuous withdrawal
 	RectilinearGrid1 continuousControls( Axis { 0., 1. } );
@@ -720,8 +827,27 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 		//discretize = &sum;
 	}
 
+	// Discretize
 	Discretization discretization(grid, *discretize);
 	discretization.setIteration(stepper);
+	#ifdef DIRICHLET_BOUNDARY_CONDITION
+	{
+		auto dirichlet = [=] (Real t, Real W, Real A) {
+			return exp( -alpha * (T - t) ) * W;
+		};
+
+		const Axis &A  = grid[0];
+		const Axis &W  = grid[1];
+		const int imax = W.size() - 1;
+
+		for(int j = 0; j < A.size(); ++j) {
+			discretization.addDirichletNode(
+				grid.index(j, imax),
+				dirichlet
+			);
+		}
+	}
+	#endif
 
 	// Impulse withdrawal
 	RectilinearGrid1 impulseControls( Axis::range( 1. / M, 1. / M, 1. ) );
@@ -751,10 +877,10 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 	// Exercise events
 	////////////////////////////////////////////////////////////////////////
 
-	auto withdrawal = [=] (const Interpolant2 &V, Real S, Real W) {
+	auto withdrawal = [=] (const Interpolant2 &V, Real W, Real A) {
 
 		// No withdrawal
-		Real best = V(S, W);
+		Real best = V(W, A);
 
 		// Contract withdrawal amount
 		const Real Gdt = G * T / N;
@@ -762,15 +888,16 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 		if(method & SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS) {
 			// Nonpenalty
 
-			const Real beta = min(W, Gdt);
+			const Real beta = min(A, Gdt);
 
 			for(int i = 1; i <= M; ++i) {
 				const Real gamma = beta * i/M;
 				//const Real gamma = beta;
 
 				const Real newValue =
-					Vminus(V, S, W, gamma)
-					+ gamma;
+					Vminus(V, W, A, gamma)
+					+ cashflow(gamma, Gdt, kappa)
+				;
 
 				if(newValue > best) {
 					best = newValue;
@@ -782,16 +909,17 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 		// Penalty
 		if(
 			(method & SEMI_LAGRANGIAN_WITHDRAWAL_IMPULSE)
-			&& W > Gdt
+			&& A > Gdt
 		) {
 
 			for(int i = 1; i <= M; ++i) {
 
-				const Real gamma = Gdt + (W-Gdt) * i/M;
+				const Real gamma = Gdt + (A-Gdt) * i/M;
 
 				const Real newValue =
-					Vminus(V, S, W, gamma)
-					+ gamma - kappa*(gamma-Gdt);
+					Vminus(V, W, A, gamma)
+					+ cashflow(gamma, Gdt, kappa)
+				;
 
 				if(newValue > best) {
 					best = newValue;
@@ -807,15 +935,30 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 
 	if(method != IMPLICIT) {
 		for(int m = 0; m < N; ++m) {
-			stepper.add(
-				// Time at which the event takes place
-				T / N * m,
+			if(lambda) {
+				stepper.add(
+					// Time at which the event takes place
+					T / N * m,
 
-				withdrawal,
+					withdrawal,
 
-				// Spatial grid to interpolate on
-				grid
-			);
+					// Spatial grid to interpolate on
+					grid
+				);
+			} else {
+				stepper.add(
+					// Time at which the event takes place
+					T / N * m,
+
+					unique_ptr<EventBase>( (EventBase *)
+						new WithdrawalEvent(
+							grid,
+							G * T / N,
+							kappa
+						)
+					)
+				);
+			}
 		}
 	}
 
@@ -955,12 +1098,55 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 	#else
 	{ // Start policy iteration test
 
+		#ifdef _OPENMP
+		// Progress bar
+		thread progress([&] () {
+			chrono::milliseconds duration( progressSleep );
+
+			while(stepper.nextTime() < 0.) {
+				// Idle state
+
+				this_thread::sleep_for( duration );
+			}
+
+			while(stepper.nextTime() != 0.) {
+				// Busy state
+
+				const Real progress = (T-stepper.nextTime())/T;
+
+				cerr << "[";
+				int pos = progressWidth * progress;
+
+				for(int i = 0; i < pos; ++i) {
+					cerr << "=";
+				}
+
+				if(pos < progressWidth) {
+					cerr << ">";
+				}
+
+				for(int i = pos + 1; i < progressWidth; ++i) {
+					cerr << " ";
+				}
+
+				cerr << "] " << int(progress * 100.) << "%  \r";
+				cerr.flush();
+
+				this_thread::sleep_for( duration );
+			}
+		});
+		#endif
+
 		auto V = stepper.solve(
 			grid,   // Domain
 			payoff, // Initial condition
 			*root,  // Root of linear system tree
 			solver  // Linear system solver
 		);
+
+		#ifdef _OPENMP
+		progress.join();
+		#endif
 
 		value = V(w0, w0);
 
@@ -994,18 +1180,26 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 constexpr int td = 20;
 
 void printHeaders() {
+	cout << setw(td) << "Nodes" << "\t";
+
+	if(lambda) {
+		cout << setw(td) << "Control Nodes" << "\t";
+	}
+
 	cout
-		<< setw(td) << "Nodes"           << "\t"
-		<< setw(td) << "Control Nodes"   << "\t"
 		<< setw(td) << "Time Steps"      << "\t"
 		<< setw(td) << "Value"           << "\t"
 		<< setw(td) << "Mean Iterations" << "\t"
 		<< setw(td) << "Std Iterations"  << "\t"
 		<< setw(td) << "Max Iterations"  << "\t"
 		<< setw(td) << "Change"          << "\t"
-		<< setw(td) << "Ratio"
-		<< endl
 	;
+
+	if(!newton) {
+		cout << setw(td) << "Ratio";
+	}
+
+	cout << endl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1020,7 +1214,9 @@ int main(int argc, char **argv) {
 		// Long option names
 		static struct option opts[] = {
 			{ "sl-continuous", 0, 0, 0 },
-			{ "sl-impulse",    0, 0, 0 },
+			{ "sl-impulse"   , 0, 0, 0 },
+			{ "explicit"     , 0, 0, 0 },
+			{ "newton"       , 0, 0, 0 },
 			{ nullptr,         0, 0, 0 }
 		};
 
@@ -1048,6 +1244,12 @@ int main(int argc, char **argv) {
 							break;
 						case 1:
 							method |= SEMI_LAGRANGIAN_WITHDRAWAL_IMPULSE;
+							break;
+						case 2:
+							method = EXPLICIT;
+							break;
+						case 3:
+							newton = true;
 							break;
 						default:
 							break;
@@ -1166,18 +1368,26 @@ int main(int argc, char **argv) {
 			tmp *= 2;
 		}
 
+		cout << setw(td) << grid.size() << "\t";
+
+		if(lambda) {
+			cout << setw(td) << tmp << "\t";
+		}
+
 		cout
-			<< setw(td) << grid.size() << "\t"
-			<< setw(td) << tmp         << "\t"
-			<< setw(td) << N           << "\t"
-			<< setw(td) << value       << "\t"
-			<< setw(td) << mean        << "\t"
-			<< setw(td) << sqrt(var)   << "\t"
-			<< setw(td) << max         << "\t"
-			<< setw(td) << change      << "\t"
-			<< setw(td) << ratio
-			<< endl
+			<< setw(td) << N         << "\t"
+			<< setw(td) << value     << "\t"
+			<< setw(td) << mean      << "\t"
+			<< setw(td) << sqrt(var) << "\t"
+			<< setw(td) << max       << "\t"
+			<< setw(td) << change    << "\t"
 		;
+
+		if(!newton) {
+			cout << setw(td) << ratio;
+		}
+
+		cout << endl;
 
 		previousChange = change;
 		previousValue = value;
