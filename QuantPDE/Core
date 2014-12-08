@@ -30,6 +30,7 @@
 
 #include "src/Core/PenaltyMethod.hpp"
 #include "src/Core/PolicyIteration.hpp"
+#include "src/Core/Impulse.hpp"
 
 #include "src/Core/BDF.hpp"
 #include "src/Core/CrankNicolson.hpp"

@@ -143,10 +143,10 @@ typedef InterpolantFactory<3> InterpolantFactory3;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: Currently we have to call this by interpolationData<N>. Should be able
-//       infer template argument automatically
+// TODO: Currently we have to call this by linearInterpolationData<N>.
+//       Should be able infer template argument automatically
 
-inline std::tuple<Real, Real> interpolationData(const Axis &x, Real ci) {
+inline std::tuple<Real, Real> linearInterpolationData(const Axis &x, Real ci) {
 	Index length = x.size();
 
 	if(ci <= x[0]) {
@@ -177,10 +177,10 @@ inline std::tuple<Real, Real> interpolationData(const Axis &x, Real ci) {
 }
 
 template <Index Dimension>
-inline std::array< std::tuple<Real, Real>, Dimension > interpolationData(
+inline auto linearInterpolationData(
 	const RectilinearGrid<Dimension> &grid,
-	const std::array<Real, Dimension> &coordinates
-) {
+	const Real *coordinates
+) -> std::array< std::tuple<Real, Real>, Dimension > {
 
 	std::array< std::tuple<Real, Real>, Dimension > result;
 
@@ -191,10 +191,20 @@ inline std::array< std::tuple<Real, Real>, Dimension > interpolationData(
 	for(Index i = 0; i < Dimension; ++i) {
 		const Axis &x = grid[i];
 		const Real ci = coordinates[i];
-		result[i] = interpolationData(x, ci);
+		result[i] = linearInterpolationData(x, ci);
 	}
 
 	return result;
+
+}
+
+template <Index Dimension>
+inline auto linearInterpolationData(
+	const RectilinearGrid<Dimension> &grid,
+	const std::array<Real, Dimension> &coordinates
+) -> std::array< std::tuple<Real, Real>, Dimension > {
+
+	return linearInterpolationData(grid, coordinates.data());
 
 }
 
@@ -286,7 +296,10 @@ class PiecewiseLinear : public Interpolant<Dimension> {
 		}
 		*/
 
-		auto data = interpolationData<Dimension>(*grid, coordinates);
+		auto data = linearInterpolationData<Dimension>(
+			*grid,
+			coordinates
+		);
 
 		////////////////////////////////////////////////////////////////
 		// Recursive version
