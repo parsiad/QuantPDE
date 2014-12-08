@@ -10,7 +10,11 @@ namespace QuantPDE {
 // TODO: To intmax_t or not to intmax_t?
 
 /**
- * Used to compute integer powers at compile-time.
+ * Used to compute integer powers at compile-time. For example,
+ * \code{.cpp}
+ * // Compute 2^20 at compile-time
+ * std::intmax_t ipow = IntegerPower<2, 20>::value;
+ * \endcode
  * @tparam Base The base.
  * @tparam Exponent The exponent.
  */
@@ -49,7 +53,11 @@ struct IntegerPower<Base, 0> {
 ////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Computes the integer product of factors.
+ * Computes the integer product of factors. For example,
+ * \code{.cpp}
+ * // Compute the product 2 x 3 x 5  at compile-time
+ * std::intmax_t iprod = IntegerProduct<2,3,5>::value;
+ * \endcode
  * @tparam Factor The first factor.
  * @tparam Factors The remaining factors.
  */
@@ -142,6 +150,7 @@ struct GenerateSequence<0, Integers...> : Sequence<Integers...> {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/** @cond QUANT_PDE_HIDDEN */
 namespace NaryFunctionSignatureHelpers {
 
 template <template <class...> class Target, class R, unsigned N, class T,
@@ -161,7 +170,9 @@ template <typename R, typename ...Ts>
 using Target = R (Ts...);
 
 } // NaryFunctionSignatureHelpers
+/** @endcond */
 
+/** @cond QUANT_PDE_HIDDEN */
 namespace NaryMethodHelpers {
 
 template <template <class...> class Target, class R, class C, unsigned N,
@@ -186,6 +197,7 @@ template <typename R, class C, typename ...Ts>
 using TargetConst = R (C::*)(Ts...) const;
 
 } // NaryFunctionSignatureHelpers
+/** @endcond */
 
 /**
  * Type definition for `R(T, ..., T)`, where `T` appears `N` times.
@@ -213,6 +225,7 @@ using NaryMethodConst = NaryMethodHelpers::Type<
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/** @cond QUANT_PDE_HIDDEN */
 template <int N>
 struct NaryFunctionPlaceholder {
 	static NaryFunctionPlaceholder ph;
@@ -220,6 +233,7 @@ struct NaryFunctionPlaceholder {
 
 template<int N>
 NaryFunctionPlaceholder<N> NaryFunctionPlaceholder<N>::ph;
+/** @endcond */
 
 /*
 template <class R, class T, class ...Types, class U, int ...Indices>
@@ -259,6 +273,7 @@ auto curry(F &&f, U value) -> decltype(QUANT_PDE_TMP) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/** @cond QUANT_PDE_HIDDEN */
 namespace IsLValueHelpers {
 
 template <typename T>
@@ -272,6 +287,7 @@ template <typename T>
 char (& Helper(T&, typename Nondeducible<const volatile T&>::type))[2];
 
 } // IsLValueHelpers
+/** @endcond */
 
 #define QUANT_PDE_IS_LVALUE(X) \
 	(sizeof(QuantPDE::IsLValueHelpers::Helper((X), (X))) == 2)
@@ -341,6 +357,7 @@ RRef<T> makeRRef(T &&x) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/** @cond QUANT_PDE_HIDDEN */
 // Note: adding members to the std namespace is not standards-compliant
 namespace std {
 
@@ -350,6 +367,7 @@ struct is_placeholder< ::QuantPDE::NaryFunctionPlaceholder<N>> :
 {};
 
 } // std
+/** @endcond */
 
 #endif
 
