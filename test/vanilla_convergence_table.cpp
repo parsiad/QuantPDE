@@ -221,7 +221,7 @@ int main(int argc, char **argv) {
 	// Payoff function
 	Function1 payoff = call ? callPayoff(strike) : putPayoff(strike);
 
-	unsigned pow2l  = 1.; // 2^l
+	unsigned pow2l = 1; // 2^l
 	for(int l = 0; l < refinement; ++l) {
 
 		///////////////////////////////////////////////////////////////
