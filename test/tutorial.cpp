@@ -75,7 +75,7 @@ const int E = 10;
 
 ReverseConstantStepper stepper(t0, T, dt);
 
-// Discrete dividends (remove #if and corresponding #endif to uncomment)
+// Discrete dividends
 /*
 // A discrete dividend of one dollar
 const Real D = 1.;
