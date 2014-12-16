@@ -95,7 +95,7 @@ for(int e = 0; e < E; ++e) {
 }
 */
 
-// Relates the value of V- to V (see the above derivation)
+// Relates the value of V- to V
 auto exerciseEvent = [K] (const Interpolant1 &V, Real S) {
     return max( V(S) , K - S );
 };
