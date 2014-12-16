@@ -190,8 +190,7 @@ int main(int argc, char **argv) {
 	// Payoff
 	// ------
 	//
-	// Payoffs are lambda functions. The following is just a macro that
-	// expands to
+	// Payoffs are lambda functions. The following is equivalent to
 	//
 	// auto payoff = [K] (Real S) {
 	// 	return S < K ? K - S : S - K;
