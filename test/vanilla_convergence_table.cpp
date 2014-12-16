@@ -221,10 +221,6 @@ int main(int argc, char **argv) {
 	// Payoff function
 	Function1 payoff = call ? callPayoff(strike) : putPayoff(strike);
 
-	// Alternatively, we could have used...
-	//auto payoff = QUANT_PDE_MODULES_PAYOFFS_CALL_FIXED_STRIKE(strike);
-	//auto payoff = QUANT_PDE_MODULES_PAYOFFS_PUT_FIXED_STRIKE(strike);
-
 	unsigned pow2l  = 1.; // 2^l
 	for(int l = 0; l < refinement; ++l) {
 
