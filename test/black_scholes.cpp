@@ -30,7 +30,7 @@ using namespace std;
 void help() {
 	cerr <<
 "unequal_borrowing_lending_rates [OPTIONS]" << endl << endl <<
-"Prices a long/short position straddle under the Black-Scholes model assuming" << endl <<
+"Prices a long/short position put under the Black-Scholes model assuming" << endl <<
 "unequal borrowing/lending rates." << endl <<
 endl <<
 "-d REAL" << endl <<
