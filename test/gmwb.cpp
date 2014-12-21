@@ -71,7 +71,8 @@ Real T = 10.; // 14.28;
 Real r = .05;
 Real v = .2;
 
-Real alpha = 0.01389; // 0.036; // Hedging fee
+//Real alpha = 0.0138457882249;
+Real alpha = 0.013891; // 0.036; // Hedging fee
 
 Real G = 10.; // 7.; // Contract rate
 Real kappa = 0.1; // Penalty rate
@@ -851,7 +852,7 @@ int main(int argc, char **argv) {
 				const Real fp = (f1 - f0) / epsilon;
 
 				// Next iterand
-				alpha -= f1 / fp;
+				alpha -= f0 / fp;
 			}
 
 			// Spacing
