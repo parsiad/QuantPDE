@@ -735,10 +735,11 @@ int main(int argc, char **argv) {
 	{
 		// Long option names
 		static struct option opts[] = {
-			{ "semi-implicit", 0, 0, 0 },
-			{ "explicit"     , 0, 0, 0 },
-			{ "fair-fee"     , 0, 0, 0 },
-			{ nullptr,         0, 0, 0 }
+			{ "semi-implicit", no_argument,       0, 0 },
+			{ "explicit"     , no_argument,       0, 0 },
+			{ "newton"       , no_argument,       0, 0 },
+			{ "fair-fee"     , required_argument, 0, 0 },
+			{ nullptr        , 0,                 0, 0 }
 		};
 
 		int c;
@@ -769,6 +770,9 @@ int main(int argc, char **argv) {
 							break;
 						case 2:
 							newton = true;
+							break;
+						case 3:
+							alpha = atof(optarg);
 							break;
 						default:
 							break;
