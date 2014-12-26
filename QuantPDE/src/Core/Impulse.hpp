@@ -59,7 +59,7 @@ public:
 	) noexcept :
 		grid(grid),
 		flow( std::forward<F1>(flow) ),
-		transitions( {std::forward<F2>(transitions)...} )
+		transitions( {{std::forward<F2>(transitions)...}} )
 	{
 	}
 
@@ -211,4 +211,3 @@ typedef Impulse3<3> Impulse3_3;
 }
 
 #endif
-

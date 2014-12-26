@@ -862,7 +862,7 @@ class RectilinearGrid : public Domain<Dimension> {
 		}
 
 		LazyMatrixBuilder(const LazyMatrixBuilder &that) noexcept :
-				grid(that.grid), entries(entries) {
+				grid(that.grid) {
 		}
 
 		LazyMatrixBuilder(const LazyMatrixBuilder &&that) noexcept :
@@ -1419,4 +1419,3 @@ typedef RectilinearGrid<3> RectilinearGrid3;
 } // QuantPDE
 
 #endif
-

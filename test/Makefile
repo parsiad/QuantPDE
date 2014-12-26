@@ -3,7 +3,7 @@ BINARIES_DIRECTORY:=build
 SOURCES:=$(wildcard *.cpp)
 BINARIES:=$(addprefix $(BINARIES_DIRECTORY)/, $(SOURCES:.cpp=))
 
-EIGEN:=-I/usr/include/eigen3
+EIGEN:=-I/usr/include/eigen3 -I/usr/local/include/eigen3
 GCC:=/usr/bin/gcc-4.8
 
 OPTS:=
