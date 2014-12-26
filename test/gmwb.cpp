@@ -1052,7 +1052,7 @@ public:
 				++k;
 			}
 
-			#if 0
+			/*
 			// W > 0
 			for(Index i = 1; i < W.size(); ++i) {
 				const Real G  = contractRate(t, W[i], A[j]);
@@ -1067,7 +1067,7 @@ public:
 
 				++k;
 			}
-			#endif
+			*/
 
 			//#if 0
 			// 0 < W < W_max
