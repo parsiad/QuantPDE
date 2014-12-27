@@ -72,9 +72,11 @@ public:
 			TwoToTheDimension::value
 		));
 
-		Real args[Dimension + ControlDimension];
+		Real args[Dimension + ControlDimension + 1];
 		Real plus[Dimension];
 
+		// TODO: Fix. Currying explodes in Clang; not sure why...
+		/*
 		Function<Dimension + ControlDimension> transitions_t[Dimension];
 		for(Index i = 0; i < Dimension; ++i) {
 			transitions_t[i] =
@@ -84,17 +86,20 @@ public:
 				)
 			;
 		}
+		*/
+
+		args[0] = t;
 
 		Index k = 0;
 		for(auto node : grid) {
 			// Coordinates
 			for(int i = 0; i < Dimension; ++i) {
-				args[i] = node[i];
+				args[i + 1] = node[i];
 			}
 
 			// Control coordinates
 			for(int i = 0; i < ControlDimension; ++i) {
-				args[Dimension + i]=(this->control(i))(k);
+				args[Dimension + i + 1]=(this->control(i))(k);
 			}
 
 			// Get new state
@@ -103,8 +108,9 @@ public:
 					packAndCall<
 						  Dimension
 						+ ControlDimension
+						+ 1
 					>(
-						transitions_t[i],
+						transitions[i],
 						args
 					)
 				;

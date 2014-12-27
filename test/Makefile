@@ -8,7 +8,7 @@ GCC:=/usr/bin/gcc-4.8
 
 OPTS:=
 
-DEBUG_OPTS:=-static -g3
+DEBUG_OPTS:=-g3
 OPTIMIZE_OPTS:=-O2 -DNDEBUG
 
 ifdef PROFILE
