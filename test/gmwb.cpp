@@ -37,6 +37,7 @@
 #include <getopt.h>  // getopt_long
 #include <iomanip>   // setw
 #include <iostream>  // cout
+#include <memory>    // unique_ptr
 #include <numeric>   // accumulate
 #include <thread>    // thread
 #include <tuple>     // get
@@ -86,15 +87,21 @@ int Mmax = INT_MAX; //16; // Maximum control set partition size
 int Rmin = 0;
 int Rmax = 6; // Maximum level of refinement
 
+int realizedN = -1; // Realized timesteps
+Real target = 1.; // Target relative error for variable timestepping
+
 bool newton = false;
+bool variable = false; // Variable stepping does not work for anything other
+                       // than fully implicit!
 
 ////////////////////////////////////////////////////////////////////////////////
 // Solution grid
 ////////////////////////////////////////////////////////////////////////////////
 
-// Peter's grid
+// Grid
 RectilinearGrid2 grid(
-	Axis {
+	// Hand-picked axis, scaled by w0
+	(w0 / 100.) * Axis {
 		0., 5., 10., 15., 20., 25.,
 		30., 35., 40., 45.,
 		50., 55., 60., 65., 70., 72.5, 75., 77.5, 80., 82., 84.,
@@ -104,11 +111,14 @@ RectilinearGrid2 grid(
 		107., 108., 109., 110., 112., 114.,
 		116., 118., 120., 123., 126.,
 		130., 135., 140., 145., 150., 160., 175., 200., 225.,
-		250., 300., 500.,750., 1000.
+		250., 300., 500., 750., 1000.
 	},
-	Axis::range(0., 2., 100.)
+
+	// 51 points evenly spaced on [0, w0]
+	Axis::uniform(0., w0, 51)
 );
 
+// Automatically generated grid
 /*
 constexpr int points1 = 64;
 constexpr int points2 = 50;
@@ -159,10 +169,11 @@ inline Real Vminus(const Interpolant2 &V, Real t, Real W, Real A, Real q) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Infinitesimal generator
+// Operator to discretize
+// i.e. Lu + f, where L is the infinitesimal generator of process (W_t, A_t)
 ////////////////////////////////////////////////////////////////////////////////
 
-class InfinitesimalGenerator final : public RawControlledLinearSystem2_1 {
+class Discretizee final : public RawControlledLinearSystem2_1 {
 
 	const RectilinearGrid2 &grid;
 	const Real r, v, q;
@@ -173,7 +184,7 @@ class InfinitesimalGenerator final : public RawControlledLinearSystem2_1 {
 public:
 
 	template <typename G1>
-	InfinitesimalGenerator(
+	Discretizee(
 		G1 &grid,
 		Real interest,
 		Real volatility,
@@ -334,16 +345,33 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 	// Iteration tree
 	////////////////////////////////////////////////////////////////////////
 
-	ReverseConstantStepper stepper(
-		0.,    // Initial time
-		T,     // Expiry time
-		T / N  // Timestep size
-	);
+	unique_ptr<ReverseTimeIteration> stepper;
+
+	if(variable) {
+		stepper = unique_ptr<ReverseTimeIteration>(
+			(ReverseTimeIteration *)
+			new ReverseVariableStepper(
+				0.,    // Initial time
+				T,     // Expiry time
+				T / N, // Initial timestep size
+				target // Target error
+			)
+		);
+	} else {
+		stepper = unique_ptr<ReverseTimeIteration>(
+			(ReverseTimeIteration *)
+			new ReverseConstantStepper(
+				0.,    // Initial time
+				T,     // Expiry time
+				T / N  // Timestep size
+			)
+		);
+	}
 
 	// Tolerance iteration
 	ToleranceIteration toleranceIteration;
 	if(method != EXPLICIT) {
-		stepper.setInnerIteration(toleranceIteration);
+		stepper->setInnerIteration(toleranceIteration);
 	}
 
 	////////////////////////////////////////////////////////////////////////
@@ -355,30 +383,30 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 	////////////////////////////////////////////////////////////////////////
 
 	// Black-Scholes
-	InfinitesimalGenerator generator(
+	Discretizee discretizee(
 		grid, r, v, alpha,
 		!( method & SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS )
 	);
 
-	RectilinearGrid1 generatorControls( Axis { 0., G } );
-	MinPolicyIteration2_1 generatorPolicy(
+	RectilinearGrid1 stochasticControls( Axis { 0., G } );
+	MinPolicyIteration2_1 stochasticPolicy(
 		grid,
-		generatorControls,
-		generator
+		stochasticControls,
+		discretizee
 	);
-	generatorPolicy.setIteration(toleranceIteration);
+	stochasticPolicy.setIteration(toleranceIteration);
 
 	// What to discretize
 	LinearSystem *discretize;
 	if(method & SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS) {
-		discretize = &generator;
+		discretize = &discretizee;
 	} else {
-		discretize = &generatorPolicy;
+		discretize = &stochasticPolicy;
 	}
 
 	// Discretize
 	Discretization discretization(grid, *discretize);
-	discretization.setIteration(stepper);
+	discretization.setIteration(*stepper);
 
 	// Impulse withdrawal
 	RectilinearGrid1 impulseControls( Axis::range( 1. / M, 1. / M, 1. ) );
@@ -418,13 +446,15 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 	// Exercise events
 	////////////////////////////////////////////////////////////////////////
 
-	auto withdrawal = [=] (const Interpolant2 &V, Real W, Real A) {
+	auto withdrawal = [=,&stepper] (const Interpolant2 &V, Real W, Real A) {
 
 		// No withdrawal
 		Real best = V(W, A);
 
+		const Real dt = stepper->timestep();
+
 		// Contract withdrawal amount
-		const Real Gdt = G * T / N;
+		const Real Gdt = G * dt;
 
 		if(method & SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS) {
 			// Nonpenalty
@@ -476,7 +506,7 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 
 	if(method != IMPLICIT) {
 		for(int m = 0; m < N; ++m) {
-			stepper.add(
+			stepper->add(
 				// Time at which the event takes place
 				T / N * m,
 
@@ -515,7 +545,7 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 
 		// Initialize degenerate circular buffers
 		toleranceIteration.history = new Iteration::CB(1);
-		stepper           .history = new Iteration::CB(1);
+		stepper          ->history = new Iteration::CB(1);
 
 		// Tolerance loop
 		toleranceIteration.its.push_back(0);
@@ -542,18 +572,18 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 					initialTime,
 					*initial
 				));
-				stepper.history->clear();
-				stepper.history->push( make_tuple(
+				stepper->history->clear();
+				stepper->history->push( make_tuple(
 					texp,
 					current[n]
 				));
 
 				toleranceIteration.implicitTime = t;
-				stepper           .implicitTime = t;
+				stepper          ->implicitTime = t;
 
 				// Start nodes
 				toleranceIteration.startNodes();
-				stepper           .startNodes();
+				stepper          ->startNodes();
 
 				// Solve Ax=b
 				((LinearSolver *) &solver)->initialize(
@@ -565,7 +595,7 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 				);
 
 				// End nodes
-				stepper           .endNodes();
+				stepper          ->endNodes();
 				toleranceIteration.endNodes();
 
 				if(method != IMPLICIT) {
@@ -611,8 +641,8 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 		delete toleranceIteration.history;
 		toleranceIteration.history = nullptr;
 
-		delete stepper.history;
-		stepper.history = nullptr;
+		delete stepper->history;
+		stepper->history = nullptr;
 
 		delete [] current;
 		current = nullptr;
@@ -629,16 +659,16 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 		thread progress([&] () {
 			chrono::milliseconds duration( progressSleep );
 
-			while(stepper.nextTime() < 0.) {
+			while(stepper->nextTime() < 0.) {
 				// Idle state
 
 				this_thread::sleep_for( duration );
 			}
 
-			while(stepper.nextTime() != 0.) {
+			while(stepper->nextTime() != 0.) {
 				// Busy state
 
-				const Real progress = (T-stepper.nextTime())/T;
+				const Real progress = (T-stepper->nextTime())/T;
 
 				cerr << "[";
 				int pos = progressWidth * progress;
@@ -663,7 +693,7 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 		});
 		#endif
 
-		auto V = stepper.solve(
+		auto V = stepper->solve(
 			grid,   // Domain
 			payoff, // Initial condition
 			*root,  // Root of linear system tree
@@ -678,6 +708,9 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 
 	} // End policy iteration test
 	#endif
+
+	// Actual number of timesteps
+	realizedN = stepper->iterations().back();
 
 	////////////////////////////////////////////////////////////////////////
 	// Statistics
@@ -738,6 +771,7 @@ int main(int argc, char **argv) {
 			{ "semi-implicit", no_argument,       0, 0 },
 			{ "explicit"     , no_argument,       0, 0 },
 			{ "newton"       , no_argument,       0, 0 },
+			{ "variable"     , no_argument,       0, 0 },
 			{ "fair-fee"     , required_argument, 0, 0 },
 			{ nullptr        , 0,                 0, 0 }
 		};
@@ -772,6 +806,9 @@ int main(int argc, char **argv) {
 							newton = true;
 							break;
 						case 3:
+							variable = true;
+							break;
+						case 4:
 							alpha = atof(optarg);
 							break;
 						default:
@@ -779,6 +816,12 @@ int main(int argc, char **argv) {
 					}
 				break;
 			}
+		}
+
+		if(variable && method != IMPLICIT) {
+			cerr << "error: variable timestepping cannot be used "
+					"with a nonimplicit method" << endl;
+			return 1;
 		}
 	}
 
@@ -800,7 +843,7 @@ int main(int argc, char **argv) {
 	for(
 		int l = 0;
 		l <= Rmax;
-		++l, N *= 2, M *= 2
+		++l, N *= 2, M *= 2, target /= 2.
 	) {
 
 		if( l < Rmin ) {
@@ -886,7 +929,7 @@ int main(int argc, char **argv) {
 		cout
 			<< setw(td) << grid.size() << "\t"
 			<< setw(td) << tmp         << "\t"
-			<< setw(td) << N           << "\t"
+			<< setw(td) << realizedN   << "\t"
 			<< setw(td) << value       << "\t"
 			<< setw(td) << mean        << "\t"
 			<< setw(td) << sqrt(var)   << "\t"

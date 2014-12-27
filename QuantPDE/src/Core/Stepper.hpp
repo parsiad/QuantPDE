@@ -17,11 +17,11 @@ class ConstantStepper final : public TimeIteration<Forward> {
 
 	const Real dt;
 
+public:
+
 	virtual Real timestep() {
 		return dt;
 	}
-
-public:
 
 	/**
 	 * Constructor.
@@ -92,15 +92,15 @@ class VariableStepper final : public TimeIteration<Forward> {
 		_step = &VariableStepper::_step0;
 	}
 
-	virtual Real timestep() {
-		return (this->*_step)();
-	}
-
 	virtual int minimumLookback() const {
 		return 2;
 	}
 
 public:
+
+	virtual Real timestep() {
+		return (this->*_step)();
+	}
 
 	/**
 	 * Constructor.
@@ -140,4 +140,3 @@ typedef VariableStepper<true > ForwardVariableStepper;
 } // QuantPDE
 
 #endif
-

@@ -1460,8 +1460,6 @@ class TimeIteration : public Iteration {
 		return dt == dtPrevious;
 	}
 
-	virtual Real timestep() = 0;
-
 	Real initialTime() const;
 
 	Real terminalTime() const;
@@ -1474,6 +1472,12 @@ class TimeIteration : public Iteration {
 	Real startTime, endTime, dt, dtPrevious;
 
 public:
+
+	/**
+	 * Returns the size of the timestep to take.
+	 * @return Size of timestep.
+	 */
+	virtual Real timestep() = 0;
 
 	/**
 	 * Constructor.
@@ -1631,4 +1635,3 @@ typedef CombinedIteration<true > ForwardCombinedIteration;
 } // QuantPDE
 
 #endif
-

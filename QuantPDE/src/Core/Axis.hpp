@@ -205,6 +205,27 @@ public:
 		return axis;
 	}
 
+	/**
+	 * Scales the points on this axis by a constant.
+	 * @param axis The axis.
+	 * @param c The constant.
+	 */
+	friend Axis &&operator*(Axis &&axis, Real c) {
+		for(Index i = 0; i < axis.length; ++i) {
+			axis.n[i] *= c;
+		}
+		return std::move(axis);
+	}
+
+	/**
+	* Scales the points on this axis by a constant.
+	* @param c The constant.
+	* @param axis The axis.
+	*/
+	friend Axis &&operator*(Real c, Axis &&axis) {
+		return std::move(axis) * c;
+	}
+
 	template <Index> friend class RectilinearGrid;
 
 };
@@ -226,4 +247,3 @@ std::ostream &operator<<(std::ostream &os, const Axis &axis) {
 }
 
 #endif
-
