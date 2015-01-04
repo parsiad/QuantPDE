@@ -27,8 +27,10 @@ namespace QuantPDE {
  *                   \f$\mathbf{x}\f$.
  * @tparam ControlDimension The dimension of the Euclidean space associated with
  *                          \f$\mathbf{q}\f$.
+ * @tparam Negative If true, the sign is flipped so that the impulse is of the
+ *                  form \f$\mathcal{M}V - V\f$.
  */
-template <Index Dimension, Index ControlDimension>
+template <Index Dimension, Index ControlDimension, bool Negative = false>
 class Impulse final : public RawControlledLinearSystem<Dimension,
 		ControlDimension> {
 
@@ -156,6 +158,11 @@ public:
 		}
 
 		M.makeCompressed();
+
+		if(Negative) {
+			return M - grid.identity();
+		}
+
 		return grid.identity() - M;
 	}
 
@@ -182,8 +189,8 @@ public:
 			}
 
 			// Set value at node
-			*node = packAndCall<Dimension + ControlDimension>(
-					flow_t, args);
+			*node = (Negative ? -1. : 1.) * packAndCall<Dimension
+					+ ControlDimension>(flow_t, args);
 
 			++k;
 		}
@@ -213,6 +220,27 @@ typedef Impulse2<3> Impulse2_3;
 typedef Impulse3<1> Impulse3_1;
 typedef Impulse3<2> Impulse3_2;
 typedef Impulse3<3> Impulse3_3;
+
+template <Index ControlDimension>
+using NegativeImpulse1 = Impulse<1, ControlDimension, true>;
+
+template <Index ControlDimension>
+using NegativeImpulse2 = Impulse<2, ControlDimension, true>;
+
+template <Index ControlDimension>
+using NegativeImpulse3 = Impulse<3, ControlDimension, true>;
+
+typedef NegativeImpulse1<1> NegativeImpulse1_1;
+typedef NegativeImpulse1<2> NegativeImpulse1_2;
+typedef NegativeImpulse1<3> NegativeImpulse1_3;
+
+typedef NegativeImpulse2<1> NegativeImpulse2_1;
+typedef NegativeImpulse2<2> NegativeImpulse2_2;
+typedef NegativeImpulse2<3> NegativeImpulse2_3;
+
+typedef NegativeImpulse3<1> NegativeImpulse3_1;
+typedef NegativeImpulse3<2> NegativeImpulse3_2;
+typedef NegativeImpulse3<3> NegativeImpulse3_3;
 
 }
 

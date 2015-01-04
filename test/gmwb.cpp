@@ -93,6 +93,7 @@ Real target = 1.; // Target relative error for variable timestepping
 bool newton = false;
 bool variable = false; // Variable stepping does not work for anything other
                        // than fully implicit!
+bool quarter = false; // Quarter timestep on each refinement
 
 ////////////////////////////////////////////////////////////////////////////////
 // Solution grid
@@ -768,12 +769,13 @@ int main(int argc, char **argv) {
 	{
 		// Long option names
 		static struct option opts[] = {
-			{ "semi-implicit", no_argument,       0, 0 },
-			{ "explicit"     , no_argument,       0, 0 },
-			{ "newton"       , no_argument,       0, 0 },
-			{ "variable"     , no_argument,       0, 0 },
-			{ "fair-fee"     , required_argument, 0, 0 },
-			{ nullptr        , 0,                 0, 0 }
+			{ "semi-implicit"   , no_argument,       0, 0 },
+			{ "explicit"        , no_argument,       0, 0 },
+			{ "newton"          , no_argument,       0, 0 },
+			{ "variable"        , no_argument,       0, 0 },
+			{ "quarter-timestep", no_argument,       0, 0 },
+			{ "fair-fee"        , required_argument, 0, 0 },
+			{ nullptr           , 0,                 0, 0 }
 		};
 
 		int c;
@@ -809,6 +811,9 @@ int main(int argc, char **argv) {
 							variable = true;
 							break;
 						case 4:
+							quarter = true;
+							break;
+						case 5:
 							alpha = atof(optarg);
 							break;
 						default:
@@ -843,7 +848,7 @@ int main(int argc, char **argv) {
 	for(
 		int l = 0;
 		l <= Rmax;
-		++l, N *= 2, M *= 2, target /= 2.
+		++l, N *= (quarter ? 4 : 2), M *= 2, target /= 2.
 	) {
 
 		if( l < Rmin ) {
