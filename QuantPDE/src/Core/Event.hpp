@@ -109,6 +109,10 @@ class Event : public EventBase {
 		);
 	}
 
+#ifdef QUANT_PDE_DO_EVENT_PUBLIC
+public:
+#endif
+
 	virtual Vector doEvent(const Vector &vector) const {
 		return _doEvent(vector);
 	}
@@ -203,4 +207,3 @@ class NullEvent : public EventBase {
 }
 
 #endif
-

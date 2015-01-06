@@ -16,6 +16,7 @@
 #ifdef ITERATED_OPTIMAL_STOPPING
 	#define private public
 	#define protected public
+	#define QUANT_PDE_DO_EVENT_PUBLIC
 #endif
 
 #include <QuantPDE/Core>
@@ -549,6 +550,7 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 		stepper          ->history = new Iteration::CB(1);
 
 		// Tolerance loop
+		Event<2> event(withdrawal, grid);
 		toleranceIteration.its.push_back(0);
 		bool converged, first = true;
 		do {
@@ -600,7 +602,8 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 				toleranceIteration.endNodes();
 
 				if(method != IMPLICIT) {
-					// TODO: Apply event
+					// Apply event
+					current[n+1] = event.doEvent(current[n+1]);
 				}
 
 				if(!first && converged) {
@@ -610,7 +613,7 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 					const Vector *const a = &current [n+1];
 					const Vector *const b = &previous[n+1];
 
-					const Real tmp = relativeError(a, b);
+					const Real tmp = relativeError(*a, *b);
 
 					if(tmp > QuantPDE::tolerance) {
 						converged = false;
@@ -711,7 +714,11 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 	#endif
 
 	// Actual number of timesteps
+	#ifdef ITERATED_OPTIMAL_STOPPING
+	realizedN = N;
+	#else
 	realizedN = stepper->iterations().back();
+	#endif
 
 	////////////////////////////////////////////////////////////////////////
 	// Statistics
@@ -755,12 +762,18 @@ void printHeaders() {
 		cout << setw(td) << "Ratio";
 	}
 
+	cout << setw(td) << "Seconds";
+
 	cout << endl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char **argv) {
+
+	#ifdef ITERATED_OPTIMAL_STOPPING
+	cerr << "warning: compiled with iterated optimal stopping" << endl << endl;
+	#endif
 
 	////////////////////////////////////////////////////////////////////////
 	// Options
@@ -798,7 +811,7 @@ int main(int argc, char **argv) {
 					switch(index)
 					{
 						case 0:
-							method |=
+							method =
 					SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS;
 							break;
 						case 1:
@@ -828,6 +841,14 @@ int main(int argc, char **argv) {
 					"with a nonimplicit method" << endl;
 			return 1;
 		}
+
+		#ifdef ITERATED_OPTIMAL_STOPPING
+		if(method == SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS) {
+			cerr << "error: cannot use iterated optimal stopping with semi-implicit "
+					"method" << endl;
+			return 1;
+		}
+		#endif
 	}
 
 	////////////////////////////////////////////////////////////////////////
@@ -865,6 +886,8 @@ int main(int argc, char **argv) {
 
 		Real value, mean, var;
 		int max;
+
+		auto start = chrono::steady_clock::now();
 
 		if(newton) {
 			// Spacing
@@ -917,6 +940,9 @@ int main(int argc, char **argv) {
 			std::tie(value, mean, var, max) = solve(alpha);
 		}
 
+		auto end = chrono::steady_clock::now();
+		auto diff = end - start;
+
 		////////////////////////////////////////////////////////////////
 		// Print table rows
 		////////////////////////////////////////////////////////////////
@@ -943,10 +969,12 @@ int main(int argc, char **argv) {
 		;
 
 		if(!newton) {
-			cout << setw(td) << ratio;
+			cout << setw(td) << ratio << "\t";
 		}
 
-		cout << endl;
+		cout
+			<< setw(td) << chrono::duration <double> (diff).count() << endl
+			<< endl;
 
 		previousChange = change;
 		previousValue = value;
