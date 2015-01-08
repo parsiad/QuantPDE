@@ -603,7 +603,8 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 
 				if(method != IMPLICIT) {
 					// Apply event
-					current[n+1] = event.doEvent(current[n+1]);
+					current[n+1] = event.doEvent(
+							current[n+1]);
 				}
 
 				if(!first && converged) {
@@ -772,7 +773,8 @@ void printHeaders() {
 int main(int argc, char **argv) {
 
 	#ifdef ITERATED_OPTIMAL_STOPPING
-	cerr << "warning: compiled with iterated optimal stopping" << endl << endl;
+	cerr << "warning: compiled with iterated optimal stopping" << endl
+			<< endl;
 	#endif
 
 	////////////////////////////////////////////////////////////////////////
@@ -844,8 +846,8 @@ int main(int argc, char **argv) {
 
 		#ifdef ITERATED_OPTIMAL_STOPPING
 		if(method == SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS) {
-			cerr << "error: cannot use iterated optimal stopping with semi-implicit "
-					"method" << endl;
+			cerr << "error: cannot use iterated optimal stopping "
+					"with semi-implicit method" << endl;
 			return 1;
 		}
 		#endif
@@ -973,8 +975,8 @@ int main(int argc, char **argv) {
 		}
 
 		cout
-			<< setw(td) << chrono::duration <double> (diff).count() << endl
-			<< endl;
+			<< setw(td) << chrono::duration <double> (diff).count()
+			<< endl << endl;
 
 		previousChange = change;
 		previousValue = value;
