@@ -12,7 +12,9 @@
 
 #include <QuantPDE/Core>
 
-#include <cstdlib> // abs
+#include <cstdlib>  // abs
+#include <iomanip>  // setw
+#include <iostream> // cout, cerr
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,10 +31,10 @@ Real betaMin = 0.;
 Real betaMax = 0.2;
 
 // Number of points in space
-int n = 32;
+int N = 128;
 
 // Number of points for control
-int m = 4;
+int M = 4;
 
 // Cost of intervention is lambda * |zeta| + c (zeta is the intervention size)
 Real lambda = 1.;
@@ -40,6 +42,22 @@ Real c = 0.;
 
 // Effect of an intervention
 Real a = 1.;
+
+// Discount
+Real rho = 0.04;
+
+// Volatility
+Real v = 0.2;
+
+// Foreign interest rate
+Real rbar = 0.04;
+
+// Central parity
+Real m = 0.;
+
+int maxRefinement = 10;
+
+constexpr int td = 20;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,38 +82,47 @@ class Discretizee final : public RawControlledLinearSystem1_1 {
 
 	const RectilinearGrid1 &grid;
 
+	const Function1 F, N, M;
 	const Real rho, v, rbar, m;
+
+	// TODO: Nonconstant coefficients
 
 public:
 
-	template <typename G>
+	template <typename G, typename F1, typename F2, typename F3>
 	Discretizee(
 		G &grid,
+		F1 &&interestDifferentialEffect,
+		F2 &&interestDifferentialCost,
+		F3 &&exchangeRateCost,
 		Real discount,
 		Real volatility,
 		Real foreignInterestRate = 0.,
 		Real centralParity = 0.
 	) noexcept :
 		grid(grid),
-		rho(discount),
-		v(volatility),
-		rbar(foreignInterestRate),
-		m(centralParity)
+		F( std::forward<F1>(interestDifferentialEffect) ),
+		N( std::forward<F2>(interestDifferentialCost) ),
+		M( std::forward<F3>(exchangeRateCost) ),
+		rho( discount ),
+		v( volatility ),
+		rbar( foreignInterestRate ),
+		m( centralParity )
 	{
 	}
 
 	virtual Matrix A(Real time) {
-		Matrix M = grid.matrix();
-		M.reserve( IntegerVector::Constant(grid.size(), 3) );
+		Matrix A = grid.matrix();
+		A.reserve( IntegerVector::Constant(grid.size(), 3) );
 
 		// x axis
 		const Axis &x = grid[0];
 
 		// Control as a vector
-		const Vector &raw = controlled ? control(0) : zero;
+		const Vector &raw = control(0);
 
-		// Left boundary
-		// TODO
+		// Left boundary (derivatives disappear)
+		A.insert(0, 0) = rho;
 
 		// Interior point
 		for(Index i = 1; i < x.size() - 1; ++i) {
@@ -124,17 +151,16 @@ public:
 				beta_i  =  beta_common;
 			}
 
-			// TODO
-			M.insert(idx, idx - offset) = -alpha_i;
-			M.insert(idx, idx)          =  alpha_i + beta_i + rho;
-			M.insert(idx, idx + offset) = -beta_i;
+			A.insert(i, i - 1) = -alpha_i;
+			A.insert(i, i    ) =  alpha_i + beta_i + rho;
+			A.insert(i, i + 1) = -beta_i;
 		}
 
-		// Right boundary
-		// TODO
+		// Right boundary (derivatives disappear)
+		A.insert(x.size() - 1, x.size() - 1) = rho;
 
-		M.makeCompressed();
-		return M;
+		A.makeCompressed();
+		return A;
 	}
 
 	virtual Vector b(Real time) {
@@ -145,19 +171,17 @@ public:
 		// Control as a vector
 		const Vector &raw = control(0);
 
-		// Left boundary
-		// TODO
-
-		// Interior point
-		for(Index i = 1; i < x.size() - 1; ++i) {
+		// Interior and boundary points
+		for(Index i = 0; i < x.size(); ++i) {
 			b(i) = -( M(x[i] - m) + N(raw(i) - rbar) );
-			++k;
 		}
 
-		// Right boundary
-		// TODO
-
 		return b;
+	}
+
+	virtual bool isATheSame() const {
+		// TODO: Check the coefficients
+		return true;
 	}
 
 };
@@ -168,21 +192,10 @@ int main() {
 
 	RectilinearGrid1 grid(
 		// Uniform grid
-		/*
 		Axis::uniform(
 			-boundary,
 			+boundary,
-			n
-		)
-		*/
-
-		// Automagic grid
-		Axis::cluster(
-			-boundary,
-			+boundary,
-			n,
-			0., // Feature
-			5.  // Intensity
+			N
 		)
 	);
 
@@ -190,65 +203,88 @@ int main() {
 		Axis::uniform(
 			betaMin,
 			betaMax,
-			m
+			M
 		)
 	);
 
-	ToleranceIteration toleranceIteration;
+	for(int ref = 0; ref < maxRefinement; ++ref) {
 
-	////////////////////////////////////////////////////////////////////////
-	// Linear system tree
-	////////////////////////////////////////////////////////////////////////
+		ToleranceIteration toleranceIteration;
 
-	Discretizee discretizee;
+		////////////////////////////////////////////////////////////////
+		// Linear system tree
+		////////////////////////////////////////////////////////////////
 
-	// Policy iteration for stochastic control
-	MinPolicyIteration1_1 stochasticPolicy(
-		grid,               // Domain
-		stochasticControls, // Control grid
-		discretizee         // Lu - rho*u + f
-	);
-	stochasticPolicy.setIteration(toleranceIteration);
+		Discretizee discretizee(
+			grid,
+			[] (Real y) { return y  ; }, // F(y)
+			[] (Real y) { return y  ; }, // N(y)
+			[] (Real y) { return y*y; }, // M(y)
+			rho,
+			v,
+			rbar,
+			m
+		);
 
-	// Policy iteration for impulse control
-	Impulse1_1 impulseWithdrawal(
-		grid,             // Spatial grid
-		interventionCost, // Cost of an intervention
-		xplus             // State of exchange rate after intervention
-	);
-	MinPolicyIteration1_1 impulsePolicy(
-		grid,             // Domain
-		grid,             // Control grid
-		impulseWithdrawal // Impulse
-	);
-	impulsePolicy.setIteration(toleranceIteration);
+		// Policy iteration for stochastic control
+		MinPolicyIteration1_1 stochasticPolicy(
+			grid,               // Domain
+			stochasticControls, // Control grid
+			discretizee         // Lu - rho*u + f
+		);
+		stochasticPolicy.setIteration(toleranceIteration);
 
-	// Penalty method
-	PenaltyMethod penalty(
-		grid,             // Domain
-		stochasticPolicy, // Stochastic control component
-		impulsePolicy     // Impulse control component
-	);
-	penalty.setIteration(toleranceIteration);
+		// Policy iteration for impulse control
+			Impulse1_1 impulseWithdrawal(
+			grid,             // Spatial grid
+			interventionCost, // Cost of an intervention
+			xplus             // State of exchange rate after
+			                  // intervention
+		);
+		MinPolicyIteration1_1 impulsePolicy(
+			grid,             // Domain
+			grid,             // Control grid
+			impulseWithdrawal // Impulse
+		);
+		impulsePolicy.setIteration(toleranceIteration);
 
-	////////////////////////////////////////////////////////////////////////
-	// Running
-	////////////////////////////////////////////////////////////////////////
+		// Penalty method
+		PenaltyMethod penalty(
+			grid,             // Domain
+			stochasticPolicy, // Stochastic control component
+			impulsePolicy     // Impulse control component
+		);
+		penalty.setIteration(toleranceIteration);
 
-	BiCGSTABSolver solver;
-	auto psi = toleranceIteration.solve(
-		grid,                        // Domain
-		[=] (Real X) { return 0.; }, // Initial guess (zero everywhere)
-		penalty,                     // Root of linear system tree
-		solver                       // Linear system solver
-	);
+		////////////////////////////////////////////////////////////////
+		// Run
+		////////////////////////////////////////////////////////////////
 
-	////////////////////////////////////////////////////////////////////////
-	// Print solution
-	////////////////////////////////////////////////////////////////////////
+		BiCGSTABSolver solver;
+		auto u = toleranceIteration.solve(
+			grid,                        // Domain
+			[=] (Real x) { return 0.; }, // Initial guess (zero
+			                             // everywhere)
+			penalty,                     // Root of linear system
+			                             // tree
+			solver                       // Linear system solver
+		);
 
-	RectilinearGrid1 printGrid( Axis::uniform(-boundary, +boundary, 10) );
-	cout << accessor( printGrid, psi );
+		////////////////////////////////////////////////////////////////
+		// Print solution
+		////////////////////////////////////////////////////////////////
+
+		cout
+			<< setw(td) << -u(0.) << "\t"
+			<< setw(td) << toleranceIteration.iterations().back()
+			<< endl
+		;
+
+		// Refine grid and control set
+		grid = grid.refined();
+		stochasticControls = stochasticControls.refined();
+
+	}
 
 	return 0;
 
