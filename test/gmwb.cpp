@@ -976,7 +976,7 @@ int main(int argc, char **argv) {
 
 		cout
 			<< setw(td) << chrono::duration <double> (diff).count()
-			<< endl << endl;
+			<< endl;
 
 		previousChange = change;
 		previousValue = value;
