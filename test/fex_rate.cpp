@@ -256,6 +256,10 @@ int main() {
 		);
 		penalty.setIteration(toleranceIteration);
 
+		IterationNode *root;
+		//root = &stochasticPolicy;
+		root = &penalty;
+
 		////////////////////////////////////////////////////////////////
 		// Run
 		////////////////////////////////////////////////////////////////
@@ -265,7 +269,7 @@ int main() {
 			grid,                        // Domain
 			[=] (Real x) { return 0.; }, // Initial guess (zero
 			                             // everywhere)
-			penalty,                     // Root of linear system
+			*root,                       // Root of linear system
 			                             // tree
 			solver                       // Linear system solver
 		);
@@ -279,6 +283,17 @@ int main() {
 			<< setw(td) << toleranceIteration.iterations().back()
 			<< endl
 		;
+
+		/*
+		RectilinearGrid1 printGrid(
+			Axis::range(
+				-boundary,
+				.1,
+				+boundary
+			)
+		);
+		cout << accessor( printGrid, u ) << endl;
+		*/
 
 		// Refine grid and control set
 		grid = grid.refined();
