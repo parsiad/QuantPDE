@@ -126,8 +126,8 @@ constexpr int points1 = 64;
 constexpr int points2 = 50;
 
 RectilinearGrid2 grid(
-	Axis::cluster(0., 1000., points1, w0, 5.),
-	Axis::cluster(0.,  100., points2, w0, 5.)
+	Axis::cluster(0., w0, 1000., points1, 5.),
+	Axis::cluster(0., w0,  100., points2, 5.)
 );
 */
 
@@ -463,9 +463,9 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 
 			const Real beta = min(A, Gdt);
 
-			for(int i = 1; i <= M; ++i) {
-				const Real gamma = beta * i/M;
-				//const Real gamma = beta;
+			//for(int i = 1; i <= M; ++i) {
+				//const Real gamma = beta * i/M;
+				const Real gamma = beta;
 
 				const Real newValue =
 					 Vminus(V, 0., W, A, gamma / A     )
@@ -475,7 +475,7 @@ std::tuple<Real, Real, Real, int> solve(Real alpha) {
 				if(newValue > best) {
 					best = newValue;
 				}
-			}
+			//}
 
 		}
 
@@ -790,6 +790,8 @@ int main(int argc, char **argv) {
 			{ "variable"        , no_argument,       0, 0 },
 			{ "quarter-timestep", no_argument,       0, 0 },
 			{ "fair-fee"        , required_argument, 0, 0 },
+			{ "refinement-min"  , required_argument, 0, 0 },
+			{ "refinement-max"  , required_argument, 0, 0 },
 			{ nullptr           , 0,                 0, 0 }
 		};
 
@@ -831,11 +833,25 @@ int main(int argc, char **argv) {
 						case 5:
 							alpha = atof(optarg);
 							break;
+						case 6:
+							Rmin = atoi(optarg);
+							break;
+						case 7:
+							Rmax = atoi(optarg);
+							break;
 						default:
 							break;
 					}
 				break;
 			}
+		}
+
+		if(Rmin < 0 || Rmax < Rmin) {
+			cerr << "error: the minimum level of refinement must be"
+					" nonnegative and less than or equal to"
+					" the maximum level of refinement"
+					<< endl;
+			return 1;
 		}
 
 		if(variable && method != IMPLICIT) {
@@ -956,7 +972,7 @@ int main(int argc, char **argv) {
 
 		int tmp = M;
 		if(method == EXPLICIT) {
-			tmp *= 2;
+			//tmp *= 2;
 		}
 
 		cout

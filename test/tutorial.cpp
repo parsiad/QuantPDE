@@ -28,9 +28,9 @@ const Real K = 100.;
 RectilinearGrid1 grid(
     Axis::cluster(
         0.,     // Left-hand boundary
+        K,      // Feature to cluster nodes around
         10000., // Right-hand boundary
         64,     // Number of nodes
-        K,      // Feature to cluster nodes around
         5.      // Intensity with which to cluster around K
     )
 );
@@ -148,4 +148,3 @@ RectilinearGrid1 printGrid( Axis::range(0., 10., 200.) );
 cout << accessor( printGrid, V );
 
 } // main()
-

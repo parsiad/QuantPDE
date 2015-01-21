@@ -989,7 +989,8 @@ private:
 		LinearSolver &solver,
 		bool initialized
 	) {
-		assert(implicitTime >= 0.);
+		// TODO: Put this back in somehow
+		// assert(implicitTime >= 0.);
 		if(!initialized || !root.isATheSame()) {
 			solver.initialize( root.A(implicitTime) );
 		}
@@ -1194,7 +1195,8 @@ const Vector &IterationNode::iterand(int index) const {
 
 Real IterationNode::nextTime() const {
 	assert(iteration);
-	assert(iteration->implicitTime >= 0.);
+	// TODO: Put this back in somehow
+	// assert(iteration->implicitTime >= 0.);
 	return iteration->implicitTime;
 }
 

@@ -210,9 +210,9 @@ int main(int argc, char **argv) {
 	RectilinearGrid1 grid(
 		Axis::cluster(
 			0.,     // First node
+			strike, // Feature
 			last,   // Last node
 			32,     // Number of points
-			strike, // Feature
 			1.      // Intensity
 		)
 	);
@@ -353,4 +353,3 @@ int main(int argc, char **argv) {
 
 	return 0;
 }
-
