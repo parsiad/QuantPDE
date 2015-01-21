@@ -23,39 +23,6 @@ using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-#if 0
-class PutEvent : public EventBase {
-
-	const RectilinearGrid1 &grid;
-	Real K;
-
-	template <typename V>
-	Vector _doEvent(V &&vector) const {
-		Vector newVector = grid.vector();
-		const Axis &S = grid[0];
-		for( int i = 0 ; i < grid.size() ; ++i ) {
-			newVector(i) = max( vector(i), K - S[i] );
-		}
-		return newVector;
-	}
-
-	virtual Vector doEvent(const Vector &vector) const {
-		return _doEvent(vector);
-	}
-
-	virtual Vector doEvent(Vector &&vector) const {
-		return _doEvent(std::move(vector));
-	}
-
-public:
-
-	template <typename G>
-	PutEvent(G &grid, Real K) noexcept : grid(grid), K(K) {
-	}
-
-};
-#endif
-
 /**
  * Prints help to stderr.
  */
