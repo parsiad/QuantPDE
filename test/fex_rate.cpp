@@ -16,6 +16,7 @@
 #include <fstream>  // ofstream
 #include <iomanip>  // setw
 #include <iostream> // cout, cerr
+#include <limits>   // numeric_limits
 #include <string>   // to_string
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,16 +27,16 @@ using namespace std;
 ////////////////////////////////////////////////////////////////////////////////
 
 // The problem is solved on [-boundary, boundary]
-Real boundary = 7.; // log(1000) ~= 7
+Real boundary = 3.; // log(1000) ~= 7
 
 // Interest rate differential in [-betaMax, +betaMax]
-Real betaMax = 0.5;
+Real betaMax = 1;
 
 // Number of points in space (initial discretization)
 int gridPoints = 32;
 
 // Number of points for interest rate control (initial discretization)
-int controlPoints = 2;
+int controlPoints = 16;
 
 // Constants
 Real c_1 = 1.;
@@ -398,8 +399,17 @@ int main() {
 		// Write to file
 		////////////////////////////////////////////////////////////////
 
-		// Write to file
 		/*
+		// Controls
+		Vector beta = discretizee.control(0);
+		auto mask = penalty.constraintMask();
+		for(int i = 0; i < grid.size(); i++) {
+			if(mask[i]) {
+				beta(i) = numeric_limits<Real>::infinity();
+			}
+		}
+
+		// Write to file
 		RectilinearGrid1 printGrid(
 			Axis::uniform(
 				-boundary,

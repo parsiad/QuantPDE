@@ -27,6 +27,8 @@ typedef Eigen::SparseMatrix<Real>::Index Index;
 typedef Eigen::Matrix<Real, Eigen::Dynamic, 1> Vector;
 typedef Eigen::SparseMatrix<Real, Eigen::RowMajor> Matrix;
 
+typedef Eigen::SparseMatrix<Real>::InnerIterator MatrixInnerIterator;
+
 typedef Eigen::VectorXi IntegerVector;
 
 // BiCGSTAB with IncompleteLUT preconditioner
@@ -197,4 +199,3 @@ public:
 };
 
 }
-

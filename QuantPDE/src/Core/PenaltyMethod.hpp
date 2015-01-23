@@ -1,6 +1,8 @@
 #ifndef QUANT_PDE_CORE_PENALTY_METHOD_HPP
 #define QUANT_PDE_CORE_PENALTY_METHOD_HPP
 
+#include <vector>
+
 namespace QuantPDE {
 
 /**
@@ -64,6 +66,26 @@ public:
 		} else {
 			return left->b(t);
 		}
+	}
+
+	// Note: std::vector<bool> optimizes for space like std::bitset
+
+	/**
+	 * Creates a mask indicating where the right constraint is active.
+	 * @return An std::vector of bools.
+	 */
+	std::vector<bool> constraintMask() {
+		std::vector<bool> mask;
+		mask.reserve(domain->size());
+
+		auto v = rA * iterand(0) - rb;
+
+		for(Index i = 0; i < domain->size(); ++i) {
+			// Active constraint should be slightly negative
+			mask.push_back( v(i) < 0. );
+		}
+
+		return mask;
 	}
 
 };
@@ -222,4 +244,3 @@ typedef PenaltyMethodDifference<3> PenaltyMethodDifference3;
 } // QuantPDE
 
 #endif
-

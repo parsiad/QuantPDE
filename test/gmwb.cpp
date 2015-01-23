@@ -69,14 +69,17 @@ constexpr int IMPLICIT = 0;
 
 int method = 0;
 
-Real T = 10.; // 14.28;
+//Real T = 14.28;
+Real T = 10.;
 Real r = .05;
 Real v = .2;
 
-//Real alpha = 0.0138457882249;
-Real alpha = 0.013891; // 0.036; // Hedging fee
+//Real alpha = 0.036;
+//Real alpha = 0.0138458; // Computed in 2015-01-01
+Real alpha = 0.;
 
-Real G = 10.; // 7.; // Contract rate
+//Real G = 7.;
+Real G = 10.; // Contract rate
 Real kappa = 0.1; // Penalty rate
 
 Real w0 = 100.; // Initial value of the account

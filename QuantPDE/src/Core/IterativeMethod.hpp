@@ -679,13 +679,15 @@ class RawControlledLinearSystem : public ControlledLinearSystemBase {
 		return ControlDimension;
 	}
 
-protected:
+public:
 
+	/**
+	 * Returns the state of a particular control.
+	 * @param i The control index.
+	 */
 	const Vector &control(Index i) {
 		return inputs[i];
 	}
-
-public:
 
 	/**
 	 * Constructor.
