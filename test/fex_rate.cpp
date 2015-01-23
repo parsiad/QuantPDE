@@ -30,7 +30,7 @@ using namespace std;
 Real boundary = 3.; // log(1000) ~= 7
 
 // Interest rate differential in [-betaMax, +betaMax]
-Real betaMax = 1;
+Real betaMax = 0.5;
 
 // Number of points in space (initial discretization)
 int gridPoints = 32;
@@ -99,7 +99,7 @@ inline Real F(Real y) {
 }
 
 /**
-* Cost of exchange ate differential.
+* Cost of exchange rate differential.
 */
 inline Real M(Real y) {
 	return c_5 * y * y;

@@ -110,7 +110,7 @@ RectilinearGrid2 grid(
 		0., 5., 10., 15., 20., 25.,
 		30., 35., 40., 45.,
 		50., 55., 60., 65., 70., 72.5, 75., 77.5, 80., 82., 84.,
-		86., 88., 90.,91., 92., 93., 94., 95.,
+		86., 88., 90., 91., 92., 93., 94., 95.,
 		96., 97., 98., 99., 100.,
 		101., 102., 103., 104., 105., 106.,
 		107., 108., 109., 110., 112., 114.,
@@ -124,15 +124,13 @@ RectilinearGrid2 grid(
 );
 
 // Automatically generated grid
-/*
-constexpr int points1 = 64;
-constexpr int points2 = 50;
+/*constexpr int points1 = 65;
+constexpr int points2 = 51;
 
 RectilinearGrid2 grid(
-	Axis::cluster(0., w0, 1000., points1, 5.),
-	Axis::cluster(0., w0,  100., points2, 5.)
-);
-*/
+	Axis::cluster(0., w0, 1000., points1, 10.),
+	Axis::uniform(0., w0, points2)
+);*/
 
 ////////////////////////////////////////////////////////////////////////////////
 // Impulse functions
