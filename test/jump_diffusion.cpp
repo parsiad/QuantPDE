@@ -83,7 +83,7 @@ int main(int argc, char **argv) {
 	Real v  = .3;   // Volatility
 	Real q  = 0.;   // Dividend rate
 
-	Real l = 0.05;  // Mean jump arrival time
+	Real l = 0.05;  // Jump arrival rate
 	Real m = -.8;   // Mean jump amplitude
 	Real g = .42;   // Jump amplitude standard deviation
 
@@ -224,7 +224,7 @@ int main(int argc, char **argv) {
 		v, // Volatility
 		q, // Dividend rate
 
-		l, // Mean arrival time (once every ten years)
+		l, // Mean arrival time
 		lognormal(m, g) // Log-normal probability density
 	);
 
