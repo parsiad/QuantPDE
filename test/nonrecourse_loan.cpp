@@ -12,7 +12,7 @@
 using namespace QuantPDE;
 using namespace QuantPDE::Modules;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 #include <algorithm> // min
 #include <iomanip>   // setw
@@ -21,11 +21,11 @@ using namespace QuantPDE::Modules;
 
 using namespace std;
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 Real S_0             = 100.;  // Initial stock value
-Real L_0             = 120.;  // Representative value of L
-                              // Pick \hat{L} = L_0 (initial value of loan)
+Real L_0             = 120.;  // Initial loan value
+Real L_hat           = 100.;  // Representative value of L
 
 Real r               = 0.04;  // Interest rate
 Real s               = 0.;    // Spread
@@ -40,36 +40,41 @@ Real beta_hi         = 0.9;   // High trigger
 
 Real T               = 1.;    // Expiry
 
-int borrowerEvents   = 252;   // Daily chance to walk-away or repay the loan
-int bankEvents       = 252;   // Daily request to top-up or chance to liquidate
-int interestPayments = 12;    // Monthly interest payments
+int borrowerEvents   = 12;    // Walk-away or repay the loan
+int bankEvents       = 12;    // Request top-up or liquidate
+int interestPayments = 12;    // Interest payments
 
-int N_0              = 100;   // Initial number of steps
+int N_0              = 48;    // Initial number of steps
 int maxRefinement    = 8;     // Maximum number of times to refine
 
-bool newton          = false; // Newton iteration to find optimal spread
+bool newton          = false; // TODO: Newton iteration to find optimal spread
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 std::vector<Real> interestPaymentDates; // Sorted (ascending) vector of interest
                                         // payment dates
 
 // Payoff for fixed \hat{L}
 Real payoff(Real S) {
-	return min(S, L_0);
+	return min(S, L_hat);
 }
 
-// Accrued interest
-Real A(Real t) {
+// Accrued interest A(t)
+Real accruedInterest(Real t) {
 	// Binary search for interest payment date
 	int lo = 0;
 	int hi = interestPaymentDates.size() - 1;
-	while(lo < hi - 1) {
-		int mid = (lo + hi) / 2;
-		if(t <= interestPaymentDates[mid]) {
-			hi = mid;
-		} else {
-			lo = mid;
+
+	if(t > interestPaymentDates[hi]) {
+		lo = hi;
+	} else {
+		while(lo < hi - 1) {
+			int mid = (lo + hi) / 2;
+			if(t <= interestPaymentDates[mid]) {
+				hi = mid;
+			} else {
+				lo = mid;
+			}
 		}
 	}
 
@@ -80,7 +85,7 @@ Real A(Real t) {
 	return A_t;
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 constexpr int td = 20;
 
@@ -111,7 +116,7 @@ int main(int argc, char **argv) {
 		for(int i = 0; i <= interestPayments; ++i) {
 			interestPaymentDates.push_back(dt * i);
 		}
-	} // Checked 2015-02-28
+	} // 2015-02-28: checked
 
 	// Hand-picked grid, scaled by S_0
 	RectilinearGrid1 grid(
@@ -160,6 +165,9 @@ int main(int argc, char **argv) {
 	for(int i = 1; i <= borrowerEvents; ++i) {
 		const Real t_i = dt * i;
 
+		// Accrued interest
+		const Real A = accruedInterest(t_i - epsilon);
+
 		// TODO: If the borrower event occurs after an interest
 		//       payment, we need to change A(t_i)
 
@@ -169,8 +177,7 @@ int main(int argc, char **argv) {
 		stepper.add(
 			t_i,
 			[=] (const Interpolant1 &U, Real S) {
-				const Real A_t_i = A(t_i - epsilon);
-				return min( U(S), min(L_0 * A_t_i, S) );
+				return min( U(S), min(L_hat * A, S) );
 			},
 			grid
 		);
@@ -191,10 +198,13 @@ int main(int argc, char **argv) {
 		// Time at which interest payment takes place
 		const Real t_i = *it;
 
+		// Accrued interest
+		const Real A = accruedInterest(t_i);
+
 		stepper.add(
 			t_i,
 			[=] (const Interpolant1 &U, Real S) {
-				return U(S) + L_0 * (A(t_i) - 1.);
+				return U(S) + L_hat * (A - 1.);
 			},
 			grid
 		);
@@ -212,6 +222,9 @@ int main(int argc, char **argv) {
 	for(int i = 1; i <= bankEvents; ++i) {
 		const Real t_i = dt * i;
 
+		// Accrued interest
+		const Real A = accruedInterest(t_i + epsilon);
+
 		stepper.add(
 			t_i,
 			[=] (const Interpolant1 &U, Real S) {
@@ -219,41 +232,46 @@ int main(int argc, char **argv) {
 				Real best = U(S);
 
 				// Value-to-loan ratio
-				const Real Rinv = S / L_0;
+				const Real Rinv = S / L_hat;
 
 				// R is below low trigger
 				if(Rinv <= beta_lo) {
-					const Real A_t_i = A(t_i + epsilon);
 
 					// Option to liquidate
-					const Real liquidate = min(
-						L_0 * A_t_i,
-						S
-					);
-					if(liquidate > best) {
-						best = liquidate;
+					const Real newPos = min(L_hat * A, S);
+					if(newPos > best) {
+						best = newPos;
 					}
 
 				// R is between low and high triggers
 				} else if(Rinv <= beta_hi) {
-					const Real A_t_i = A(t_i + epsilon);
 
-					// Top-up with shares
-					const Real X = U(S_0);
-					if(X > best) {
-						best = X;
+					const Real R_0 = L_0 / S_0;
+
+					{ // Top-up with shares
+						const Real newPos =
+								U(L_hat / R_0);
+						if(newPos > best) {
+							best = newPos;
+						}
 					}
 
 					// Top-up with cash
-					// Note: similarity reduction here only
-					//       works if \hat{L} = L_0!
-					const Real S_ret = S / S_0;
-					const Real Y = S_ret * U(S_0) + L_0
-							* (1 - S_ret) * A_t_i;
-					if(Y > best) {
-						best = Y;
+					if(S < epsilon) {
+						const Real newPos = L_hat * A;
+						if(newPos > best) {
+							best = newPos;
+						}
+					} else {
+						const Real newPos =
+							L_hat / (S * R_0)
+							* U(L_hat / R_0)
+							+ (L_hat - S * R_0) * A
+						;
+						if(newPos > best) {
+							best = newPos;
+						}
 					}
-
 				}
 
 				return best;
@@ -294,7 +312,10 @@ int main(int argc, char **argv) {
 
 	////////////////////////////////////////////////////////////////////////
 
-	Real value = U(S_0);
+	// Similarity reduction
+	const Real alpha = L_hat / L_0;
+	Real value = U(alpha * S_0) / alpha;
+	// 2015-02-28: checked; without events, gives put price with K = L_0
 
 	Real
 		change = value - previousValue,
