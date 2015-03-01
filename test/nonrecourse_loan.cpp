@@ -15,6 +15,7 @@ using namespace QuantPDE::Modules;
 ///////////////////////////////////////////////////////////////////////////////
 
 #include <algorithm> // min
+#include <iomanip>   // setw
 #include <iostream>  // cout, cerr
 #include <cmath>     // exp
 
@@ -22,28 +23,31 @@ using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-Real S_0             = 100.; // Initial stock value
+Real S_0             = 100.;  // Initial stock value
+Real L_0             = 120.;  // Representative value of L
+                              // Pick \hat{L} = L_0 (initial value of loan)
 
-Real r               = 0.04; // Interest rate
-Real s               = 0.;   // Spread
-Real sigma           = 0.2;  // Volatility
+Real r               = 0.04;  // Interest rate
+Real s               = 0.;    // Spread
+Real sigma           = 0.2;   // Volatility
 
-Real lambda          = 0.05; // Jump arrival rate
-Real mu_xi           = -.8;  // Mean jump amplitude
-Real sigma_xi        = .42;  // Jump amplitude standard deviation
+Real lambda          = 0.05;  // Jump arrival rate
+Real mu_xi           = -.8;   // Mean jump amplitude
+Real sigma_xi        = .42;   // Jump amplitude standard deviation
 
-Real L_hat           = 100.; // Representative value of L
-                             // Pick \hat{L} = L_0 (initial value of loan)
+Real beta_lo         = 0.7;   // Low trigger
+Real beta_hi         = 0.9;   // High trigger
 
-Real beta_lo         = 0.5;  // Low trigger
-Real beta_hi         = 0.75; // High trigger
+Real T               = 1.;    // Expiry
 
-Real T               = 1.;   // Expiry
-int N                = 100;  // Initial number of steps
+int borrowerEvents   = 252;   // Daily chance to walk-away or repay the loan
+int bankEvents       = 252;   // Daily request to top-up or chance to liquidate
+int interestPayments = 12;    // Monthly interest payments
 
-int borrowerEvents   = 252;  // Daily chance to walk-away or repay the loan
-int bankEvents       = 252;  // Daily request to top-up or chance to liquidate
-int interestPayments = 12;   // Monthly interest payments
+int N_0              = 100;   // Initial number of steps
+int maxRefinement    = 8;     // Maximum number of times to refine
+
+bool newton          = false; // Newton iteration to find optimal spread
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -51,9 +55,11 @@ std::vector<Real> interestPaymentDates; // Sorted (ascending) vector of interest
                                         // payment dates
 
 // Payoff for fixed \hat{L}
-Real payoff(Real S) { return min(S, L_hat); }
+Real payoff(Real S) {
+	return min(S, L_0);
+}
 
-// Across interest payment dates
+// Accrued interest
 Real A(Real t) {
 	// Binary search for interest payment date
 	int lo = 0;
@@ -67,19 +73,45 @@ Real A(Real t) {
 		}
 	}
 
-	// lo = t_{i-1}
-	return exp( (r + s) * (t - lo) );
+	// Previous interest payment time
+	const Real t_previous = interestPaymentDates[lo];
+
+	const Real A_t = exp( (r + s) * (t - t_previous) );
+	return A_t;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
+constexpr int td = 20;
+
+void printHeaders() {
+	cout
+		<< setw(td) << "Nodes"           << "\t"
+		<< setw(td) << "Time Steps"      << "\t"
+		<< setw(td) << "Value"           << "\t"
+		<< setw(td) << "Change"          << "\t"
+	;
+
+	if(!newton) {
+		cout << setw(td) << "Ratio";
+	}
+
+	cout << endl;
+}
+
 int main(int argc, char **argv) {
-	// Constant step-size
-	ReverseConstantStepper stepper(
-		0., // Initial time
-		T,  // Expiry time
-		T/N // Timestep size
-	);
+	cout.precision(12); // Precision
+	printHeaders();
+
+	// Populate vector of interest payment dates
+	{
+		const Real dt = T / interestPayments;
+
+		interestPaymentDates.reserve(interestPayments);
+		for(int i = 0; i <= interestPayments; ++i) {
+			interestPaymentDates.push_back(dt * i);
+		}
+	} // Checked 2015-02-28
 
 	// Hand-picked grid, scaled by S_0
 	RectilinearGrid1 grid(
@@ -97,15 +129,19 @@ int main(int argc, char **argv) {
 		}
 	);
 
-	// Populate vector of interest payment dates
-	{
-		const Real dt = T / interestPayments;
+	Real previousValue = nan(""), previousChange = nan("");
+	for(
+		int N = N_0, refinement = 0;
+		refinement < maxRefinement;
+		++refinement, N *= 2
+	) { // <RefinementLoop>
 
-		interestPaymentDates.reserve(interestPayments);
-		for(int i = 1; i <= interestPayments; ++i) {
-			interestPaymentDates.push_back(dt * interestPayments);
-		}
-	}
+	// Constant step-size
+	ReverseConstantStepper stepper(
+		0., // Initial time
+		T,  // Expiry time
+		T/N // Timestep size
+	);
 
 	////////////////////////////////////////////////////////////////////////
 
@@ -133,10 +169,8 @@ int main(int argc, char **argv) {
 		stepper.add(
 			t_i,
 			[=] (const Interpolant1 &U, Real S) {
-				return min(
-					U(S),                  // Continue
-					min(L_hat * A(t_i), S) // Walk away
-				);
+				const Real A_t_i = A(t_i - epsilon);
+				return min( U(S), min(L_0 * A_t_i, S) );
 			},
 			grid
 		);
@@ -148,18 +182,19 @@ int main(int argc, char **argv) {
 
 	{ // <InterestPayment>
 
-	// Time between interest payments
-	const Real dt = T / interestPayments;
-
 	// Add interest payment events (skip initial time)
-	for(int i = 1; i <= interestPayments; ++i) {
+	for(
+		auto it = interestPaymentDates.begin() + 1;
+		it != interestPaymentDates.end();
+		++it
+	) {
 		// Time at which interest payment takes place
-		const Real t_i = dt * i;
+		const Real t_i = *it;
 
 		stepper.add(
 			t_i,
 			[=] (const Interpolant1 &U, Real S) {
-				return U(S) + L_hat * (A(t_i) - 1.);
+				return U(S) + L_0 * (A(t_i) - 1.);
 			},
 			grid
 		);
@@ -183,15 +218,16 @@ int main(int argc, char **argv) {
 				// Continuation value
 				Real best = U(S);
 
-				// Loan-to-value ratio
-				const Real R = L_hat / S;
+				// Value-to-loan ratio
+				const Real Rinv = S / L_0;
 
 				// R is below low trigger
-				if(R <= beta_lo) {
+				if(Rinv <= beta_lo) {
+					const Real A_t_i = A(t_i + epsilon);
 
 					// Option to liquidate
 					const Real liquidate = min(
-						L_hat * A(t_i),
+						L_0 * A_t_i,
 						S
 					);
 					if(liquidate > best) {
@@ -199,7 +235,8 @@ int main(int argc, char **argv) {
 					}
 
 				// R is between low and high triggers
-				} else if(R <= beta_hi) {
+				} else if(Rinv <= beta_hi) {
+					const Real A_t_i = A(t_i + epsilon);
 
 					// Top-up with shares
 					const Real X = U(S_0);
@@ -210,9 +247,9 @@ int main(int argc, char **argv) {
 					// Top-up with cash
 					// Note: similarity reduction here only
 					//       works if \hat{L} = L_0!
-					const Real Y = S / S_0 * U(S_0)
-							+ L_hat * (1 - S / S_0)
-							* A(t_i);
+					const Real S_ret = S / S_0;
+					const Real Y = S_ret * U(S_0) + L_0
+							* (1 - S_ret) * A_t_i;
 					if(Y > best) {
 						best = Y;
 					}
@@ -255,7 +292,31 @@ int main(int argc, char **argv) {
 		solver  // Linear system solver
 	);
 
-	// Solution for L = L_hat
-	RectilinearGrid1 printGrid( Axis::range(0., 10., 200.) );
-	cout << accessor( printGrid, U );
+	////////////////////////////////////////////////////////////////////////
+
+	Real value = U(S_0);
+
+	Real
+		change = value - previousValue,
+		ratio = previousChange / change
+	;
+
+	cout
+		<< setw(td) << grid.size() << "\t"
+		<< setw(td) << N           << "\t"
+		<< setw(td) << value       << "\t"
+		<< setw(td) << change      << "\t"
+		<< setw(td) << ratio       << "\t"
+		<< endl
+	;
+
+	previousChange = change;
+	previousValue = value;
+
+	////////////////////////////////////////////////////////////////////////
+
+	// Refine the grid
+	grid = grid.refined();
+
+	} // </RefinementLoop>
 }
