@@ -14,7 +14,8 @@ using namespace QuantPDE::Modules;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#include <algorithm> // min
+#include <algorithm> // max, min
+#include <chrono>    // duration
 #include <iomanip>   // setw
 #include <iostream>  // cout, cerr
 #include <cmath>     // exp
@@ -31,7 +32,7 @@ Real L_0             = 100.;  // Initial loan value
 Real L_hat           = 100.;  // Representative value of L
 
 Real r               = 0.04;  // Interest rate
-Real s               = 0.02;  // Spread
+Real s               = 0.021;  // Spread
 Real sigma           = 0.2;   // Volatility
 
 Real lambda          = 0.05;  // Jump arrival rate
@@ -43,10 +44,10 @@ Real T               = 1.;    // Expiry
 int events           = -1;    // Bank and borrower events (-1 for all times)
 int interestPayments = 12;    // Interest payments
 
-int N_0              = 12;    // Initial number of steps
+int N                = 12;    // Initial number of steps
 int maxRefinement    = 8;     // Maximum number of times to refine
 
-bool newton          = false; // TODO: Newton iteration to find optimal spread
+bool fairSpread      = false;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,10 +85,33 @@ Real accruedInterest(Real t) {
 	return A_t;
 }
 
+// Hand-picked grid
+// TODO: Make this more robust; place nodes at S_0 and L_0
+RectilinearGrid1 grid(
+	(S_0 / 100.) * Axis {
+		0., 10., 20., 30., 40., 50., 60., 70.,
+		75., 80.,
+		84., 88., 92.,
+		94., 96., 98., 100., 102., 104., 106., 108., 110.,
+		114., 118.,
+		123.,
+		130., 140., 150.,
+		175.,
+		225.,
+		300.,
+		750.,
+		2000.,
+		10000.
+	}
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr int td = 20;
 
+/**
+ * Print headers.
+ */
 void printHeaders() {
 	cout
 		<< setw(td) << "Nodes"           << "\t"
@@ -96,55 +120,18 @@ void printHeaders() {
 		<< setw(td) << "Change"          << "\t"
 	;
 
-	if(!newton) {
+	if(!fairSpread) {
 		cout << setw(td) << "Ratio";
 	}
 
 	cout << endl;
 }
 
-int main(int argc, char **argv) {
-	cout.precision(12); // Precision
-	printHeaders();
-
-	// Populate vector of interest payment dates
-	{
-		interestPaymentDates.reserve(interestPayments);
-		const Real dt = T / interestPayments;
-
-		interestPaymentDates.reserve(interestPayments);
-		for(int i = 0; i <= interestPayments; ++i) {
-			interestPaymentDates.push_back(dt * i);
-		}
-	} // 2015-02-28: checked
-
-	// Hand-picked grid
-	// TODO: Make this more robust; place nodes at S_0 and L_0
-	RectilinearGrid1 grid(
-		(S_0 / 100.) * Axis {
-			0., 10., 20., 30., 40., 50., 60., 70.,
-			75., 80.,
-			84., 88., 92.,
-			94., 96., 98., 100., 102., 104., 106., 108., 110.,
-			114., 118.,
-			123.,
-			130., 140., 150.,
-			175.,
-			225.,
-			300.,
-			750.,
-			2000.,
-			10000.
-		}
-	);
-
-	Real previousValue = nan(""), previousChange = nan("");
-	for(
-		int N = N_0, refinement = 0;
-		refinement < maxRefinement;
-		++refinement, N *= 2
-	) { // <RefinementLoop>
-
+/**
+ * Solve the nonrecourse stock loan problem with fixed spread.
+ * @param s Spread.
+ */
+Real solve(Real s) {
 	// Constant step-size
 	ReverseConstantStepper stepper(
 		0., // Initial time
@@ -157,7 +144,7 @@ int main(int argc, char **argv) {
 	// Order of events (forward in time)
 	// 1. Borrower: walk-away or repay
 	// 2. Bank: top-up or liquidate
-	// 3. Interest payment and (TODO) dividends
+	// 3. Interest payment
 
 	// Apply events at all times
 	if(events < 0) { events = N; }
@@ -283,6 +270,8 @@ int main(int argc, char **argv) {
 
 	} // </InterestPayment>
 
+	// TODO: Dividends
+
 	////////////////////////////////////////////////////////////////////////
 
 	// Jump-diffusion operator
@@ -316,31 +305,81 @@ int main(int argc, char **argv) {
 
 	// Similarity reduction
 	const Real alpha = L_hat / L_0;
-	Real value = U(alpha * S_0) / alpha;
+	const Real value = U(alpha * S_0) / alpha;
 	// 2015-02-28: checked; without events, exp(-r * T) * L_0 - value is the
 	//                      price (at t=0) of a put with strike L_0
 
-	Real
-		change = value - previousValue,
-		ratio = previousChange / change
-	;
+	return value;
+}
 
-	cout
-		<< setw(td) << grid.size() << "\t"
-		<< setw(td) << N           << "\t"
-		<< setw(td) << value       << "\t"
-		<< setw(td) << change      << "\t"
-		<< setw(td) << ratio       << "\t"
-		<< endl
-	;
+int main(int argc, char **argv) {
+	cout.precision(12); // Precision
+	printHeaders();
 
-	previousChange = change;
-	previousValue = value;
+	// Populate vector of interest payment dates
+	{
+		interestPaymentDates.reserve(interestPayments);
+		const Real dt = T / interestPayments;
 
-	////////////////////////////////////////////////////////////////////////
+		interestPaymentDates.reserve(interestPayments);
+		for(int i = 0; i <= interestPayments; ++i) {
+			interestPaymentDates.push_back(dt * i);
+		}
+	} // 2015-02-28: checked
 
-	// Refine the grid
-	grid = grid.refined();
+	Real value, previousValue = nan(""), previousChange = nan("");
+	for(
+		int refinement = 0;
+		refinement < maxRefinement;
+		++refinement, N *= 2
+	) { // <RefinementLoop>
+		auto start = chrono::steady_clock::now();
+
+		if(fairSpread) {
+			// TODO: Calculuate fair spread
+			throw 1;
+
+			// Print headers
+			printHeaders();
+		} else {
+			// Just give the value
+			value = solve(s);
+		}
+
+		auto end = chrono::steady_clock::now();
+		auto diff = end - start;
+
+		////////////////////////////////////////////////////////////////
+		// Print table rows
+		////////////////////////////////////////////////////////////////
+
+		Real
+			change = value - previousValue,
+			ratio = previousChange / change
+		;
+
+		cout
+			<< setw(td) << grid.size() << "\t"
+			<< setw(td) << N           << "\t"
+			<< setw(td) << value       << "\t"
+			<< setw(td) << change      << "\t"
+		;
+
+		if(!fairSpread) {
+			cout << setw(td) << ratio << "\t";
+		}
+
+		cout
+			<< setw(td) << chrono::duration <double> (diff).count()
+			<< endl;
+
+		previousChange = change;
+		previousValue = value;
+
+		////////////////////////////////////////////////////////////////
+
+		// Refine grid
+		grid = grid.refined();
 
 	} // </RefinementLoop>
 }
