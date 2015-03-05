@@ -96,8 +96,8 @@ int main(int argc, char **argv) {
 	Real dividends      = 0.;
 	Real asset          = 100.;
 	Real strike         = 100.;
-	int  refinement     = 5;
-	int  steps          = 25;
+	int  maxRefinement  = 5;
+	int  steps          = 12;
 	bool call           = true;
 	bool variable       = false;
 	bool american       = false;
@@ -139,8 +139,8 @@ int main(int argc, char **argv) {
 				interest = atof(optarg);
 				break;
 			case 'R':
-				refinement = atoi(optarg);
-				if(refinement < 0) {
+				maxRefinement = atoi(optarg);
+				if(maxRefinement < 0) {
 					cerr <<
 "error: the maximum level of refinement must be nonnegative" << endl;
 					return 1;
@@ -186,7 +186,7 @@ int main(int argc, char **argv) {
 
 	// Initial discretization
 	// TODO: Create grid based on initial stock price and strike price
-	RectilinearGrid1 grid(
+	RectilinearGrid1 initialGrid(
 		Axis {
 			0., 10., 20., 30., 40., 50., 60., 70.,
 			75., 80.,
@@ -221,15 +221,15 @@ int main(int argc, char **argv) {
 	// Payoff function
 	Function1 payoff = call ? callPayoff(strike) : putPayoff(strike);
 
-	unsigned pow2l = 1; // 2^l
-	for(int l = 0; l < refinement; ++l) {
+	unsigned factor = 1; // factor *= 2 or 4 at every step
+	for(int ref = 0; ref < maxRefinement; ++ref) {
 
 		///////////////////////////////////////////////////////////////
-		// Build spatial grid
+		// Refine spatial grid
 		///////////////////////////////////////////////////////////////
 
-		// Refine the grid
-		grid = grid.refined();
+		// Refine the grid ref times
+		auto grid = initialGrid.refined( ref );
 
 		///////////////////////////////////////////////////////////////
 		// Solve problem
@@ -250,13 +250,13 @@ int main(int argc, char **argv) {
 				? (Iteration *) new ReverseVariableStepper(
 					0.,                       // startTime
 					expiry,                   // endTime
-					expiry / steps / pow2l,   // dt
-					target / pow2l            // target
+					expiry / steps / factor,   // dt
+					target / factor            // target
 				)
 				: (Iteration *) new ReverseConstantStepper(
 					0.,                     // startTime
 					expiry,                 // endTime
-					expiry / steps / pow2l  // dt
+					expiry / steps / factor  // dt
 				)
 			);
 
@@ -343,11 +343,11 @@ int main(int argc, char **argv) {
 		previousChange = change;
 		previousValue = value;
 
-		pow2l *= 2;
+		factor *= 2;
 
 		// Decrease by 4 at each step
 		if(quadratic) {
-			pow2l *= 2;
+			factor *= 2;
 		}
 	}
 

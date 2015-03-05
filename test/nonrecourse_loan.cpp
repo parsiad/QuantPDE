@@ -48,7 +48,14 @@ int interestPayments = 4;     // Interest payments (once a quarter)
 int N                = 12;    // Initial number of steps
 int maxRefinement    = 10;    // Maximum number of times to refine
 
-bool fairSpread      = false; // Calculate fair spread
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr int PLOT_DATA      = 1 << 0; // Output plotting data
+constexpr int FAIR_SPREAD    = 1 << 1; // Compute fair spread
+constexpr int VARYING_SPREAD = 1 << 2; // Output plotting data for varying
+                                       // spread (ignored if PLOT_DATA is off)
+
+int opts = 0; // Default: compute the value of the contract for fixed spread
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -116,7 +123,7 @@ Axis axis(Real C) {
 }
 
 // Initial grid
-RectilinearGrid1 grid( axis(S_0) );
+RectilinearGrid1 initialGrid( axis(S_0) );
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,7 +140,7 @@ void printHeaders() {
 		<< setw(td) << "Change"          << "\t"
 	;
 
-	if(!fairSpread) {
+	if(!(opts & FAIR_SPREAD)) {
 		cout << setw(td) << "Ratio";
 	}
 
@@ -146,7 +153,7 @@ void printHeaders() {
  * Solve the nonrecourse stock loan problem with fixed spread.
  * @param s Spread.
  */
-Real solve(Real s) {
+Real solve(RectilinearGrid1 &grid, Real s) {
 	// Constant step-size
 	ReverseConstantStepper stepper(
 		0.,   // Initial time
@@ -344,17 +351,26 @@ int main(int argc, char **argv) {
 		}
 	} // 2015-02-28: checked
 
+	//int minRefinement = 0;
+	if(opts & PLOT_DATA) {
+		// TODO: Advance to full refinement
+		throw 1;
+	}
+
 	Real value, previousValue = nan(""), previousChange = nan("");
-	for(
-		int refinement = 0;
-		refinement < maxRefinement;
-		++refinement, N *= 2
-	) { // <RefinementLoop>
+	for(int ref = 0; ref < maxRefinement; ++ref, N *= 2) {
+		// Refine grid ref times
+		auto grid = initialGrid.refined( ref );
+
 		auto start = chrono::steady_clock::now();
 
-		// TODO: Fair spread computation
-
-		value = solve(s);
+		if(opts & FAIR_SPREAD) {
+			// TODO: Fair spread computation
+			throw 1;
+		} else {
+			// Fixed spread computation
+			value = solve(grid, s);
+		}
 
 		auto end = chrono::steady_clock::now();
 		auto diff = end - start;
@@ -375,7 +391,7 @@ int main(int argc, char **argv) {
 			<< setw(td) << change      << "\t"
 		;
 
-		if(!fairSpread) {
+		if(!(opts & FAIR_SPREAD)) {
 			cout << setw(td) << ratio << "\t";
 		}
 
@@ -385,11 +401,7 @@ int main(int argc, char **argv) {
 
 		previousChange = change;
 		previousValue = value;
+	}
 
-		////////////////////////////////////////////////////////////////
-
-		// Refine grid
-		grid = grid.refined();
-
-	} // </RefinementLoop>
+	return 0;
 }

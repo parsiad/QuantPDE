@@ -158,7 +158,7 @@ int main(int argc, char **argv) {
 	// Spatial grid
 	////////////////////////////////////////////////////////////////////////
 
-	RectilinearGrid1 grid(
+	RectilinearGrid1 initialGrid(
 		Axis {
 			0., 10., 20., 30., 40., 50., 60., 70.,
 			75., 80.,
@@ -176,10 +176,8 @@ int main(int argc, char **argv) {
 		}
 	);
 
-	// Refine grid
-	for(int i = 0; i < R; ++i) {
-		grid = grid.refined();
-	}
+	// Refine grid R times
+	auto grid = initialGrid.refined( R );
 
 	////////////////////////////////////////////////////////////////////////
 	// Payoff

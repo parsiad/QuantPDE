@@ -104,8 +104,9 @@ bool quarter = false; // Quarter timestep on each refinement
 ////////////////////////////////////////////////////////////////////////////////
 
 // Grid
-RectilinearGrid2 grid(
+RectilinearGrid2 initialGrid(
 	// Hand-picked axis, scaled by w0
+	// Used in GMWB paper by Zhuliang and Forsyth
 	(w0 / 100.) * Axis {
 		0., 5., 10., 15., 20., 25.,
 		30., 35., 40., 45.,
@@ -342,7 +343,7 @@ public:
 constexpr int progressWidth = 70;
 constexpr int progressSleep = 100;
 
-std::tuple<Real, Real, Real, int> solve(Real alpha) {
+std::tuple<Real, Real, Real, int> solve(RectilinearGrid2 &grid, Real alpha) {
 
 	////////////////////////////////////////////////////////////////////////
 	// Iteration tree
@@ -886,16 +887,12 @@ int main(int argc, char **argv) {
 	////////////////////////////////////////////////////////////////////////
 
 	for(
-		int l = 0;
-		l <= Rmax;
-		++l, N *= (quarter ? 4 : 2), M *= 2, target /= 2.
+		int ref = 0;
+		ref <= Rmax;
+		++ref, N *= (quarter ? 4 : 2), M *= 2, target /= 2.
 	) {
 
-		if( l < Rmin ) {
-			// Refine grid
-			grid = grid.refined();
-			continue;
-		}
+		auto grid = initialGrid.refined( ref );
 
 		M = min(M, Mmax);
 
@@ -923,7 +920,8 @@ int main(int argc, char **argv) {
 
 			while(true) {
 				// f(alpha)
-				std::tie(value, mean, var, max) = solve(alpha);
+				std::tie(value, mean, var, max) =
+						solve(grid, alpha);
 				const Real f0 = value - w0;
 
 				cout
@@ -939,7 +937,7 @@ int main(int argc, char **argv) {
 				}
 
 				// f(alpha + epsilon)
-				auto tmp = solve(alpha + epsilon);
+				auto tmp = solve(grid, alpha + epsilon);
 				const Real f1 = std::get<0>(tmp) - w0;
 
 				// f'(alpha)
@@ -956,7 +954,7 @@ int main(int argc, char **argv) {
 			printHeaders();
 		} else {
 			// No Newton iteration
-			std::tie(value, mean, var, max) = solve(alpha);
+			std::tie(value, mean, var, max) = solve(grid, alpha);
 		}
 
 		auto end = chrono::steady_clock::now();
@@ -997,9 +995,6 @@ int main(int argc, char **argv) {
 
 		previousChange = change;
 		previousValue = value;
-
-		// Refine grid
-		grid = grid.refined();
 
 	}
 

@@ -1,9 +1,10 @@
 #ifndef QUANT_PDE_CORE_METAFUNCTIONS_HPP
 #define QUANT_PDE_CORE_METAFUNCTIONS_HPP
 
-#include <cstdint> // std::intmax_t
-#include <cstdlib> // std::size_t
-#include <utility> // std::forward
+#include <cstdint>     // std::intmax_t
+#include <cstdlib>     // std::size_t
+#include <type_traits> // std::true_type
+#include <utility>     // std::forward
 
 namespace QuantPDE {
 
@@ -120,6 +121,27 @@ struct Select<0, T, Args...> {
 	static inline const type &get(const T &a, const Args &...) {
 		return a;
 	}
+};
+/** @endcond */
+
+////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * TypePackIsT has a member value that is true if and only if all of the types
+ * appearing in the pack are of type T.
+ * @tparam T The type to check against.
+ * @tparam Ts The types to check.
+ */
+template <typename T, typename ...Ts>
+struct TypePackIsT { static constexpr bool value = false; };
+
+/** @cond QUANT_PDE_HIDDEN */
+template <typename T>
+struct TypePackIsT<T> { static constexpr bool value = true; };
+
+template <typename T, typename ...Ts>
+struct TypePackIsT<T, T, Ts...> {
+	static constexpr bool value = TypePackIsT<T, Ts...>::value;
 };
 /** @endcond */
 
@@ -370,4 +392,3 @@ struct is_placeholder< ::QuantPDE::NaryFunctionPlaceholder<N>> :
 /** @endcond */
 
 #endif
-

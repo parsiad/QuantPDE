@@ -256,7 +256,7 @@ int main() {
 
 	Real previousValue = nan(""), previousChange = nan("");
 
-	RectilinearGrid1 grid(
+	RectilinearGrid1 initialGrid(
 		// Uniform grid
 		Axis::uniform(
 			-boundary,
@@ -286,6 +286,9 @@ int main() {
 	;
 
 	for(int ref = 0; ref < maxRefinement; ++ref, controlPoints *= 2) {
+
+		// Refine the grid ref times
+		auto grid = initialGrid.refined( ref );
 
 		RectilinearGrid1 stochasticControls(
 			Axis::uniform(
@@ -422,13 +425,6 @@ int main() {
 		file << accessor( printGrid, u );
 		file.close();
 		*/
-
-		////////////////////////////////////////////////////////////////
-		// Refinements
-		////////////////////////////////////////////////////////////////
-
-		grid = grid.refined();
-
 	}
 
 	return 0;

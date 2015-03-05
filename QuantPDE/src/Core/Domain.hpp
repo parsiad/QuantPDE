@@ -1066,9 +1066,16 @@ public:
 	/**
 	 * A refined grid constructed as follows: for each pair of adjacent tick
 	 * on each axis, a new tick is placed in between them.
+	 * @param times Number of times to refine (default is 0).
 	 * @return A refined grid.
 	 */
-	RectilinearGrid refined() {
+	RectilinearGrid refined(int times = 1) {
+		// If no refinemenent is requested, return the original grid
+		assert(times >= 0);
+		if(times <= 0) {
+			return *this;
+		}
+
 		RectilinearGrid refined;
 
 		for(Index k = 0; k < Dimension; ++k) {
@@ -1077,12 +1084,36 @@ public:
 			const Axis &n = (*this)[k];
 			Axis &m = refined.axes[k];
 
+			// Old, single-refinement code
+			/*
 			m = Axis( n.size() * 2 - 1 );
 
 			m[0] = n[0];
 			Index i = 1, j = 1;
 			while(i < n.size()) {
 				m[j++] = ( n[i-1] + n[i] ) / 2.;
+				m[j++] = n[i++];
+			}
+			*/
+
+			// 2^(t - 1)
+			int tmp = 2;
+			for(int i = 1; i < times; ++i) {
+				tmp *= 2;
+			}
+
+			// Create axis; size 2^t * |n| - 2^(t-1)
+			const int size = tmp * (n.size() - 1) + 1;
+			m = Axis(size);
+
+			// Write nodes
+			m[0] = n[0];
+			Index i = 1, j = 1;
+			while(i < n.size()) {
+				const Real dx = ( n[i] - n[i-1] ) / tmp;
+				for(Index k = 1; k < tmp; ++k) {
+					m[j++] = k * dx + n[i-1];
+				}
 				m[j++] = n[i++];
 			}
 		}
@@ -1095,7 +1126,12 @@ public:
 	/**
 	 * Constructor.
 	 */
-	template <typename ...Ts>
+	template <
+		typename ...Ts,
+		typename = typename std::enable_if<
+			TypePackIsT<Axis, Ts...>::value
+		>::type
+	>
 	RectilinearGrid(Ts &&...axes) noexcept
 			: axes { std::forward<Ts>(axes)... } {
 		static_assert(Dimension == sizeof...(Ts),
@@ -1103,7 +1139,6 @@ public:
 				"with the dimensions");
 		initialize();
 	}
-
 
 	/**
 	 * Copy constructor.
@@ -1115,6 +1150,7 @@ public:
 			axes[i] = that.axes[i];
 		};
 	}
+
 	/**
 	 * Move constructor.
 	 */
@@ -1125,9 +1161,12 @@ public:
 		};
 	}
 
-	/**
-	 * Copy assignment operator.
-	 */
+	// 2015-03-05: Decided to remove operator assignment and move
+	//             construction; breaks immutability of domains.
+
+	RectilinearGrid &operator=(const RectilinearGrid &) = delete;
+
+	/*
 	RectilinearGrid &operator=(const RectilinearGrid &that) & noexcept {
 		vsize = that.vsize;
 
@@ -1139,9 +1178,6 @@ public:
 		return *this;
 	}
 
-	/**
-	 * Move assignment operator.
-	 */
 	RectilinearGrid &operator=(RectilinearGrid &&that) & noexcept {
 		vsize = that.vsize;
 
@@ -1152,6 +1188,7 @@ public:
 
 		return *this;
 	}
+	*/
 
 	////////////////////////////////////////////////////////////////////////
 
