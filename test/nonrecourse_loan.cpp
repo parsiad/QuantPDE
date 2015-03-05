@@ -29,37 +29,44 @@ Real beta_hi         = 0.9;   // High trigger
 
 Real S_0             = 125.;  // Initial stock value
 Real L_0             = 100.;  // Initial loan value
-Real L_hat           = 100.;  // Representative value of L
+Real L_hat           = 100.;  // Representative value
 
 Real r               = 0.04;  // Interest rate
-Real s               = 0.021;  // Spread
+Real s               = 0.02;  // Spread
 Real sigma           = 0.2;   // Volatility
 
-Real lambda          = 0.05;  // Jump arrival rate
+Real lambda          = 0.1;  // Jump arrival rate
 Real mu_xi           = -.8;   // Mean jump amplitude
 Real sigma_xi        = .42;   // Jump amplitude standard deviation
 
 Real T               = 1.;    // Expiry
 
-int events           = -1;    // Bank and borrower events (-1 for all times)
-int interestPayments = 12;    // Interest payments
+int borrowerEvents   = -1;    // Borrower events (-1 for all times)
+int bankEvents       = 4;     // Bank events (-1 for all times)
+int interestPayments = 4;     // Interest payments (once a quarter)
 
 int N                = 12;    // Initial number of steps
-int maxRefinement    = 8;     // Maximum number of times to refine
+int maxRefinement    = 10;    // Maximum number of times to refine
 
-bool fairSpread      = false;
+bool fairSpread      = false; // Calculate fair spread
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<Real> interestPaymentDates; // Sorted (ascending) vector of interest
                                         // payment dates
 
-// Payoff for fixed \hat{L}
-Real payoff(Real S) {
-	return min(S, L_hat);
-}
+/**
+ * Payoff from the bank's perspective for representative value of L.
+ * @param S The stock value at the expiry.
+ * @return The payoff min(S, L_hat).
+ */
+Real payoff(Real S) { return min(S, L_hat); }
 
-// Accrued interest A(t)
+/**
+ * Accrued interest at a particular time between coupon dates.
+ * @param t The particular time.
+ * @return e^((r+s)(t-t_p)) where t_p is the previous coupon date.
+ */
 Real accruedInterest(Real t) {
 	// Binary search for interest payment date
 	int lo = 0;
@@ -85,10 +92,13 @@ Real accruedInterest(Real t) {
 	return A_t;
 }
 
-// Hand-picked grid
-// TODO: Make this more robust; place nodes at S_0 and L_0
-RectilinearGrid1 grid(
-	(S_0 / 100.) * Axis {
+/**
+ * Returns a hand-picked axis for the problem, centred at some parameter.
+ * @param C The centre.
+ * @return An axis with ticks between 0 and 100C (inclusive).
+ */
+Axis axis(Real C) {
+	return (C / 100.) * Axis {
 		0., 10., 20., 30., 40., 50., 60., 70.,
 		75., 80.,
 		84., 88., 92.,
@@ -102,15 +112,18 @@ RectilinearGrid1 grid(
 		750.,
 		2000.,
 		10000.
-	}
-);
+	};
+}
+
+// Initial grid
+RectilinearGrid1 grid( axis(S_0) );
 
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr int td = 20;
 
 /**
- * Print headers.
+ * Print headers to stdout.
  */
 void printHeaders() {
 	cout
@@ -124,6 +137,8 @@ void printHeaders() {
 		cout << setw(td) << "Ratio";
 	}
 
+	cout << setw(td) << "Seconds";
+
 	cout << endl;
 }
 
@@ -134,9 +149,9 @@ void printHeaders() {
 Real solve(Real s) {
 	// Constant step-size
 	ReverseConstantStepper stepper(
-		0., // Initial time
-		T,  // Expiry time
-		T/N // Timestep size
+		0.,   // Initial time
+		T,    // Expiry time
+		T / N // Timestep size
 	);
 
 	////////////////////////////////////////////////////////////////////////
@@ -147,16 +162,17 @@ Real solve(Real s) {
 	// 3. Interest payment
 
 	// Apply events at all times
-	if(events < 0) { events = N; }
+	if(borrowerEvents < 0) { borrowerEvents = N; }
+	if(bankEvents     < 0) { bankEvents     = N; }
 
 	////////////////////////////////////////////////////////////////////////
 
 	{ // <BorrowerEvent>
 
 	// Time between borrower events
-	const Real dt = T / events;
+	const Real dt = T / borrowerEvents;
 
-	for(int i = 0; i < events; ++i) {
+	for(int i = 0; i < borrowerEvents; ++i) {
 		const Real t_i = dt * i;
 
 		// Accrued interest
@@ -172,15 +188,16 @@ Real solve(Real s) {
 	}
 
 	} // </BorrowerEvent>
+	// 2015-03-04: checked; respects monotonicity
 
 	////////////////////////////////////////////////////////////////////////
 
 	{ // <BankEvent>
 
 	// Time between bank events
-	const Real dt = T / events;
+	const Real dt = T / bankEvents;
 
-	for(int i = 0; i < events; ++i) {
+	for(int i = 0; i < bankEvents; ++i) {
 		const Real t_i = dt * i;
 
 		// Accrued interest
@@ -199,39 +216,29 @@ Real solve(Real s) {
 				if(R > beta_hi) {
 
 					// Option to liquidate
-					const Real newPos = min(L_hat * A, S);
-					if(newPos > best) {
-						best = newPos;
+					const Real tmp = min(L_hat * A, S);
+					if(tmp > best) {
+						best = tmp;
 					}
 
 				// R is between low and high triggers
 				} else if(R >= beta_lo) {
-
 					const Real R_0 = L_0 / S_0;
 
 					{ // Top-up with shares
-						const Real newPos =
-								U(L_hat / R_0);
-						if(newPos > best) {
-							best = newPos;
+						const Real tmp = U(L_hat / R_0);
+						if(tmp > best) {
+							best = tmp;
 						}
 					}
 
 					// Top-up with cash
-					if(S < epsilon) {
-						const Real newPos = L_hat * A;
-						if(newPos > best) {
-							best = newPos;
-						}
-					} else {
-						const Real newPos =
-							L_hat / (S * R_0)
+					const Real tmp = S * R_0 / L_hat
 							* U(L_hat / R_0)
-							+ (L_hat - S * R_0) * A
-						;
-						if(newPos > best) {
-							best = newPos;
-						}
+							+ (L_hat - S * R_0) * A;
+					;
+					if(tmp > best) {
+						best = tmp;
 					}
 				}
 
@@ -242,6 +249,7 @@ Real solve(Real s) {
 	}
 
 	} // </BankEvent>
+	// TODO: Can we enforce monotonicity somehow?
 
 	////////////////////////////////////////////////////////////////////////
 
@@ -269,6 +277,9 @@ Real solve(Real s) {
 	}
 
 	} // </InterestPayment>
+	// 2015-03-04: checked; respects monotonicity; if spread is zero and
+	//             events are off, then U(S_0) -> L_0 as S_0 -> infinity
+	//             (i.e. the bank just gets the loan + interest back)
 
 	// TODO: Dividends
 
@@ -286,6 +297,9 @@ Real solve(Real s) {
 		lognormal(mu_xi, sigma_xi) // Log-normal probability density
 	);
 	bs.setIteration(stepper);
+
+	// No jump-diffusion test
+	//BlackScholes1 bs(grid, r, sigma, 0.);
 
 	// Discretization method
 	typedef ReverseBDFTwo1 Discretization;
@@ -308,6 +322,9 @@ Real solve(Real s) {
 	const Real value = U(alpha * S_0) / alpha;
 	// 2015-02-28: checked; without events, exp(-r * T) * L_0 - value is the
 	//                      price (at t=0) of a put with strike L_0
+
+	//RectilinearGrid1 printGrid( Axis::range(0., 0.1, 200.) );
+	//cout << accessor( printGrid, U );
 
 	return value;
 }
@@ -335,16 +352,9 @@ int main(int argc, char **argv) {
 	) { // <RefinementLoop>
 		auto start = chrono::steady_clock::now();
 
-		if(fairSpread) {
-			// TODO: Calculuate fair spread
-			throw 1;
+		// TODO: Fair spread computation
 
-			// Print headers
-			printHeaders();
-		} else {
-			// Just give the value
-			value = solve(s);
-		}
+		value = solve(s);
 
 		auto end = chrono::steady_clock::now();
 		auto diff = end - start;
