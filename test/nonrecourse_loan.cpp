@@ -33,7 +33,7 @@ Real L_0             = 100.;  // Initial loan value
 Real L_hat           = 100.;  // Representative value
 
 Real r               = 0.04;  // Interest rate
-Real s_0             = 0.02;  // Spread
+Real s_0             = 0.0;   // Spread
 Real sigma           = 0.2;   // Volatility
 
 Real lambda          = 0.1;  // Jump arrival rate
@@ -43,7 +43,7 @@ Real sigma_xi        = .42;   // Jump amplitude standard deviation
 Real T               = 1.;    // Expiry
 
 int borrowerEvents   = -1;    // Borrower events (-1 for all times)
-int bankEvents       = 4;     // Bank events (-1 for all times)
+int bankEvents       = -1;    // Bank events (-1 for all times)
 int interestPayments = 4;     // Interest payments (once a quarter)
 
 int N                = 12;    // Initial number of steps
@@ -164,14 +164,8 @@ int main(int argc, char **argv) {
 		// Fixed spread computation
 		auto U = solve(grid, s_0);
 
-		// Print grid
-		RectilinearGrid2 printGrid(
-			grid[0], // Axis from computational grid
-			grid[0]
-		);
-
-		// Print U at all grid nodes
-		cout << accessor(printGrid, U);
+		// Print U(S, L_0) (fixed L_0) at all grid nodes
+		cout << accessor( grid, [&] (Real S) { return U(S, L_0); } );
 
 	} else if(op == ProgramOperation::PLOT_DATA_VS_SPREAD) {
 
@@ -182,7 +176,7 @@ int main(int argc, char **argv) {
 		auto grid = initialGrid.refined( maxRefinement );
 
 		// TODO: Allow user to choose coarseness and bounds
-		RectilinearGrid1 spreads( Axis::uniform(0, 2*r, 10) );
+		RectilinearGrid1 spreads( Axis::uniform(0, 2*r, N) );
 
 		// U as a function of the spread
 		auto U_spread = [&] (Real spread) {
