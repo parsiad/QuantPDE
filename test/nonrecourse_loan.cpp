@@ -2,7 +2,7 @@
 // nonrecourse_loan.cpp
 // --------------------
 //
-// Author: Parsiad Azimzadeh
+// Author: Parsiad Azimzadeh, Peter Forsyth
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <QuantPDE/Core>
@@ -15,13 +15,14 @@ using namespace QuantPDE::Modules;
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <algorithm> // max, min
-#include <chrono>    // duration
 #include <iomanip>   // setw
 #include <iostream>  // cout, cerr
 #include <cmath>     // exp
 
 using namespace std;
 
+////////////////////////////////////////////////////////////////////////////////
+// Default constants
 ////////////////////////////////////////////////////////////////////////////////
 
 Real beta_lo         = 0.8;   // Low trigger
@@ -32,7 +33,7 @@ Real L_0             = 100.;  // Initial loan value
 Real L_hat           = 100.;  // Representative value
 
 Real r               = 0.04;  // Interest rate
-Real s               = 0.02;  // Spread
+Real s_0             = 0.02;  // Spread
 Real sigma           = 0.2;   // Volatility
 
 Real lambda          = 0.1;  // Jump arrival rate
@@ -46,21 +47,25 @@ int bankEvents       = 4;     // Bank events (-1 for all times)
 int interestPayments = 4;     // Interest payments (once a quarter)
 
 int N                = 12;    // Initial number of steps
-int maxRefinement    = 10;    // Maximum number of times to refine
+int maxRefinement    = 5;     // Maximum number of times to refine
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr int PLOT_DATA      = 1 << 0; // Output plotting data
-constexpr int FAIR_SPREAD    = 1 << 1; // Compute fair spread
-constexpr int VARYING_SPREAD = 1 << 2; // Output plotting data for varying
-                                       // spread (ignored if PLOT_DATA is off)
-
-int opts = 0; // Default: compute the value of the contract for fixed spread
+/**
+ * Controls the output of the program.
+ */
+enum class ProgramOperation {
+	PLOT_DATA, /**< outputs plotting data */
+	PLOT_DATA_VS_SPREAD, /**< outputs plotting data with spread as x-axis */
+	FAIR_SPREAD, /**< computes the fair spread */
+	FIXED_SPREAD /**< convergence test for a fixed spread */
+};
+ProgramOperation op = ProgramOperation::PLOT_DATA_VS_SPREAD;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<Real> interestPaymentDates; // Sorted (ascending) vector of interest
-                                        // payment dates
+                                        // payment dates; initialized in main()
 
 /**
  * Payoff from the bank's perspective for representative value of L.
@@ -74,7 +79,7 @@ Real payoff(Real S) { return min(S, L_hat); }
  * @param t The particular time.
  * @return e^((r+s)(t-t_p)) where t_p is the previous coupon date.
  */
-Real accruedInterest(Real t) {
+Real accruedInterest(Real s, Real t) {
 	// Binary search for interest payment date
 	int lo = 0;
 	int hi = interestPaymentDates.size() - 1;
@@ -99,61 +104,152 @@ Real accruedInterest(Real t) {
 	return A_t;
 }
 
-/**
- * Returns a hand-picked axis for the problem, centred at some parameter.
- * @param C The centre.
- * @return An axis with ticks between 0 and 100C (inclusive).
- */
-Axis axis(Real C) {
-	return (C / 100.) * Axis {
-		0., 10., 20., 30., 40., 50., 60., 70.,
-		75., 80.,
-		84., 88., 92.,
-		94., 96., 98., 100., 102., 104., 106., 108., 110.,
-		114., 118.,
-		123.,
-		130., 140., 150.,
-		175.,
-		225.,
-		300.,
-		750.,
-		2000.,
-		10000.
-	};
-}
-
-// Initial grid
-RectilinearGrid1 initialGrid( axis(S_0) );
-
 ////////////////////////////////////////////////////////////////////////////////
-
-constexpr int td = 20;
-
-/**
- * Print headers to stdout.
- */
-void printHeaders() {
-	cout
-		<< setw(td) << "Nodes"           << "\t"
-		<< setw(td) << "Time Steps"      << "\t"
-		<< setw(td) << "Value"           << "\t"
-		<< setw(td) << "Change"          << "\t"
-	;
-
-	if(!(opts & FAIR_SPREAD)) {
-		cout << setw(td) << "Ratio";
-	}
-
-	cout << setw(td) << "Seconds";
-
-	cout << endl;
-}
 
 /**
  * Solve the nonrecourse stock loan problem with fixed spread.
- * @param s Spread.
+ * @param s A fixed value of the spread.
+ * @return The solution U(S, L) as a lambda function that can be queried at any
+ *         point.
  */
-Real solve(RectilinearGrid1 &grid, Real s) {
+Function2 solve(RectilinearGrid1 &grid, Real s);
+
+/**
+ * Main code.
+ */
+int main(int argc, char **argv) {
+	// TODO: Initial grid should have node at S_0 and L_hat
+
+	// Initial grid
+	RectilinearGrid1 initialGrid(
+		(S_0 / 100.) * Axis {
+			0., 10., 20., 30., 40., 50., 60., 70.,
+			75., 80.,
+			84., 88., 92.,
+			94., 96., 98., 100., 102., 104., 106., 108., 110.,
+			114., 118.,
+			123.,
+			130., 140., 150.,
+			175.,
+			225.,
+			300.,
+			750.,
+			2000.,
+			10000.
+		}
+	);
+
+	// Populate vector of interest payment dates
+	{
+		interestPaymentDates.reserve(interestPayments);
+		const Real dt = T / interestPayments;
+
+		interestPaymentDates.reserve(interestPayments);
+		for(int i = 0; i <= interestPayments; ++i) {
+			interestPaymentDates.push_back(dt * i);
+		}
+	} // 2015-02-28: checked
+
+	cout.precision(12); // Precision
+	constexpr int td = 20; // Spacing used to print
+
+	if(op == ProgramOperation::PLOT_DATA) {
+
+		// Double the number of timesteps as many times as necessary
+		for(int i = 0; i < maxRefinement; ++i) { N *= 2; }
+
+		// Refine grid ref times
+		auto grid = initialGrid.refined( maxRefinement );
+
+		// Fixed spread computation
+		auto U = solve(grid, s_0);
+
+		// Print grid
+		RectilinearGrid2 printGrid(
+			grid[0], // Axis from computational grid
+			grid[0]
+		);
+
+		// Print U at all grid nodes
+		cout << accessor(printGrid, U);
+
+	} else if(op == ProgramOperation::PLOT_DATA_VS_SPREAD) {
+
+		// Double the number of timesteps as many times as necessary
+		for(int i = 0; i < maxRefinement; ++i) { N *= 2; }
+
+		// Refine grid ref times
+		auto grid = initialGrid.refined( maxRefinement );
+
+		// TODO: Allow user to choose coarseness and bounds
+		RectilinearGrid1 spreads( Axis::uniform(0, 2*r, 10) );
+
+		// U as a function of the spread
+		auto U_spread = [&] (Real spread) {
+			auto U = solve(grid, spread);
+			return U(S_0, L_0);
+		};
+
+		// Print U_spread for all spreads on the grid
+		cout << accessor(spreads, U_spread);
+
+	} else if(op == ProgramOperation::FAIR_SPREAD) {
+
+		// TODO
+		throw 1;
+
+	} else if(op == ProgramOperation::FIXED_SPREAD) {
+
+		// Print headers
+		cout
+			<< setw(td) << "Nodes"           << "\t"
+			<< setw(td) << "Time Steps"      << "\t"
+			<< setw(td) << "Value"           << "\t"
+			<< setw(td) << "Change"          << "\t"
+			<< setw(td) << "Ratio"
+			<< endl
+		;
+
+		Real value, previousValue = nan(""), previousChange = nan("");
+		for(int ref = 0; ref <= maxRefinement; ++ref, N *= 2) {
+			// Refine grid ref times
+			auto grid = initialGrid.refined( ref );
+
+			// Solve U(S)
+			auto U = solve(grid, s_0);
+
+			// Query U at the point (S_0, L_0)
+			value = U(S_0, L_0);
+
+			////////////////////////////////////////////////////////
+			// Print table rows
+			////////////////////////////////////////////////////////
+
+			Real
+				change = value - previousValue,
+				ratio = previousChange / change
+			;
+
+			cout
+				<< setw(td) << grid.size() << "\t"
+				<< setw(td) << N           << "\t"
+				<< setw(td) << value       << "\t"
+				<< setw(td) << change      << "\t"
+				<< setw(td) << ratio       << "\t"
+				<< endl;
+
+			previousChange = change;
+			previousValue = value;
+		}
+
+	}
+
+	return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Function2 solve(RectilinearGrid1 &grid, Real s) {
 	// Constant step-size
 	ReverseConstantStepper stepper(
 		0.,   // Initial time
@@ -183,7 +279,7 @@ Real solve(RectilinearGrid1 &grid, Real s) {
 		const Real t_i = dt * i;
 
 		// Accrued interest
-		const Real A = accruedInterest(t_i);
+		const Real A = accruedInterest(s, t_i);
 
 		stepper.add(
 			t_i,
@@ -208,7 +304,7 @@ Real solve(RectilinearGrid1 &grid, Real s) {
 		const Real t_i = dt * i;
 
 		// Accrued interest
-		const Real A = accruedInterest(t_i);
+		const Real A = accruedInterest(s, t_i);
 
 		stepper.add(
 			t_i,
@@ -256,7 +352,6 @@ Real solve(RectilinearGrid1 &grid, Real s) {
 	}
 
 	} // </BankEvent>
-	// TODO: Can we enforce monotonicity somehow?
 
 	////////////////////////////////////////////////////////////////////////
 
@@ -272,7 +367,7 @@ Real solve(RectilinearGrid1 &grid, Real s) {
 		const Real t_i = *it;
 
 		// Accrued interest
-		const Real A = accruedInterest(t_i);
+		const Real A = accruedInterest(s, t_i);
 
 		stepper.add(
 			t_i,
@@ -325,83 +420,12 @@ Real solve(RectilinearGrid1 &grid, Real s) {
 	////////////////////////////////////////////////////////////////////////
 
 	// Similarity reduction
-	const Real alpha = L_hat / L_0;
-	const Real value = U(alpha * S_0) / alpha;
+	return [=] (Real S, Real L) {
+		if(L <= 0.) { return 0.; }
+		const Real alpha = L_hat / L;
+		const Real value = U(alpha * S) / alpha;
+		return value;
+	};
 	// 2015-02-28: checked; without events, exp(-r * T) * L_0 - value is the
 	//                      price (at t=0) of a put with strike L_0
-
-	//RectilinearGrid1 printGrid( Axis::range(0., 0.1, 200.) );
-	//cout << accessor( printGrid, U );
-
-	return value;
-}
-
-int main(int argc, char **argv) {
-	cout.precision(12); // Precision
-	printHeaders();
-
-	// Populate vector of interest payment dates
-	{
-		interestPaymentDates.reserve(interestPayments);
-		const Real dt = T / interestPayments;
-
-		interestPaymentDates.reserve(interestPayments);
-		for(int i = 0; i <= interestPayments; ++i) {
-			interestPaymentDates.push_back(dt * i);
-		}
-	} // 2015-02-28: checked
-
-	//int minRefinement = 0;
-	if(opts & PLOT_DATA) {
-		// TODO: Advance to full refinement
-		throw 1;
-	}
-
-	Real value, previousValue = nan(""), previousChange = nan("");
-	for(int ref = 0; ref < maxRefinement; ++ref, N *= 2) {
-		// Refine grid ref times
-		auto grid = initialGrid.refined( ref );
-
-		auto start = chrono::steady_clock::now();
-
-		if(opts & FAIR_SPREAD) {
-			// TODO: Fair spread computation
-			throw 1;
-		} else {
-			// Fixed spread computation
-			value = solve(grid, s);
-		}
-
-		auto end = chrono::steady_clock::now();
-		auto diff = end - start;
-
-		////////////////////////////////////////////////////////////////
-		// Print table rows
-		////////////////////////////////////////////////////////////////
-
-		Real
-			change = value - previousValue,
-			ratio = previousChange / change
-		;
-
-		cout
-			<< setw(td) << grid.size() << "\t"
-			<< setw(td) << N           << "\t"
-			<< setw(td) << value       << "\t"
-			<< setw(td) << change      << "\t"
-		;
-
-		if(!(opts & FAIR_SPREAD)) {
-			cout << setw(td) << ratio << "\t";
-		}
-
-		cout
-			<< setw(td) << chrono::duration <double> (diff).count()
-			<< endl;
-
-		previousChange = change;
-		previousValue = value;
-	}
-
-	return 0;
 }

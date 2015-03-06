@@ -83,6 +83,10 @@ typedef Interpolant<1> Interpolant1;
 typedef Interpolant<2> Interpolant2;
 typedef Interpolant<3> Interpolant3;
 
+typedef InterpolantWrapper<1> InterpolantWrapper1;
+typedef InterpolantWrapper<2> InterpolantWrapper2;
+typedef InterpolantWrapper<3> InterpolantWrapper3;
+
 /**
  * A factory for interpolants.
  */
@@ -468,4 +472,3 @@ typedef PiecewiseLinear<3> PiecewiseLinear3;
 } // QuantPDE
 
 #endif
-

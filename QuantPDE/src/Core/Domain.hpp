@@ -6,7 +6,7 @@
 #include <cstdlib>     // size_t
 #include <iostream>    // std::ostream
 #include <memory>      // std::shared_ptr, std::unique_ptr
-#include <type_traits> // std::conditional
+#include <type_traits> // std::conditional, std::enable_if, std::is_same
 #include <utility>     // std::forward, std::move
 
 namespace QuantPDE {
@@ -1123,6 +1123,9 @@ public:
 		return refined;
 	}
 
+	// TODO: The axis constructor expects only const Axis& or Axis&& types;
+	//       fix this.
+
 	/**
 	 * Constructor.
 	 */
@@ -1130,6 +1133,7 @@ public:
 		typename ...Ts,
 		typename = typename std::enable_if<
 			TypePackIsT<Axis, Ts...>::value
+			|| TypePackIsT<const Axis &, Ts...>::value
 		>::type
 	>
 	RectilinearGrid(Ts &&...axes) noexcept
@@ -1386,9 +1390,9 @@ public:
 	 */
 	friend std::ostream &operator<<(std::ostream &os,
 			const RectilinearGrid<Dimension> &grid) {
-		os << grid[0];
+		os << "(" << grid[0] << ")";
 		for(Index i = 1; i < Dimension; ++i) {
-			os << " x " << grid[i];
+			os << " x (" << grid[i] << ")";
 		};
 		return os;
 	}

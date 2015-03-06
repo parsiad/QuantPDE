@@ -285,7 +285,7 @@ int main() {
 		<< endl
 	;
 
-	for(int ref = 0; ref < maxRefinement; ++ref, controlPoints *= 2) {
+	for(int ref = 0; ref <= maxRefinement; ++ref, controlPoints *= 2) {
 
 		// Refine the grid ref times
 		auto grid = initialGrid.refined( ref );

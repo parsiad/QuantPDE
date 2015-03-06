@@ -222,7 +222,7 @@ int main(int argc, char **argv) {
 	Function1 payoff = call ? callPayoff(strike) : putPayoff(strike);
 
 	unsigned factor = 1; // factor *= 2 or 4 at every step
-	for(int ref = 0; ref < maxRefinement; ++ref) {
+	for(int ref = 0; ref <= maxRefinement; ++ref) {
 
 		///////////////////////////////////////////////////////////////
 		// Refine spatial grid

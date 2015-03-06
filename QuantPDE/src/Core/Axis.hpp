@@ -296,11 +296,10 @@ public:
  * @param axis The axis.
  */
 std::ostream &operator<<(std::ostream &os, const Axis &axis) {
-	os << '(' << axis[0];
+	os << axis[0];
 	for(Index i = 1; i < axis.size(); ++i) {
 		os << ' ' << axis[i];
 	}
-	os << ')';
 	return os;
 }
 
