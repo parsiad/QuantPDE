@@ -6,6 +6,22 @@ namespace QuantPDE {
 namespace Modules {
 
 /**
+ * @param K strike price.
+ * @return Lambda function payoff for a digital call option, \f$1_{S \geq K}\f$.
+ */
+inline Function1 digitalCallPayoff(Real K) {
+	return [K] (Real S) { return S < K ? 0. : 1.; };
+}
+
+/**
+ * @param K strike price.
+ * @return Lambda function payoff for a digital put option, \f$1_{S \leq K}\f$.
+ */
+inline Function1 digitalPutPayoff(Real K) {
+	return [K] (Real S) { return S > K ? 0. : 1.; };
+}
+
+/**
  * @param K Strike price.
  * @return Lambda function payoff for a vanilla call option,
  *         \f$\left(S\right)\equiv max\left(S - K, 0\right)\f$.

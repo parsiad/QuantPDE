@@ -35,6 +35,7 @@ Real L_hat           = 100.;  // Representative value
 Real r               = 0.04;  // Interest rate
 Real s_0             = 0.0;   // Spread
 Real sigma           = 0.2;   // Volatility
+Real q               = 0.0;   // Continuous dividends
 
 Real lambda          = 0.1;  // Jump arrival rate
 Real mu_xi           = -.8;   // Mean jump amplitude
@@ -60,7 +61,7 @@ enum class ProgramOperation {
 	FAIR_SPREAD, /**< computes the fair spread */
 	FIXED_SPREAD /**< convergence test for a fixed spread */
 };
-ProgramOperation op = ProgramOperation::PLOT_DATA_VS_SPREAD;
+ProgramOperation op = ProgramOperation::PLOT_DATA;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -387,7 +388,7 @@ Function2 solve(RectilinearGrid1 &grid, Real s) {
 
 		r,      // Interest
 		sigma,  // Volatility
-		0.,     // Continuous dividend rate
+		q,      // Continuous dividends
 
 		lambda, // Mean arrival time
 		lognormal(mu_xi, sigma_xi) // Log-normal probability density
