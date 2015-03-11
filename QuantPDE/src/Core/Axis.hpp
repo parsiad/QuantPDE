@@ -48,6 +48,47 @@ class Axis final {
 		#endif
 	}
 
+	static Axis nonsymmetricCluster(Real begin, Real feature, Real end,
+			Index points, Real intensity = 1.) {
+		assert(intensity > 0.);
+
+		assert(  begin <= feature);
+		assert(feature <= end    );
+		assert(begin   <  end    );
+
+		Real K = (feature - begin) / (end - begin);
+
+		bool flipped = false;
+		if(K < 0.5) {
+			flipped = true;
+			K  =  1. - K;
+		}
+
+		const Real c = K / intensity;
+
+		const Real xi_0 =   asinh( (0. - K) / c );
+		const Real dxi  = ( asinh( (1. - K) / c ) - xi_0 ) / (points-1);
+
+		Axis axis(points);
+		axis.n[0] = begin;
+		if(flipped) {
+			for(Index i = 1; i < points - 1; ++i) {
+				axis.n[points-1 - i] = (1. -
+					( K + c * sinh(xi_0 + i * dxi) )
+				) * (end - begin) + begin;
+			}
+		} else {
+			for(Index i = 1; i < points - 1; ++i) {
+				axis.n[           i] = (
+					( K + c * sinh(xi_0 + i * dxi) )
+				) * (end - begin) + begin;
+			}
+		}
+		axis.n[points - 1] = end;
+
+		return axis;
+	}
+
 public:
 
 	/**
@@ -181,53 +222,86 @@ public:
 	 * @param begin The first tick (inclusive).
 	 * @param feature The point to cluster around.
 	 * @param end The last tick (inclusive).
-	 * @param points The total number of points.
+	 * @param points The total number of points (if this quantity is even,
+	 *               an axis with points+1 points is returned instead).
 	 * @param intensity Controls the fraction of points that lie around the
 	                    feature.
 	 */
 	static Axis cluster(Real begin, Real feature, Real end, Index points,
 			Real intensity = 1.) {
-		assert(intensity > 0.);
+		Index p = (points + 1 + (points % 2 == 0 ? 1 : 0)) / 2;
+		return
+			nonsymmetricCluster(
+				begin,
+				feature,
+				feature,
+				p,
+				intensity
+			) +
+			nonsymmetricCluster(
+				feature,
+				feature,
+				end,
+				p,
+				intensity
+			)
+		;
 
-		assert(  begin <= feature);
-		assert(feature <= end    );
-		assert(begin   <  end    );
-
-		Real K = (feature - begin) / (end - begin);
-
-		bool flipped = false;
-		if(K < 0.5) {
-			flipped = true;
-			K  =  1. - K;
-		}
-
-		const Real c = K / intensity;
-
-		const Real xi_0 =   asinh( (0. - K) / c );
-		const Real dxi  = ( asinh( (1. - K) / c ) - xi_0 ) / (points-1);
-
-		Axis axis(points);
-		axis.n[0] = begin;
-		if(flipped) {
-			for(Index i = 1; i < points - 1; ++i) {
-				axis.n[points-1 - i] = (1. -
-					( K + c * sinh(xi_0 + i * dxi) )
-				) * (end - begin) + begin;
-			}
-		} else {
-			for(Index i = 1; i < points - 1; ++i) {
-				axis.n[           i] = (
-					( K + c * sinh(xi_0 + i * dxi) )
-				) * (end - begin) + begin;
-			}
-		}
-		axis.n[points - 1] = end;
-
-		return axis;
 	}
 
 	/**
-	 * Scales the points on this axis by a constant (in-place).
+	 * Union of two axes.
+	 * @param a One axis.
+	 * @param b Another axis.
+	 * @return An axis with points from both input axes.
+	 */
+	friend Axis operator+(const Axis &a, const Axis &b) {
+		// Assumes both input axes are strictly increasing
+
+		// First-pass (count unique elements)
+		Index i = 0, j = 0, k = 0;
+		while(true) {
+			if(i >= a.length) {
+				// Add all remaining elements in b
+				k += b.length - j;
+				break;
+			} else if(j >= b.length) {
+				// Add all remaining elements in a
+				k += a.length - i;
+				break;
+			}
+
+			if     (a.n[i] == b.n[j]) { ++i; ++j; }
+			else if(a.n[i]  < b.n[j]) { ++i;      }
+			else                      {      ++j; }
+
+			++k;
+		}
+
+		// Second-pass (populate axis)
+		Axis c(k);
+		i = j = k = 0;
+		while(true) {
+			if(i >= a.length) {
+				// Add all remaining elements in b
+				while(j < b.length) { c.n[k++] = b.n[j++]; }
+				break;
+			} else if(j >= b.length) {
+				// b is finished
+				while(i < a.length) { c.n[k++] = a.n[i++]; }
+				break;
+			}
+
+			if     (a.n[i] == b.n[j]) { c.n[k++] = a.n[i++]; ++j; }
+			else if(a.n[i]  < b.n[j]) { c.n[k++] = a.n[i++];      }
+			else                      { c.n[k++] = b.n[j++];      }
+		}
+
+		return c;
+	}
+
+	/**
+	 * Scales the points on this axis by a constant.
 	 * @param axis The axis.
 	 * @param c The constant.
 	 */
@@ -270,7 +344,7 @@ public:
 	}
 
 	/**
-	* Translate the points on this axis by a constant (in-place).
+	* Translate the points on this axis by a constant.
 	* @param axis The axis.
 	* @param c The constant.
 	*/
@@ -295,7 +369,7 @@ public:
 	}
 
 	/**
-	* Translate the points on this axis by a constant (in-place).
+	* Translate the points on this axis by a constant.
 	* @param c The constant.
 	* @param axis The axis.
 	*/
@@ -313,8 +387,7 @@ public:
 	}
 
 	/**
-	* Translate the points on this axis by the negative of a constant
-	* (in-place).
+	* Translate the points on this axis by the negative of a constant.
 	* @param axis The axis.
 	* @param c The constant.
 	*/
@@ -332,8 +405,7 @@ public:
 	}
 
 	/**
-	* Translate the points on this axis by the negative of a constant
-	* (in-place).
+	* Translate the points on this axis by the negative of a constant.
 	* @param c The constant.
 	* @param axis The axis.
 	*/

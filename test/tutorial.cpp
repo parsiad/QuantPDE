@@ -25,18 +25,20 @@ int main() {
 const Real K = 100.;
 
 // Automatic grid
+/*
 RectilinearGrid1 grid(
     Axis::cluster(
-        0.,     // Left-hand boundary
-        K,      // Feature to cluster nodes around
-        10000., // Right-hand boundary
-        64,     // Number of nodes
-        5.      // Intensity with which to cluster around K
+        0.,   // Left-hand boundary
+        K,    // Feature to cluster nodes around
+        200., // Right-hand boundary
+        64,   // Number of nodes
+        5.    // Intensity with which to cluster around K
     )
+    + Axis { 225., 300., 750., 2000., 10000. }
 );
+*/
 
 // Hand-picked grid (this is generally not a robust approach)
-/*
 RectilinearGrid1 grid(
     Axis {
         0., 10., 20., 30., 40., 50., 60., 70.,
@@ -54,7 +56,6 @@ RectilinearGrid1 grid(
         10000.
     }
 );
-*/
 
 // Payoff for a put option
 auto payoff = [K] (Real S) {
