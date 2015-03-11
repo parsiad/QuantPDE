@@ -227,7 +227,7 @@ public:
 	}
 
 	/**
-	 * Scales the points on this axis by a constant.
+	 * Scales the points on this axis by a constant (in-place).
 	 * @param axis The axis.
 	 * @param c The constant.
 	 */
@@ -236,6 +236,19 @@ public:
 			axis.n[i] *= c;
 		}
 		return std::move(axis);
+	}
+
+	/**
+	 * Scales the points on this axis by a constant.
+	 * @param axis The axis.
+	 * @param c The constant.
+	 */
+	friend Axis operator*(const Axis &axis, Real c) {
+		Axis newAxis(axis.length);
+		for(Index i = 0; i < axis.length; ++i) {
+			newAxis.n[i] = axis.n[i] * c;
+		}
+		return newAxis;
 	}
 
 	/**
@@ -248,7 +261,16 @@ public:
 	}
 
 	/**
-	* Translate the points on this axis by a constant.
+	 * Scales the points on this axis by a constant.
+	 * @param axis The axis.
+	 * @param c The constant.
+	 */
+	friend Axis operator*(Real c, const Axis &axis) {
+		return axis * c;
+	}
+
+	/**
+	* Translate the points on this axis by a constant (in-place).
 	* @param axis The axis.
 	* @param c The constant.
 	*/
@@ -260,7 +282,20 @@ public:
 	}
 
 	/**
-	* Translate the points on this axis by a constant.
+	 * Translate the points on this axis by a constant.
+	 * @param axis The axis.
+	 * @param c The constant.
+	 */
+	friend Axis operator+(const Axis &axis, Real c) {
+		Axis newAxis(axis.length);
+		for(Index i = 0; i < axis.length; ++i) {
+			newAxis.n[i] = axis.n[i] + c;
+		}
+		return newAxis;
+	}
+
+	/**
+	* Translate the points on this axis by a constant (in-place).
 	* @param c The constant.
 	* @param axis The axis.
 	*/
@@ -269,7 +304,17 @@ public:
 	}
 
 	/**
-	* Translate the points on this axis by the negative of a constant.
+	 * Translate the points on this axis by a constant.
+	 * @param axis The axis.
+	 * @param c The constant.
+	 */
+	friend Axis operator+(Real c, const Axis &axis) {
+		return axis + c;
+	}
+
+	/**
+	* Translate the points on this axis by the negative of a constant
+	* (in-place).
 	* @param axis The axis.
 	* @param c The constant.
 	*/
@@ -279,11 +324,30 @@ public:
 
 	/**
 	* Translate the points on this axis by the negative of a constant.
+	* @param axis The axis.
+	* @param c The constant.
+	*/
+	friend Axis operator-(const Axis &axis, Real c) {
+		return axis + (-c);
+	}
+
+	/**
+	* Translate the points on this axis by the negative of a constant
+	* (in-place).
 	* @param c The constant.
 	* @param axis The axis.
 	*/
 	friend Axis &&operator-(Real c, Axis &&axis) {
 		return std::move(axis) - c;
+	}
+
+	/**
+	* Translate the points on this axis by the negative of a constant.
+	* @param axis The axis.
+	* @param c The constant.
+	*/
+	friend Axis operator-(Real c, const Axis &axis) {
+		return axis + (-c);
 	}
 
 	template <Index> friend class RectilinearGrid;
