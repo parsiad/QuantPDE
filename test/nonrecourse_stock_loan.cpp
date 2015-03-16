@@ -48,13 +48,13 @@ Real sigma_xi        = .42;   // Jump amplitude standard deviation
 Real T               = 5.;    // Expiry
 
 // Number of events over course of contract
-int borrowerEvents   = 0;     // Borrower events (-1 for all times)
-int bankEvents       = 0;     // Bank events (-1 for all times)
+int borrowerEvents   = -1;    // Borrower events (-1 for all times)
+int bankEvents       = -1;    // Bank events (-1 for all times)
 int interestPayments = 20;    // Interest payments
 int dividendPayments = 20;    // Dividend payments
 
 int N                = 12;    // Initial number of steps
-int maxRefinement    = 10;    // Maximum number of times to refine
+int maxRefinement    = 5;     // Maximum number of times to refine
 
 bool dividendsToBank = false; // Dividends go to the bank
 
@@ -170,7 +170,7 @@ endl <<
 endl <<
 "-R NONNEGATIVE_INTEGER" << endl <<
 endl <<
-"    Controls the coarseness of the grid, with 0 being coarsest (default is 0)." << endl <<
+"    Controls the coarseness of the grid, with 0 being coarsest (default is 5)." << endl <<
 endl <<
 "-s REAL" << endl <<
 endl <<
@@ -186,7 +186,41 @@ endl <<
 endl <<
 "-v REAL" << endl <<
 endl <<
-"    Sets the volatility (default is 0.2)." << endl << endl;
+"    Sets the volatility (default is 0.2)." << endl <<
+endl <<
+"--bank-lo-trigger POSITIVE_REAL" << endl <<
+endl <<
+"    Sets the bank top-up trigger (default is 0.8)." << endl <<
+endl <<
+"--bank-hi-trigger POSITIVE_REAL" << endl <<
+endl <<
+"    Sets the bank liquidation trigger (default is 0.9)." << endl <<
+endl <<
+"--bank-events INTEGER" << endl <<
+endl <<
+"    Number of bank events; -1 for at all time steps (default is -1)." << endl <<
+endl <<
+"--borrower-events INTEGER" << endl <<
+endl <<
+"    Number of borrower events; -1 for at all time steps (default is -1)." << endl <<
+endl <<
+"--coupons INTEGER" << endl <<
+endl <<
+"    Number of coupon payments (default is 20)." << endl <<
+endl <<
+"--dividend-payments INTEGER" << endl <<
+endl <<
+"    Number of dividend payments (default is 20)." << endl <<
+endl <<
+"--bank-gets-dividends" << endl <<
+endl <<
+"    Specifies that the bank gets the dividends (default is off)." << endl <<
+endl <<
+"--plot-data" << endl <<
+endl <<
+"    Prints plotting data to stdout (default is off)." << endl <<
+endl <<
+endl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -212,6 +246,14 @@ int main(int argc, char **argv) {
 	{
 		// Long option names
 		static struct option opts[] = {
+			{ "bank-events",         required_argument, 0, 0 },
+			{ "borrower-events",     required_argument, 0, 0 },
+			{ "coupons",             required_argument, 0, 0 },
+			{ "dividend-payments",   required_argument, 0, 0 },
+			{ "bank-gets-dividends", no_argument,       0, 0 },
+			{ "bank-lo-trigger",     required_argument, 0, 0 },
+			{ "bank-hi-trigger",     required_argument, 0, 0 },
+			{ "plot-data",           no_argument,       0, 0 },
 			{ nullptr, 0, 0, 0 }
 		};
 
@@ -233,6 +275,49 @@ int main(int argc, char **argv) {
 				case 0:
 					switch(index)
 					{
+						case 0:
+						bankEvents = atoi(optarg);
+						break;
+
+						case 1:
+						borrowerEvents = atoi(optarg);
+						break;
+
+						case 2:
+						interestPayments = atoi(optarg);
+						if(interestPayments < 0) {
+							cerr <<
+"error: number of coupon payments must be nonnegative" << endl;
+							return 1;
+						}
+						break;
+
+						case 3:
+						dividendPayments = atoi(optarg);
+						if(dividendPayments < 0) {
+							cerr <<
+"error: number of dividend payments must be nonnegative" << endl;
+							return 1;
+						}
+						break;
+
+						case 4:
+						dividendsToBank = true;
+						break;
+
+						case 5:
+						beta_lo = atof(optarg);
+						break;
+
+						case 6:
+						beta_hi = atof(optarg);
+						break;
+
+						case 7:
+						op = ProgramOperation
+								::PLOT_DATA;
+						break;
+
 						default:
 							break;
 					}
@@ -330,8 +415,8 @@ int main(int argc, char **argv) {
 
 				case ':':
 				case '?':
-				cerr << endl;
-				help();
+				cerr << "specify -h for a list of options"
+						<< endl;
 				return 1;
 			}
 		}
@@ -346,54 +431,68 @@ int main(int argc, char **argv) {
 
 	////////////////////////////////////////////////////////////////////////
 
-	cerr << "\033[1;33m";
-
 	cerr
-		<< "Jump amplitude std:    \t" << sigma_xi
+		<< "Initial stock price:     \t" << S_0
 		<< endl
-		<< "Mean jump arrival time:\t" << lambda
+		<< "Initial loan value:      \t" << L_0
 		<< endl
-		<< "Initial loan value:    \t" << L_0
 		<< endl
-		<< "Mean jump amplitude:   \t" << mu_xi
+
+		<< "Interest rate:           \t" << r
 		<< endl
-		<< "Initial time steps:    \t" << N
+		<< "Spread:                  \t" << s_0
 		<< endl
-		<< "Penalty rate:          \t" << p
+		<< "Volatility:              \t" << sigma
 		<< endl
-		<< "Dividend rate:         \t" << q
 		<< endl
-		<< "Interest rate:         \t" << r
+
+		<< "Mean jump arrival time:  \t" << lambda
 		<< endl
-		<< "Initial grid:          \t" << initialGrid
+		<< "Mean jump amplitude:     \t" << mu_xi
 		<< endl
-		<< "Maximum refinement:    \t" << maxRefinement
+		<< "Jump amplitude std:      \t" << sigma_xi
 		<< endl
-		<< "Spread:                \t" << s_0
 		<< endl
-		<< "Initial stock price:   \t" << S_0
+
+		<< "Expiry time:             \t" << T
 		<< endl
-		<< "Expiry time:           \t" << T
 		<< endl
-		<< "Volatility:            \t" << sigma
+
+		<< "Penalty rate:            \t" << p
 		<< endl
-		<< "Bank events:           \t" << ( bankEvents < 0
+		<< "Dividend rate:           \t" << q
+		<< endl
+		<< endl
+
+		<< "Bank top-up trigger:     \t" << beta_lo
+		<< endl
+		<< "Bank liquidation trigger:\t" << beta_hi
+		<< endl
+		<< endl
+
+		<< "Bank events:             \t" << ( bankEvents < 0
 				? "at all times" : to_string(bankEvents) )
 		<< endl
-		<< "Borrower events:       \t" << ( borrowerEvents < 0
+		<< "Borrower events:         \t" << ( borrowerEvents < 0
 				? "at all times" : to_string(borrowerEvents) )
 		<< endl
-		<< "Coupon payments:       \t" << interestPayments
+		<< "Coupon payments:         \t" << interestPayments
 		<< endl
-		<< "Dividend payments:     \t" << dividendPayments
+		<< "Dividend payments:       \t" << dividendPayments
 		<< endl
-		<< "Bank gets dividends:   \t" << dividendsToBank
+		<< "Bank gets dividends:     \t" <<
+				(dividendsToBank ? "true" : "false")
+		<< endl
 		<< endl
 
+		<< "Initial # of time steps: \t" << N
+		<< endl
+		<< "Initial grid:            \t" << initialGrid
+		<< endl
+		<< "Maximum refinement:      \t" << maxRefinement
+		<< endl
 		<< endl
 	;
-
-	cerr << "\033[0m";
 
 	////////////////////////////////////////////////////////////////////////
 
