@@ -2,7 +2,7 @@
 // nonrecourse_stock_loan.cpp
 // --------------------------
 //
-// Author: Parsiad Azimzadeh, Peter Forsyth
+// Author: Parsiad Azimzadeh, Peter Forsyth, Kenneth Vetzal
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <QuantPDE/Core>
