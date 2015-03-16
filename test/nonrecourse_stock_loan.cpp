@@ -28,19 +28,16 @@ using namespace std;
 // Default constants
 ////////////////////////////////////////////////////////////////////////////////
 
-Real beta_lo         = 0.8;   // Low trigger
+Real beta_lo         = 0.85;  // Low trigger
 Real beta_hi         = 0.9;   // High trigger
 
-Real p_lo            = 0;     // Penalty low trigger
-Real p_hi            = numeric_limits<Real>::infinity(); // Penalty high trigger
-
-Real S_0             = 125.;  // Initial stock value
-Real L_0             = 100.;  // Initial loan value
+Real S_0             = 100.;  // Initial stock value
+Real L_0             = 80.;  // Initial loan value
 Real L_hat;                   // Representative value
 
-Real r               = 0.04;  // Interest rate
+Real r               = 0.02;  // Interest rate
 Real s_0             = 0.0;   // Spread
-Real sigma           = 0.2;   // Volatility
+Real sigma           = 0.3;   // Volatility
 Real q               = 0.;    // Discrete dividend rate
 
 Real p               = 0.;    // Penalty for lapsation
@@ -56,6 +53,8 @@ int borrowerEvents   = -1;    // Borrower events
 int bankEvents       = -1;    // Bank events
 int interestPayments = 20;    // Interest payments
 int dividendPayments = 20;    // Dividend payments
+
+Real firstPrepay     = 0.;    // First time at which the borrower can prepay
 
 bool borrowerAll     = true;  // Borrower events at all times
 bool bankAll         = true;  // Bank events at all times
@@ -153,7 +152,7 @@ endl <<
 endl <<
 "-L NONNEGATIVE_REAL" << endl <<
 endl <<
-"    Sets the initial loan value (default is 100.)." << endl <<
+"    Sets the initial loan value (default is 80.)." << endl <<
 endl <<
 "-m REAL" << endl <<
 endl <<
@@ -173,7 +172,7 @@ endl <<
 endl <<
 "-r REAL" << endl <<
 endl <<
-"    Sets the interest rate (default is 0.04)." << endl <<
+"    Sets the interest rate (default is 0.02)." << endl <<
 endl <<
 "-R NONNEGATIVE_INTEGER" << endl <<
 endl <<
@@ -185,7 +184,7 @@ endl <<
 endl <<
 "-S NONNEGATIVE_REAL" << endl <<
 endl <<
-"    Sets the initial stock price (default is 125.)." << endl <<
+"    Sets the initial stock price (default is 100.)." << endl <<
 endl <<
 "-T POSITIVE_REAL" << endl <<
 endl <<
@@ -193,23 +192,15 @@ endl <<
 endl <<
 "-v REAL" << endl <<
 endl <<
-"    Sets the volatility (default is 0.2)." << endl <<
+"    Sets the volatility (default is 0.3)." << endl <<
 endl <<
 "--bank-lo-trigger POSITIVE_REAL" << endl <<
 endl <<
-"    Sets the bank top-up trigger (default is 0.8)." << endl <<
+"    Sets the bank top-up trigger (default is 0.85)." << endl <<
 endl <<
 "--bank-hi-trigger POSITIVE_REAL" << endl <<
 endl <<
 "    Sets the bank liquidation trigger (default is 0.9)." << endl <<
-endl <<
-"--penalty-lo-trigger POSITIVE_REAL" << endl <<
-endl <<
-"    Sets the low trigger for lapsation penalty (default is 0)." << endl <<
-endl <<
-"--penalty-hi-trigger POSITIVE_REAL" << endl <<
-endl <<
-"    Sets the high triggers for lapsation penalty is removed (default is inf)." << endl <<
 endl <<
 "--bank-events INTEGER" << endl <<
 endl <<
@@ -230,6 +221,10 @@ endl <<
 "--bank-gets-dividends" << endl <<
 endl <<
 "    Specifies that the bank gets the dividends (default is off)." << endl <<
+endl <<
+"--no-prepay-until" << endl <<
+endl <<
+"    Specifies the first time at which the borrower can prepay (default is 0.)." << endl <<
 endl <<
 "--plot" << endl <<
 endl <<
@@ -278,8 +273,7 @@ int main(int argc, char **argv) {
 			{ "plot",                no_argument,       0, 0 },
 			{ "plot-spread",         no_argument,       0, 0 },
 			{ "fair-spread",         no_argument,       0, 0 },
-			{ "penalty-lo-trigger",  required_argument, 0, 0 },
-			{ "penalty-hi-trigger",  required_argument, 0, 0 },
+			{ "no-prepay-until",     required_argument, 0, 0 },
 			{ nullptr, 0, 0, 0 }
 		};
 
@@ -365,11 +359,7 @@ int main(int argc, char **argv) {
 						break;
 
 						case 10:
-						p_lo = atof(optarg);
-						break;
-
-						case 11:
-						p_hi = atof(optarg);
+						firstPrepay = atof(optarg);
 						break;
 
 						default:
@@ -524,9 +514,7 @@ int main(int argc, char **argv) {
 		<< endl
 		<< endl
 
-		<< "Penalty low trigger:     \t" << p_lo
-		<< endl
-		<< "Penalty high trigger:    \t" << p_hi
+		<< "No prepay until:         \t" << firstPrepay
 		<< endl
 		<< endl
 
@@ -741,20 +729,15 @@ Function2 solve(RectilinearGrid1 &grid, Real s) {
 		stepper.add(
 			t_i,
 			[=] (const Interpolant1 &U, Real S) {
-				// Value-to-loan ratio
-				const Real R = L_hat / S;
-
-				// Penalty is only enabled if we are in the
-				// penalty region
-				Real pen = 0.;
-				if(R >= p_lo && R <= p_hi) {
-					pen = p;
+				Real newValue = S;
+				if(t_i >= firstPrepay) {
+					const Real prepay = (1+p) * L_hat * A;
+					if(prepay < newValue) {
+						newValue = prepay;
+					}
 				}
 
-				return min(
-					U(S),
-					min(pen * S + L_hat * A, S)
-				);
+				return min( U(S), newValue );
 			},
 			grid
 		);
