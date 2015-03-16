@@ -52,10 +52,13 @@ Real sigma_xi        = .42;   // Jump amplitude standard deviation
 Real T               = 5.;    // Expiry
 
 // Number of events over course of contract
-int borrowerEvents   = -1;    // Borrower events (-1 for all times)
-int bankEvents       = -1;    // Bank events (-1 for all times)
+int borrowerEvents   = -1;    // Borrower events
+int bankEvents       = -1;    // Bank events
 int interestPayments = 20;    // Interest payments
 int dividendPayments = 20;    // Dividend payments
+
+bool borrowerAll     = true;  // Borrower events at all times
+bool bankAll         = true;  // Bank events at all times
 
 int N                = 12;    // Initial number of steps
 int maxRefinement    = 5;     // Maximum number of times to refine
@@ -300,10 +303,20 @@ int main(int argc, char **argv) {
 					{
 						case 0:
 						bankEvents = atoi(optarg);
+						if(bankEvents < 0) {
+							bankAll = true;
+						} else {
+							bankAll = false;
+						}
 						break;
 
 						case 1:
 						borrowerEvents = atoi(optarg);
+						if(borrowerEvents < 0) {
+							borrowerAll = true;
+						} else {
+							borrowerAll = false;
+						}
 						break;
 
 						case 2:
@@ -349,6 +362,7 @@ int main(int argc, char **argv) {
 						case 9:
 						op = ProgramOperation
 								::FAIR_SPREAD;
+						break;
 
 						case 10:
 						p_lo = atof(optarg);
@@ -592,10 +606,56 @@ int main(int argc, char **argv) {
 
 	} else if(op == ProgramOperation::FAIR_SPREAD) {
 
-		// TODO
-		throw 1;
+		// Print headers
+		cout
+			<< setw(td) << "Spread"       << "\t"
+			<< setw(td) << "Value at S_0" << "\t"
+			<< endl
+		;
 
-	} else if(op == ProgramOperation::FIXED_SPREAD) {
+		// Double the number of timesteps as many times as necessary
+		for(int i = 0; i < maxRefinement; ++i) { N *= 2; }
+
+		// Refine grid ref times
+		auto grid = initialGrid.refined( maxRefinement );
+
+		// Fair spread
+
+		Real lo = 0.;
+		Real hi = r; // Initial guess for upper bound is r
+
+		// Find upper bound
+		while(1) {
+			auto U = solve(grid, hi);
+			if( U(S_0, L_0) >= L_0 ) {
+				break;
+			}
+			hi *= 2; // Double upper bound
+		}
+
+		// Bisection
+		Real mid;
+		while(1) {
+			mid = (lo + hi)/2;
+			if((hi - lo)/2 <= QuantPDE::tolerance) {
+				break; // Close enough
+			}
+			auto U = solve(grid, mid);
+			const Real value = U(S_0, L_0);
+			cout
+				<< setw(td) << mid   << "\t"
+				<< setw(td) << value << "\t"
+				<< endl
+			;
+			if( value >= L_0 ) {
+				hi = mid;
+			} else {
+				lo = mid;
+			}
+		}
+
+	} else {
+		// Fixed spread
 
 		// Print headers
 		cout
@@ -662,8 +722,8 @@ Function2 solve(RectilinearGrid1 &grid, Real s) {
 	// 3. Interest payment
 
 	// Apply events at all times
-	if(borrowerEvents < 0) { borrowerEvents = N; }
-	if(bankEvents     < 0) { bankEvents     = N; }
+	if(borrowerAll) { borrowerEvents = N; }
+	if(bankAll)     { bankEvents     = N; }
 
 	////////////////////////////////////////////////////////////////////////
 
@@ -812,8 +872,8 @@ Function2 solve(RectilinearGrid1 &grid, Real s) {
 					[=] (const Interpolant1 &U, Real S) {
 						// Bank gets dividends
 						Real Lp = L_hat - q * S / A;
-						if(Lp < epsilon) {
-							Lp = epsilon;
+						if(Lp < QuantPDE::epsilon) {
+							Lp = QuantPDE::epsilon;
 							// Saves us from solving
 							// another 1d PDE
 						}
@@ -874,7 +934,7 @@ Function2 solve(RectilinearGrid1 &grid, Real s) {
 
 	// Similarity reduction
 	return [=] (Real S, Real L) {
-		if(L <= 0.) { return 0.; }
+		if(L < QuantPDE::epsilon) { L = QuantPDE::epsilon; }
 		const Real alpha = L_hat / L;
 		const Real value = U(alpha * S) / alpha;
 		return value;
