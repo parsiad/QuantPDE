@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# Binary
+bin=build/nonrecourse_stock_loan
+binpath=../$bin
+
+# Build binary if it doesn't exist
+if [ ! -f $binpath ]; then
+	echo "warning: could not find $bin; compiling it..." 2> /dev/stderr
+	cd ../; make $bin > /dev/null 2>&1; cd -;
+	if [ $? -ne 0 ]; then
+		echo "error: unable to build $bin" 2> /dev/stderr
+		exit 1
+	fi
+fi
+
+# File path
+name=nsl_$RANDOM
+output=/tmp/$name.ps
+file=/tmp/$name.txt
+
+has_plot=1
+case "$*" in
+(*--plot*) has_plot=0;;
+esac
+
+if [ $has_plot -ne 0 ]; then
+	echo "error: neither --plot nor --plot-spread was not specified" \
+			2> /dev/stderr
+	exit 1
+fi
+
+# Write data to file
+$binpath $@ > $file
+
+# Check to see if MATLAB exists
+which matlab > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+	echo "error: no MATLAB in path" 2> /dev/stderr
+	exit 1
+fi
+
+# Make figure
+common="figure('Visible', 'Off'); load $file; x=$name(:, 1); y=$name(:, 2); f = find(x >= 200); plot(x, y, '-k', 'LineWidth', 2); xlabel('Initial stock price (S)'); ylabel('U(S)'); axis([0, 200, 0, max(y(1:f))+1])"
+matlab -nodesktop -nosplash -r "$common; saveas(gcf, '$output'); exit();"
+
+# Open figure
+echo $output
+xdg-open $output

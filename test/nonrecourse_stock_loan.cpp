@@ -19,6 +19,7 @@ using namespace QuantPDE::Modules;
 #include <getopt.h>  // getopt_long
 #include <iomanip>   // setw
 #include <iostream>  // cout, cerr
+#include <limits>    // infinity
 #include <string>    // to_string
 
 using namespace std;
@@ -29,6 +30,9 @@ using namespace std;
 
 Real beta_lo         = 0.8;   // Low trigger
 Real beta_hi         = 0.9;   // High trigger
+
+Real p_lo            = 0;     // Penalty low trigger
+Real p_hi            = numeric_limits<Real>::infinity(); // Penalty high trigger
 
 Real S_0             = 125.;  // Initial stock value
 Real L_0             = 100.;  // Initial loan value
@@ -64,8 +68,8 @@ bool dividendsToBank = false; // Dividends go to the bank
  * Controls the output of the program.
  */
 enum class ProgramOperation {
-	PLOT_DATA, /**< outputs plotting data */
-	PLOT_DATA_VS_SPREAD, /**< outputs plotting data with spread as x-axis */
+	PLOT, /**< outputs plotting data */
+	PLOT_SPREAD, /**< outputs plotting data with spread as x-axis */
 	FAIR_SPREAD, /**< computes the fair spread */
 	FIXED_SPREAD /**< convergence test for a fixed spread */
 };
@@ -196,6 +200,14 @@ endl <<
 endl <<
 "    Sets the bank liquidation trigger (default is 0.9)." << endl <<
 endl <<
+"--penalty-lo-trigger POSITIVE_REAL" << endl <<
+endl <<
+"    Sets the low trigger for lapsation penalty (default is 0)." << endl <<
+endl <<
+"--penalty-hi-trigger POSITIVE_REAL" << endl <<
+endl <<
+"    Sets the high triggers for lapsation penalty is removed (default is inf)." << endl <<
+endl <<
 "--bank-events INTEGER" << endl <<
 endl <<
 "    Number of bank events; -1 for at all time steps (default is -1)." << endl <<
@@ -216,10 +228,17 @@ endl <<
 endl <<
 "    Specifies that the bank gets the dividends (default is off)." << endl <<
 endl <<
-"--plot-data" << endl <<
+"--plot" << endl <<
 endl <<
-"    Prints plotting data to stdout (default is off)." << endl <<
+"    Plot data for the solution vs. the initial stock price (default is off)." << endl <<
 endl <<
+"--plot-spread" << endl <<
+endl <<
+"    Plot data for the solution vs. the spread (default is off)." << endl <<
+endl <<
+"--fair-spread" << endl <<
+endl <<
+"    Computes the fair spread (default is off)." << endl <<
 endl;
 }
 
@@ -253,7 +272,11 @@ int main(int argc, char **argv) {
 			{ "bank-gets-dividends", no_argument,       0, 0 },
 			{ "bank-lo-trigger",     required_argument, 0, 0 },
 			{ "bank-hi-trigger",     required_argument, 0, 0 },
-			{ "plot-data",           no_argument,       0, 0 },
+			{ "plot",                no_argument,       0, 0 },
+			{ "plot-spread",         no_argument,       0, 0 },
+			{ "fair-spread",         no_argument,       0, 0 },
+			{ "penalty-lo-trigger",  required_argument, 0, 0 },
+			{ "penalty-hi-trigger",  required_argument, 0, 0 },
 			{ nullptr, 0, 0, 0 }
 		};
 
@@ -315,7 +338,24 @@ int main(int argc, char **argv) {
 
 						case 7:
 						op = ProgramOperation
-								::PLOT_DATA;
+								::PLOT;
+						break;
+
+						case 8:
+						op = ProgramOperation
+								::PLOT_SPREAD;
+						break;
+
+						case 9:
+						op = ProgramOperation
+								::FAIR_SPREAD;
+
+						case 10:
+						p_lo = atof(optarg);
+						break;
+
+						case 11:
+						p_hi = atof(optarg);
 						break;
 
 						default:
@@ -470,6 +510,12 @@ int main(int argc, char **argv) {
 		<< endl
 		<< endl
 
+		<< "Penalty low trigger:     \t" << p_lo
+		<< endl
+		<< "Penalty high trigger:    \t" << p_hi
+		<< endl
+		<< endl
+
 		<< "Bank events:             \t" << ( bankEvents < 0
 				? "at all times" : to_string(bankEvents) )
 		<< endl
@@ -510,7 +556,7 @@ int main(int argc, char **argv) {
 	cout.precision(12); // Precision
 	constexpr int td = 20; // Spacing used to print
 
-	if(op == ProgramOperation::PLOT_DATA) {
+	if(op == ProgramOperation::PLOT) {
 
 		// Double the number of timesteps as many times as necessary
 		for(int i = 0; i < maxRefinement; ++i) { N *= 2; }
@@ -524,7 +570,7 @@ int main(int argc, char **argv) {
 		// Print U(S, L_0) (fixed L_0) at all grid nodes
 		cout << accessor( grid, [&] (Real S) { return U(S, L_0); } );
 
-	} else if(op == ProgramOperation::PLOT_DATA_VS_SPREAD) {
+	} else if(op == ProgramOperation::PLOT_SPREAD) {
 
 		// Double the number of timesteps as many times as necessary
 		for(int i = 0; i < maxRefinement; ++i) { N *= 2; }
@@ -635,9 +681,19 @@ Function2 solve(RectilinearGrid1 &grid, Real s) {
 		stepper.add(
 			t_i,
 			[=] (const Interpolant1 &U, Real S) {
+				// Value-to-loan ratio
+				const Real R = L_hat / S;
+
+				// Penalty is only enabled if we are in the
+				// penalty region
+				Real pen = 0.;
+				if(R >= p_lo && R <= p_hi) {
+					pen = p;
+				}
+
 				return min(
 					U(S),
-					(1 - p) * min(L_hat * A, S) + p * S
+					min(pen * S + L_hat * A, S)
 				);
 			},
 			grid
@@ -763,7 +819,8 @@ Function2 solve(RectilinearGrid1 &grid, Real s) {
 						}
 
 						// Similarity reduction
-						return simU(U, (1-q) * S, Lp);
+						return simU(U, (1-q) * S, Lp)
+								+ q * S;
 					},
 					grid
 				);
