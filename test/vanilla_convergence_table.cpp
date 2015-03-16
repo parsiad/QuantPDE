@@ -147,7 +147,11 @@ int main(int argc, char **argv) {
 				}
 				break;
 			case 'S':
-				asset = atof(optarg);
+				if((asset = atof(optarg)) < 0.) {
+					cerr <<
+"error: the initial stock price must be nonnegative" << endl;
+					return 1;
+				}
 				break;
 			case 'T':
 				if((expiry = atof(optarg)) <= 0.) {
@@ -185,38 +189,11 @@ int main(int argc, char **argv) {
 	Real previousValue = nan(""), previousChange = nan("");
 
 	// Initial discretization
-	// TODO: Create grid based on initial stock price and strike price
+	// Create grid based on initial stock price and strike price
 	RectilinearGrid1 initialGrid(
-		Axis {
-			0., 10., 20., 30., 40., 50., 60., 70.,
-			75., 80.,
-			84., 88., 92.,
-			94., 96., 98., 100., 102., 104., 106., 108., 110.,
-			114., 118.,
-			123.,
-			130., 140., 150.,
-			175.,
-			225.,
-			300.,
-			750.,
-			2000.,
-			10000.
-		}
+		  (asset  * Axis::special)
+		+ (strike * Axis::special)
 	);
-
-	/*
-	const Real sqrtLast = max(asset, strike);
-	const Real last = sqrtLast * sqrtLast;
-	RectilinearGrid1 grid(
-		Axis::cluster(
-			0.,     // First node
-			strike, // Feature
-			last,   // Last node
-			32,     // Number of points
-			1.      // Intensity
-		)
-	);
-	*/
 
 	// Payoff function
 	Function1 payoff = call ? callPayoff(strike) : putPayoff(strike);

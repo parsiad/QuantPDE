@@ -246,8 +246,12 @@ public:
 				intensity
 			)
 		;
-
 	}
+
+	/**
+	 * A hand-picked axis from 0 to 100 with nodes clustered around 1.
+	 */
+	static Axis special;
 
 	/**
 	 * Union of two axes.
@@ -424,6 +428,22 @@ public:
 
 	template <Index> friend class RectilinearGrid;
 
+};
+
+Axis Axis::special {
+	0., .1, .2, .3, .4, .5, .6, .7,
+	.75, .80,
+	.84, .88, .92,
+	.94, .96, .98, 1., 1.02, 1.04, 1.06, 1.08, 1.10,
+	1.14, 1.18,
+	1.23,
+	1.30, 1.40, 1.50,
+	1.75,
+	2.25,
+	3.00,
+	7.50,
+	20.,
+	100.
 };
 
 /**

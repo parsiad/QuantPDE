@@ -32,7 +32,6 @@ void help() {
 "jump_diffusion [OPTIONS]" << endl << endl <<
 "Computes the price of a European put with jump-diffusion driven by a Poisson " << endl <<
 "process. The jump amplitude is assumed to be lognormally distributed." << endl <<
-"unequal borrowing/lending rates." << endl <<
 endl <<
 "-d REAL" << endl <<
 endl <<
@@ -158,23 +157,7 @@ int main(int argc, char **argv) {
 	// Spatial grid
 	////////////////////////////////////////////////////////////////////////
 
-	RectilinearGrid1 initialGrid(
-		Axis {
-			0., 10., 20., 30., 40., 50., 60., 70.,
-			75., 80.,
-			84., 88., 92.,
-			94., 96., 98., 100., 102., 104., 106., 108., 110.,
-			114., 118.,
-			123.,
-			130., 140., 150.,
-			175.,
-			225.,
-			300.,
-			750.,
-			2000.,
-			10000.
-		}
-	);
+	RectilinearGrid1 initialGrid( K * Axis::special );
 
 	// Refine grid R times
 	auto grid = initialGrid.refined( R );
@@ -251,7 +234,8 @@ int main(int argc, char **argv) {
 	// Print solution
 	////////////////////////////////////////////////////////////////////////
 
-	RectilinearGrid1 printGrid( Axis::range(0., 10., 200.) );
+	// Print on the grid K * (0 : 0.1 : 2.0)
+	RectilinearGrid1 printGrid( K * Axis::range(0., .1, 2.) );
 	cout << accessor( printGrid, V );
 
 	return 0;

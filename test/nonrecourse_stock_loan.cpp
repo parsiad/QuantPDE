@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
-// nonrecourse_loan.cpp
-// --------------------
+// nonrecourse_stock_loan.cpp
+// --------------------------
 //
 // Author: Parsiad Azimzadeh, Peter Forsyth
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,9 +15,10 @@ using namespace QuantPDE::Modules;
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <algorithm> // max, min
+#include <cmath>     // exp
+#include <getopt.h>  // getopt_long
 #include <iomanip>   // setw
 #include <iostream>  // cout, cerr
-#include <cmath>     // exp
 
 using namespace std;
 
@@ -30,25 +31,26 @@ Real beta_hi         = 0.9;   // High trigger
 
 Real S_0             = 125.;  // Initial stock value
 Real L_0             = 100.;  // Initial loan value
-Real L_hat           = 100.;  // Representative value
+Real L_hat;                   // Representative value
 
 Real r               = 0.04;  // Interest rate
 Real s_0             = 0.0;   // Spread
 Real sigma           = 0.2;   // Volatility
-Real q               = 0.0;   // Continuous dividends
 
-Real lambda          = 0.1;  // Jump arrival rate
+Real p               = 0.01;  // Penalty for lapsation
+
+Real lambda          = 0.1;   // Jump arrival rate
 Real mu_xi           = -.8;   // Mean jump amplitude
 Real sigma_xi        = .42;   // Jump amplitude standard deviation
 
-Real T               = 1.;    // Expiry
+Real T               = 5.;    // Expiry
 
-int borrowerEvents   = -1;    // Borrower events (-1 for all times)
-int bankEvents       = -1;    // Bank events (-1 for all times)
+int borrowerEvents   = 0;     // Borrower events (-1 for all times)
+int bankEvents       = 0;     // Bank events (-1 for all times)
 int interestPayments = 4;     // Interest payments (once a quarter)
 
 int N                = 12;    // Initial number of steps
-int maxRefinement    = 5;     // Maximum number of times to refine
+int maxRefinement    = 10;    // Maximum number of times to refine
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,7 +63,7 @@ enum class ProgramOperation {
 	FAIR_SPREAD, /**< computes the fair spread */
 	FIXED_SPREAD /**< convergence test for a fixed spread */
 };
-ProgramOperation op = ProgramOperation::PLOT_DATA;
+ProgramOperation op = ProgramOperation::FIXED_SPREAD;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,7 +110,63 @@ Real accruedInterest(Real s, Real t) {
 ////////////////////////////////////////////////////////////////////////////////
 
 /**
+ * Prints help to stderr.
+ */
+void help() {
+	cerr <<
+"nonrecourse_stock_loan [OPTIONS]" << endl << endl <<
+"Used to analyze a nonrecourse stock loan." << endl <<
+endl <<
+"-g REAL" << endl <<
+endl <<
+"    Sets the jump amplitude standard deviation (default is 0.42)." << endl <<
+endl <<
+"-l NONNEGATIVE_REAL" << endl <<
+endl <<
+"    Sets the mean arrival time for the jump process (default is 0.1)." << endl <<
+endl <<
+"-L NONNEGATIVE_REAL" << endl <<
+endl <<
+"    Sets the initial loan value (default is 100.)." << endl <<
+endl <<
+"-m REAL" << endl <<
+endl <<
+"    Sets the mean jump amplitude (default is -0.8)." << endl <<
+endl <<
+"-N POSITIVE_REAL" << endl <<
+endl <<
+"    Sets the initial number of timesteps (default is 12)." << endl <<
+endl <<
+"-p PROPORTION" << endl <<
+endl <<
+"    Sets the penalty rate for borrower lapsation (default is 0.01)." << endl <<
+endl <<
+"-r REAL" << endl <<
+endl <<
+"    Sets the interest rate (default is 0.04)." << endl <<
+endl <<
+"-R NONNEGATIVE_INTEGER" << endl <<
+endl <<
+"    Controls the coarseness of the grid, with 0 being coarsest (default is 0)." << endl <<
+endl <<
+"-S NONNEGATIVE_INTEGER" << endl <<
+endl <<
+"    Sets the initial stock price (default is 125)." << endl <<
+endl <<
+"-T POSITIVE_REAL" << endl <<
+endl <<
+"    Sets the expiry time (default is 5.)." << endl <<
+endl <<
+"-v REAL" << endl <<
+endl <<
+"    Sets the volatility (default is 0.2)." << endl << endl;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+/**
  * Solve the nonrecourse stock loan problem with fixed spread.
+ * @param grid The stock grid.
  * @param s A fixed value of the spread.
  * @return The solution U(S, L) as a lambda function that can be queried at any
  *         point.
@@ -119,26 +177,132 @@ Function2 solve(RectilinearGrid1 &grid, Real s);
  * Main code.
  */
 int main(int argc, char **argv) {
-	// TODO: Initial grid should have node at S_0 and L_hat
 
-	// Initial grid
-	RectilinearGrid1 initialGrid(
-		(S_0 / 100.) * Axis {
-			0., 10., 20., 30., 40., 50., 60., 70.,
-			75., 80.,
-			84., 88., 92.,
-			94., 96., 98., 100., 102., 104., 106., 108., 110.,
-			114., 118.,
-			123.,
-			130., 140., 150.,
-			175.,
-			225.,
-			300.,
-			750.,
-			2000.,
-			10000.
+	////////////////////////////////////////////////////////////////////////
+	// Options
+	////////////////////////////////////////////////////////////////////////
+
+	{
+		// Long option names
+		static struct option opts[] = {
+			{ nullptr, 0, 0, 0 }
+		};
+
+		int c;
+		int index;
+		while(
+			(
+				c = getopt_long(
+					argc,
+					argv,
+					"g:hl:L:m:N:p:r:R:S:T:v:",
+					opts,
+					&index
+				)
+			) != -1
+		) {
+			switch(c) {
+				// Long options
+				case 0:
+					switch(index)
+					{
+						default:
+							break;
+					}
+				break;
+
+				case 'g':
+				sigma_xi = atof(optarg);
+				break;
+
+				case 'h':
+				help();
+				return 0;
+
+				case 'l':
+				if((lambda = atof(optarg)) < 0) {
+					cerr <<
+"error: the mean arrival time must be nonnegative" << endl;
+					return 1;
+				}
+				break;
+
+				case 'L':
+				if((L_0 = atof(optarg)) < 0.) {
+					cerr <<
+"error: the initial loan value must be nonnegative" << endl;
+					return 1;
+				}
+				break;
+
+				case 'm':
+				mu_xi = atof(optarg);
+				break;
+
+				case 'N':
+				if((N = atoi(optarg)) <= 0) {
+					cerr <<
+"error: the number of steps must be positive" << endl;
+					return 1;
+				}
+				break;
+
+				case 'p':
+				p = atof(optarg);
+				if(p < 0. || p > 1.) {
+					cerr <<
+"error: the penalty rate must be a proportion" << endl;
+					return 1;
+				}
+				break;
+
+				case 'r':
+				r = atof(optarg);
+				break;
+
+				case 'R':
+				if((maxRefinement = atoi(optarg)) < 0) {
+					cerr <<
+"error: the maximum level of refinement must be nonnegative" << endl;
+					return 1;
+				}
+				break;
+
+				case 'S':
+				if((S_0 = atof(optarg)) < 0.) {
+					cerr <<
+"error: the initial stock price must be nonnegative" << endl;
+					return 1;
+				}
+				break;
+
+				case 'T':
+				if((T = atof(optarg)) <= 0.) {
+					cerr <<
+"error: expiry time must be positive" << endl;
+					return 1;
+				}
+				break;
+
+				case 'v':
+				sigma = atof(optarg);
+				break;
+
+				case ':':
+				case '?':
+				cerr << endl;
+				help();
+				return 1;
+			}
 		}
-	);
+	}
+
+	////////////////////////////////////////////////////////////////////////
+
+	L_hat = S_0;
+
+	// Initial grid with a node at S_0 = L_hat
+	RectilinearGrid1 initialGrid( S_0 * Axis::special );
 
 	// Populate vector of interest payment dates
 	{
@@ -279,7 +443,10 @@ Function2 solve(RectilinearGrid1 &grid, Real s) {
 		stepper.add(
 			t_i,
 			[=] (const Interpolant1 &U, Real S) {
-				return min( U(S), min(L_hat * A, S) );
+				return min(
+					U(S),
+					(1 - p) * min(L_hat * A, S) + p * S
+				);
 			},
 			grid
 		);
@@ -388,7 +555,7 @@ Function2 solve(RectilinearGrid1 &grid, Real s) {
 
 		r,      // Interest
 		sigma,  // Volatility
-		q,      // Continuous dividends
+		0.,     // No continuous dividends
 
 		lambda, // Mean arrival time
 		lognormal(mu_xi, sigma_xi) // Log-normal probability density
