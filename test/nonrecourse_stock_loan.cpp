@@ -19,6 +19,7 @@ using namespace QuantPDE::Modules;
 #include <getopt.h>  // getopt_long
 #include <iomanip>   // setw
 #include <iostream>  // cout, cerr
+#include <string>    // to_string
 
 using namespace std;
 
@@ -36,8 +37,9 @@ Real L_hat;                   // Representative value
 Real r               = 0.04;  // Interest rate
 Real s_0             = 0.0;   // Spread
 Real sigma           = 0.2;   // Volatility
+Real q               = 0.;    // Discrete dividend rate
 
-Real p               = 0.01;  // Penalty for lapsation
+Real p               = 0.;    // Penalty for lapsation
 
 Real lambda          = 0.1;   // Jump arrival rate
 Real mu_xi           = -.8;   // Mean jump amplitude
@@ -45,12 +47,16 @@ Real sigma_xi        = .42;   // Jump amplitude standard deviation
 
 Real T               = 5.;    // Expiry
 
+// Number of events over course of contract
 int borrowerEvents   = 0;     // Borrower events (-1 for all times)
 int bankEvents       = 0;     // Bank events (-1 for all times)
-int interestPayments = 4;     // Interest payments (once a quarter)
+int interestPayments = 20;    // Interest payments
+int dividendPayments = 20;    // Dividend payments
 
 int N                = 12;    // Initial number of steps
 int maxRefinement    = 10;    // Maximum number of times to refine
+
+bool dividendsToBank = false; // Dividends go to the bank
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,6 +75,19 @@ ProgramOperation op = ProgramOperation::FIXED_SPREAD;
 
 std::vector<Real> interestPaymentDates; // Sorted (ascending) vector of interest
                                         // payment dates; initialized in main()
+
+/**
+ * Similarity reduction.
+ * @param U One-dimensional solution (for fixed L = L_hat)
+ * @param S The stock price.
+ * @param L The loan value (assumed > 0).
+ * @return The value of U.
+ */
+Real simU(const Interpolant1 &U, Real S, Real L) {
+	assert(L > 0.);
+	const Real alpha = L_hat / L;
+	return U(alpha * S) / alpha;
+}
 
 /**
  * Payoff from the bank's perspective for representative value of L.
@@ -133,13 +152,17 @@ endl <<
 endl <<
 "    Sets the mean jump amplitude (default is -0.8)." << endl <<
 endl <<
-"-N POSITIVE_REAL" << endl <<
+"-N POSITIVE_INTEGER" << endl <<
 endl <<
 "    Sets the initial number of timesteps (default is 12)." << endl <<
 endl <<
 "-p PROPORTION" << endl <<
 endl <<
-"    Sets the penalty rate for borrower lapsation (default is 0.01)." << endl <<
+"    Sets the penalty rate for borrower lapsation (default is 0.)." << endl <<
+endl <<
+"-q PROPORTION" << endl <<
+endl <<
+"    Sets the dividend rate (default is 0.)." << endl <<
 endl <<
 "-r REAL" << endl <<
 endl <<
@@ -149,9 +172,13 @@ endl <<
 endl <<
 "    Controls the coarseness of the grid, with 0 being coarsest (default is 0)." << endl <<
 endl <<
-"-S NONNEGATIVE_INTEGER" << endl <<
+"-s REAL" << endl <<
 endl <<
-"    Sets the initial stock price (default is 125)." << endl <<
+"    Sets the spread (default is 10.)." << endl <<
+endl <<
+"-S NONNEGATIVE_REAL" << endl <<
+endl <<
+"    Sets the initial stock price (default is 125.)." << endl <<
 endl <<
 "-T POSITIVE_REAL" << endl <<
 endl <<
@@ -195,7 +222,7 @@ int main(int argc, char **argv) {
 				c = getopt_long(
 					argc,
 					argv,
-					"g:hl:L:m:N:p:r:R:S:T:v:",
+					"g:hl:L:m:N:p:q:r:R:s:S:T:v:",
 					opts,
 					&index
 				)
@@ -256,6 +283,15 @@ int main(int argc, char **argv) {
 				}
 				break;
 
+				case 'q':
+				q = atof(optarg);
+				if(q < 0. || q > 1.) {
+					cerr <<
+"error: the dividend rate must be a proportion" << endl;
+					return 1;
+				}
+				break;
+
 				case 'r':
 				r = atof(optarg);
 				break;
@@ -266,6 +302,10 @@ int main(int argc, char **argv) {
 "error: the maximum level of refinement must be nonnegative" << endl;
 					return 1;
 				}
+				break;
+
+				case 's':
+				s_0 = atof(optarg);
 				break;
 
 				case 'S':
@@ -303,6 +343,59 @@ int main(int argc, char **argv) {
 
 	// Initial grid with a node at S_0 = L_hat
 	RectilinearGrid1 initialGrid( S_0 * Axis::special );
+
+	////////////////////////////////////////////////////////////////////////
+
+	cerr << "\033[1;33m";
+
+	cerr
+		<< "Jump amplitude std:    \t" << sigma_xi
+		<< endl
+		<< "Mean jump arrival time:\t" << lambda
+		<< endl
+		<< "Initial loan value:    \t" << L_0
+		<< endl
+		<< "Mean jump amplitude:   \t" << mu_xi
+		<< endl
+		<< "Initial time steps:    \t" << N
+		<< endl
+		<< "Penalty rate:          \t" << p
+		<< endl
+		<< "Dividend rate:         \t" << q
+		<< endl
+		<< "Interest rate:         \t" << r
+		<< endl
+		<< "Initial grid:          \t" << initialGrid
+		<< endl
+		<< "Maximum refinement:    \t" << maxRefinement
+		<< endl
+		<< "Spread:                \t" << s_0
+		<< endl
+		<< "Initial stock price:   \t" << S_0
+		<< endl
+		<< "Expiry time:           \t" << T
+		<< endl
+		<< "Volatility:            \t" << sigma
+		<< endl
+		<< "Bank events:           \t" << ( bankEvents < 0
+				? "at all times" : to_string(bankEvents) )
+		<< endl
+		<< "Borrower events:       \t" << ( borrowerEvents < 0
+				? "at all times" : to_string(borrowerEvents) )
+		<< endl
+		<< "Coupon payments:       \t" << interestPayments
+		<< endl
+		<< "Dividend payments:     \t" << dividendPayments
+		<< endl
+		<< "Bank gets dividends:   \t" << dividendsToBank
+		<< endl
+
+		<< endl
+	;
+
+	cerr << "\033[0m";
+
+	////////////////////////////////////////////////////////////////////////
 
 	// Populate vector of interest payment dates
 	{
@@ -498,10 +591,9 @@ Function2 solve(RectilinearGrid1 &grid, Real s) {
 					}
 
 					// Top-up with cash
-					const Real tmp = S * R_0 / L_hat
-							* U(L_hat / R_0)
+					// (similarity reduction)
+					const Real tmp = simU(U, S, S * R_0)
 							+ (L_hat - S * R_0) * A;
-					;
 					if(tmp > best) {
 						best = tmp;
 					}
@@ -517,35 +609,78 @@ Function2 solve(RectilinearGrid1 &grid, Real s) {
 
 	////////////////////////////////////////////////////////////////////////
 
-	{ // <InterestPayment>
+	{ // <interestPayment>
 
-	// Add interest payment events (skip initial time)
-	for(
-		auto it = interestPaymentDates.begin() + 1;
-		it != interestPaymentDates.end();
-		++it
-	) {
-		// Time at which interest payment takes place
-		const Real t_i = *it;
+		// Add interest payment events (skip initial time)
+		for(
+			auto it = interestPaymentDates.begin() + 1;
+			it != interestPaymentDates.end();
+			++it
+		) {
+			// Time at which interest payment takes place
+			const Real t_i = *it;
 
-		// Accrued interest
-		const Real A = accruedInterest(s, t_i);
+			// Accrued interest
+			const Real A = accruedInterest(s, t_i);
 
-		stepper.add(
-			t_i,
-			[=] (const Interpolant1 &U, Real S) {
-				return U(S) + L_hat * (A - 1.);
-			},
-			grid
-		);
-	}
+			stepper.add(
+				t_i,
+				[=] (const Interpolant1 &U, Real S) {
+					return U(S) + L_hat * (A - 1.);
+				},
+				grid
+			);
+		}
 
 	} // </InterestPayment>
 	// 2015-03-04: checked; respects monotonicity; if spread is zero and
 	//             events are off, then U(S_0) -> L_0 as S_0 -> infinity
 	//             (i.e. the bank just gets the loan + interest back)
 
-	// TODO: Dividends
+	////////////////////////////////////////////////////////////////////////
+
+	if(q > 0.) { // <DividendPayments>
+
+		// Add dividend payment events (skip initial time)
+		const Real dt = T / dividendPayments;
+
+		for(int i = 1; i <= dividendPayments; ++i) {
+			// Time at which interest payment takes place
+			const Real t_i = dt * i;
+
+			// Accrued interest
+			const Real A = accruedInterest(s, t_i);
+
+			if(dividendsToBank) {
+				stepper.add(
+					t_i,
+					[=] (const Interpolant1 &U, Real S) {
+						// Bank gets dividends
+						Real Lp = L_hat - q * S / A;
+						if(Lp < epsilon) {
+							Lp = epsilon;
+							// Saves us from solving
+							// another 1d PDE
+						}
+
+						// Similarity reduction
+						return simU(U, (1-q) * S, Lp);
+					},
+					grid
+				);
+			} else {
+				stepper.add(
+					t_i,
+					[=] (const Interpolant1 &U, Real S) {
+						// Borrower gets dividends
+						return U( (1-q) * S );
+					},
+					grid
+				);
+			}
+		}
+
+	} // </DividendPayments>
 
 	////////////////////////////////////////////////////////////////////////
 
