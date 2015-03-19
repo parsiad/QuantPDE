@@ -867,7 +867,7 @@ int processOptions(int argc, char **argv) {
 
 				case 'h':
 				help();
-				return 0;
+				return 1;
 
 				case 'l':
 				if((lambda = atof(optarg)) < 0) {
