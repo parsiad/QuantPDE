@@ -28,6 +28,11 @@ using namespace std;
 // Default constants
 ////////////////////////////////////////////////////////////////////////////////
 
+/**
+ * Compute the least common multiple of two integers.
+ */
+int lcm(int a, int b);
+
 Real beta_lo         = 0.85;  // Low trigger
 Real beta_hi         = 0.9;   // High trigger
 
@@ -59,7 +64,9 @@ Real firstPrepay     = 0.;    // First time at which the borrower can prepay
 bool borrowerAll     = true;  // Borrower events at all times
 bool bankAll         = true;  // Bank events at all times
 
-int N                = 12;    // Initial number of steps
+// Initial number of steps
+int N                = lcm(interestPayments, dividendPayments);
+
 int maxRefinement    = 5;     // Maximum number of times to refine
 
 bool dividendsToBank = false; // Dividends go to the bank
@@ -96,14 +103,8 @@ Real simU(const Interpolant1 &U, Real S, Real L) {
 }
 
 /**
- * Payoff from the bank's perspective for representative value of L.
- * @param S The stock value at the expiry.
- * @return The payoff min(S, L_hat).
- */
-Real payoff(Real S) { return min(S, L_hat); }
-
-/**
  * Accrued interest at a particular time between coupon dates.
+ * @param s The spread.
  * @param t The particular time.
  * @return e^((r+s)(t-t_p)) where t_p is the previous coupon date.
  */
@@ -132,11 +133,522 @@ Real accruedInterest(Real s, Real t) {
 	return A_t;
 }
 
+/**
+ * Payoff from the bank's perspective for representative value of L.
+ * @param S The stock price.
+ * @return The payoff.
+ */
+Real payoff(Real S) {
+	return min(S, L_hat);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Prints help to stderr.
  */
+void help();
+
+/**
+ * Processes command line options.
+ * @param argc Number of arguments.
+ * @param argv Arguments.
+ * @return 0 on success.
+ */
+int processOptions(int argc, char **argv);
+
+/**
+ * Print selected options to stderr.
+ * @param The initial grid before any refinement.
+ */
+void printOptions(const RectilinearGrid1 &initialGrid);
+
+/**
+ * Solve the nonrecourse stock loan problem with fixed spread.
+ * @param grid The stock grid.
+ * @param s A fixed value of the spread.
+ * @return The solution U(S, L) as a lambda function that can be queried at any
+ *         point.
+ */
+Function2 solve(RectilinearGrid1 &grid, Real s);
+
+/**
+ * Main code.
+ */
+int main(int argc, char **argv) {
+
+	// Process options
+	{
+		int error;
+		if( (error = processOptions(argc, argv)) != 0 ) {
+			return error;
+		}
+	}
+
+	////////////////////////////////////////////////////////////////////////
+
+	// Adjust number of timesteps accordingly
+	{
+		int newN = interestPayments;
+
+		if(bankEvents     > 0) { newN = lcm(newN, bankEvents      ); }
+		if(borrowerEvents > 0) { newN = lcm(newN, borrowerEvents  ); }
+
+		if(q > 0 && dividendPayments > 0) {
+			newN = lcm(newN, dividendPayments);
+		}
+
+		int tmp = newN;
+		while(tmp < N) { tmp += newN; }
+
+		if(N != tmp) {
+			N = tmp;
+			cerr <<
+"warning: changed initial number of timesteps for better convergence";
+			cerr << endl << endl;
+		}
+	}
+
+
+	// Initial grid with a node at S_0
+	RectilinearGrid1 initialGrid( S_0 * Axis::special );
+
+	// Representative value of L_hat is S_0 (ideal for choice of grid)
+	L_hat = S_0;
+
+	////////////////////////////////////////////////////////////////////////
+
+	printOptions(initialGrid);
+
+	////////////////////////////////////////////////////////////////////////
+
+	// Populate vector of interest payment dates
+	{
+		//interestPaymentDates.reserve(interestPayments);
+		const Real dt = T / interestPayments;
+
+		// i = 0 is not an interest payment date!
+		// It is added in the list but not processed (do not remove)
+
+		for(int i = 0; i <= interestPayments; ++i) {
+			interestPaymentDates.push_back(dt * i);
+		}
+	} // 2015-02-28: checked
+
+	cout.precision(12); // Precision
+	constexpr int td = 20; // Spacing used to print
+
+	if(op != ProgramOperation::FIXED_SPREAD) {
+
+		// Double the number of timesteps as many times as necessary
+		for(int i = 0; i < maxRefinement; ++i) { N *= 2; }
+
+		// Refine grid ref times
+		auto grid = initialGrid.refined( maxRefinement );
+
+		if(op == ProgramOperation::PLOT) {
+
+			// Fixed spread computation
+			auto U = solve(grid, s_0);
+
+			// Print U(S, L_0) (fixed L_0) at all grid nodes
+			cout << accessor(
+				grid,
+				[&] (Real S) { return U(S, L_0); }
+			);
+
+		} else if(op == ProgramOperation::PLOT_SPREAD) {
+
+			Real hi = r; // Initial guess for upper bound is r
+
+			// Find upper bound
+			while(1) {
+				auto U = solve(grid, hi);
+				if( U(S_0, L_0) >= L_0 ) {
+					break;
+				}
+				hi *= 2; // Double upper bound
+			}
+
+			RectilinearGrid1 spreads( Axis::uniform(0, hi, N) );
+
+			// U as a function of the spread
+			auto U_spread = [&] (Real spread) {
+				auto U = solve(grid, spread);
+				return U(S_0, L_0);
+			};
+
+			// Print U_spread for all spreads on the grid
+			cout << accessor(spreads, U_spread);
+
+		} else if(op == ProgramOperation::FAIR_SPREAD) {
+
+			// Print headers
+			cout
+				<< setw(td) << "Spread"       << "\t"
+				<< setw(td) << "Value at S_0" << "\t"
+				<< endl
+			;
+
+			// Fair spread
+
+			Real lo = 0.;
+			Real hi = r; // Initial guess for upper bound is r
+
+			// Find upper bound
+			while(1) {
+				auto U = solve(grid, hi);
+				if( U(S_0, L_0) >= L_0 ) {
+					break;
+				}
+				hi *= 2; // Double upper bound
+			}
+
+			// Bisection
+			Real mid;
+			while(1) {
+				mid = (lo + hi)/2;
+				if((hi - lo)/2 <= QuantPDE::tolerance) {
+					break; // Close enough
+				}
+				auto U = solve(grid, mid);
+				const Real value = U(S_0, L_0);
+				cout
+					<< setw(td) << mid   << "\t"
+					<< setw(td) << value << "\t"
+					<< endl
+				;
+				if( value >= L_0 ) {
+					hi = mid;
+				} else {
+					lo = mid;
+				}
+			}
+
+		}
+
+	} else {
+
+		// Fixed spread
+
+		// Print headers
+		cout
+			<< setw(td) << "Nodes"           << "\t"
+			<< setw(td) << "Time Steps"      << "\t"
+			<< setw(td) << "Value"           << "\t"
+			<< setw(td) << "Change"          << "\t"
+			<< setw(td) << "Ratio"
+			<< endl
+		;
+
+		Real value, previousValue = nan(""), previousChange = nan("");
+		for(int ref = 0; ref <= maxRefinement; ++ref, N *= 2) {
+			// Refine grid ref times
+			auto grid = initialGrid.refined( ref );
+
+			// Solve U(S)
+			auto U = solve(grid, s_0);
+
+			// Query U at the point (S_0, L_0)
+			value = U(S_0, L_0);
+
+			////////////////////////////////////////////////////////
+			// Print table rows
+			////////////////////////////////////////////////////////
+
+			Real
+				change = value - previousValue,
+				ratio = previousChange / change
+			;
+
+			cout
+				<< setw(td) << grid.size() << "\t"
+				<< setw(td) << N           << "\t"
+				<< setw(td) << value       << "\t"
+				<< setw(td) << change      << "\t"
+				<< setw(td) << ratio       << "\t"
+				<< endl;
+
+			previousChange = change;
+			previousValue = value;
+		}
+
+	}
+
+	return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Solution for fixed spread
+////////////////////////////////////////////////////////////////////////////////
+
+Function2 solve(RectilinearGrid1 &grid, Real s) {
+	// Constant step-size
+	ReverseConstantStepper stepper(
+		0.,   // Initial time
+		T,    // Expiry time
+		T / N // Timestep size
+	);
+
+	////////////////////////////////////////////////////////////////////////
+
+	// Order of events (forward in time)
+	// 1. Borrower: walk-away or repay
+	// 2. Bank: top-up or liquidate
+	// 3. Interest payment
+
+	// Apply events at all times
+	if(borrowerAll) { borrowerEvents = N; }
+	if(bankAll)     { bankEvents     = N; }
+
+	////////////////////////////////////////////////////////////////////////
+
+	{ // <BorrowerEvent>
+
+	// Time between borrower events
+	const Real dt = T / borrowerEvents;
+
+	for(int i = 0; i < borrowerEvents; ++i) {
+		const Real t_i = dt * i;
+
+		// Accrued interest
+		const Real A = accruedInterest(s, t_i);
+
+		stepper.add(
+			t_i,
+			[=] (const Interpolant1 &U, Real S) {
+				Real newValue = S;
+				if(t_i >= firstPrepay) {
+					const Real prepay = (1+p) * L_hat * A;
+					if(prepay < newValue) {
+						newValue = prepay;
+					}
+				}
+
+				return min( U(S), newValue );
+			},
+			grid
+		);
+	}
+
+	} // </BorrowerEvent>
+	// 2015-03-04: checked; respects monotonicity
+
+	////////////////////////////////////////////////////////////////////////
+
+	{ // <BankEvent>
+
+	// Time between bank events
+	const Real dt = T / bankEvents;
+
+	for(int i = 0; i < bankEvents; ++i) {
+		const Real t_i = dt * i;
+
+		// Accrued interest
+		const Real A = accruedInterest(s, t_i);
+
+		stepper.add(
+			t_i,
+			[=] (const Interpolant1 &U, Real S) {
+				// Continuation value
+				Real best = U(S);
+
+				// Value-to-loan ratio
+				const Real R = L_hat / S;
+
+				// R is above high trigger
+				if(R > beta_hi) {
+
+					// Option to liquidate
+					const Real tmp = min(L_hat * A, S);
+					if(tmp > best) {
+						best = tmp;
+					}
+				}
+
+				// R is above low trigger
+				if(R > beta_lo) {
+					const Real R_0 = L_0 / S_0;
+
+					{ // Top-up with shares
+						const Real tmp = U(L_hat / R_0);
+						if(tmp > best) {
+							best = tmp;
+						}
+					}
+
+					// Top-up with cash
+					// (similarity reduction)
+					const Real tmp = simU(U, S, S * R_0)
+							+ (L_hat - S * R_0) * A;
+					if(tmp > best) {
+						best = tmp;
+					}
+				}
+
+				return best;
+			},
+			grid
+		);
+	}
+
+	} // </BankEvent>
+
+	////////////////////////////////////////////////////////////////////////
+
+	{ // <InterestPayment>
+
+		// Add interest payment events (skip initial time)
+		for(
+			auto it = interestPaymentDates.begin() + 1;
+			it != interestPaymentDates.end();
+			++it
+		) {
+			// Time at which interest payment takes place
+			const Real t_i = *it;
+
+			// Accrued interest
+			const Real A = accruedInterest(s, t_i);
+
+			stepper.add(
+				t_i,
+				[=] (const Interpolant1 &U, Real S) {
+					return U(S) + L_hat * (A - 1.);
+				},
+				grid
+			);
+		}
+
+	} // </InterestPayment>
+	// 2015-03-04: checked; respects monotonicity; if spread is zero and
+	//             events are off, then U(S_0) -> L_0 as S_0 -> infinity
+	//             (i.e. the bank just gets the loan + interest back)
+
+	////////////////////////////////////////////////////////////////////////
+
+	if(q > 0.) { // <DividendPayments>
+
+		// Add dividend payment events (skip initial time)
+		const Real dt = T / dividendPayments;
+
+		for(int i = 1; i <= dividendPayments; ++i) {
+			// Time at which interest payment takes place
+			const Real t_i = dt * i;
+
+			// Accrued interest
+			const Real A = accruedInterest(s, t_i);
+
+			if(dividendsToBank) {
+				stepper.add(
+					t_i,
+					[=] (const Interpolant1 &U, Real S) {
+						// Bank gets dividends
+						Real Lp = L_hat - q * S / A;
+						if(Lp < QuantPDE::epsilon) {
+							Lp = QuantPDE::epsilon;
+							// Saves us from solving
+							// another 1d PDE
+						}
+
+						// Similarity reduction
+						return simU(U, (1-q) * S, Lp)
+								+ q * S;
+					},
+					grid
+				);
+			} else {
+				stepper.add(
+					t_i,
+					[=] (const Interpolant1 &U, Real S) {
+						// Borrower gets dividends
+						return U( (1-q) * S );
+					},
+					grid
+				);
+			}
+		}
+
+	} // </DividendPayments>
+
+	////////////////////////////////////////////////////////////////////////
+
+	// Jump-diffusion operator
+	BlackScholesJumpDiffusion1 bs(
+		grid,
+
+		r,      // Interest
+		sigma,  // Volatility
+		0.,     // No continuous dividends
+
+		lambda, // Mean arrival time
+		lognormal(mu_xi, sigma_xi) // Log-normal probability density
+	);
+	bs.setIteration(stepper);
+
+	// No jump-diffusion test
+	//BlackScholes1 bs(grid, r, sigma, 0.);
+
+	// Discretization method
+	typedef ReverseBDFTwo1 Discretization;
+	Discretization discretization(grid, bs);
+	discretization.setIteration(stepper);
+
+	// Linear system solver
+	BiCGSTABSolver solver;
+	auto U = stepper.solve(
+		grid,           // Domain
+		payoff,         // Initial condition
+		discretization, // Root of linear system tree
+		solver          // Linear system solver
+	);
+
+	////////////////////////////////////////////////////////////////////////
+
+	// Similarity reduction
+	return [=] (Real S, Real L) {
+		if(L < QuantPDE::epsilon) { L = QuantPDE::epsilon; }
+		const Real alpha = L_hat / L;
+		const Real value = U(alpha * S) / alpha;
+		return value;
+	};
+	// 2015-02-28: checked; without events, exp(-r * T) * L_0 - value is the
+	//                      price (at t=0) of a put with strike L_0
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Least common multiple
+////////////////////////////////////////////////////////////////////////////////
+
+int lcm(int a, int b)
+{
+	int gcd;
+	{
+		int a_ = a, b_ = b;
+		for (;;)
+		{
+			if (a_ == 0) {
+				gcd = b_;
+				break;
+			}
+
+			b_ %= a_;
+
+			if (b_ == 0) {
+				gcd = a_;
+				break;
+			}
+
+			a_ %= b_;
+		}
+	}
+
+	return gcd ? (a / gcd * b) : 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Help and options
+////////////////////////////////////////////////////////////////////////////////
+
 void help() {
 	cerr <<
 "nonrecourse_stock_loan [OPTIONS]" << endl << endl <<
@@ -240,25 +752,7 @@ endl <<
 endl;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Solve the nonrecourse stock loan problem with fixed spread.
- * @param grid The stock grid.
- * @param s A fixed value of the spread.
- * @return The solution U(S, L) as a lambda function that can be queried at any
- *         point.
- */
-Function2 solve(RectilinearGrid1 &grid, Real s);
-
-/**
- * Main code.
- */
-int main(int argc, char **argv) {
-
-	////////////////////////////////////////////////////////////////////////
-	// Options
-	////////////////////////////////////////////////////////////////////////
+int processOptions(int argc, char **argv) {
 
 	{
 		// Long option names
@@ -315,9 +809,9 @@ int main(int argc, char **argv) {
 
 						case 2:
 						interestPayments = atoi(optarg);
-						if(interestPayments < 0) {
+						if(interestPayments < 1) {
 							cerr <<
-"error: number of coupon payments must be nonnegative" << endl;
+"error: there must be at least one coupon payment" << endl;
 							return 1;
 						}
 						break;
@@ -466,15 +960,10 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	////////////////////////////////////////////////////////////////////////
+	return 0;
+}
 
-	L_hat = S_0;
-
-	// Initial grid with a node at S_0 = L_hat
-	RectilinearGrid1 initialGrid( S_0 * Axis::special );
-
-	////////////////////////////////////////////////////////////////////////
-
+void printOptions(const RectilinearGrid1 &initialGrid) {
 	cerr
 		<< "Initial stock price:     \t" << S_0
 		<< endl
@@ -541,387 +1030,4 @@ int main(int argc, char **argv) {
 		<< endl
 		<< endl
 	;
-
-	////////////////////////////////////////////////////////////////////////
-
-	// Populate vector of interest payment dates
-	{
-		interestPaymentDates.reserve(interestPayments);
-		const Real dt = T / interestPayments;
-
-		interestPaymentDates.reserve(interestPayments);
-		for(int i = 0; i <= interestPayments; ++i) {
-			interestPaymentDates.push_back(dt * i);
-		}
-	} // 2015-02-28: checked
-
-	cout.precision(12); // Precision
-	constexpr int td = 20; // Spacing used to print
-
-	if(op == ProgramOperation::PLOT) {
-
-		// Double the number of timesteps as many times as necessary
-		for(int i = 0; i < maxRefinement; ++i) { N *= 2; }
-
-		// Refine grid ref times
-		auto grid = initialGrid.refined( maxRefinement );
-
-		// Fixed spread computation
-		auto U = solve(grid, s_0);
-
-		// Print U(S, L_0) (fixed L_0) at all grid nodes
-		cout << accessor( grid, [&] (Real S) { return U(S, L_0); } );
-
-	} else if(op == ProgramOperation::PLOT_SPREAD) {
-
-		// Double the number of timesteps as many times as necessary
-		for(int i = 0; i < maxRefinement; ++i) { N *= 2; }
-
-		// Refine grid ref times
-		auto grid = initialGrid.refined( maxRefinement );
-
-		// TODO: Allow user to choose coarseness and bounds
-		RectilinearGrid1 spreads( Axis::uniform(0, 2*r, N) );
-
-		// U as a function of the spread
-		auto U_spread = [&] (Real spread) {
-			auto U = solve(grid, spread);
-			return U(S_0, L_0);
-		};
-
-		// Print U_spread for all spreads on the grid
-		cout << accessor(spreads, U_spread);
-
-	} else if(op == ProgramOperation::FAIR_SPREAD) {
-
-		// Print headers
-		cout
-			<< setw(td) << "Spread"       << "\t"
-			<< setw(td) << "Value at S_0" << "\t"
-			<< endl
-		;
-
-		// Double the number of timesteps as many times as necessary
-		for(int i = 0; i < maxRefinement; ++i) { N *= 2; }
-
-		// Refine grid ref times
-		auto grid = initialGrid.refined( maxRefinement );
-
-		// Fair spread
-
-		Real lo = 0.;
-		Real hi = r; // Initial guess for upper bound is r
-
-		// Find upper bound
-		while(1) {
-			auto U = solve(grid, hi);
-			if( U(S_0, L_0) >= L_0 ) {
-				break;
-			}
-			hi *= 2; // Double upper bound
-		}
-
-		// Bisection
-		Real mid;
-		while(1) {
-			mid = (lo + hi)/2;
-			if((hi - lo)/2 <= QuantPDE::tolerance) {
-				break; // Close enough
-			}
-			auto U = solve(grid, mid);
-			const Real value = U(S_0, L_0);
-			cout
-				<< setw(td) << mid   << "\t"
-				<< setw(td) << value << "\t"
-				<< endl
-			;
-			if( value >= L_0 ) {
-				hi = mid;
-			} else {
-				lo = mid;
-			}
-		}
-
-	} else {
-		// Fixed spread
-
-		// Print headers
-		cout
-			<< setw(td) << "Nodes"           << "\t"
-			<< setw(td) << "Time Steps"      << "\t"
-			<< setw(td) << "Value"           << "\t"
-			<< setw(td) << "Change"          << "\t"
-			<< setw(td) << "Ratio"
-			<< endl
-		;
-
-		Real value, previousValue = nan(""), previousChange = nan("");
-		for(int ref = 0; ref <= maxRefinement; ++ref, N *= 2) {
-			// Refine grid ref times
-			auto grid = initialGrid.refined( ref );
-
-			// Solve U(S)
-			auto U = solve(grid, s_0);
-
-			// Query U at the point (S_0, L_0)
-			value = U(S_0, L_0);
-
-			////////////////////////////////////////////////////////
-			// Print table rows
-			////////////////////////////////////////////////////////
-
-			Real
-				change = value - previousValue,
-				ratio = previousChange / change
-			;
-
-			cout
-				<< setw(td) << grid.size() << "\t"
-				<< setw(td) << N           << "\t"
-				<< setw(td) << value       << "\t"
-				<< setw(td) << change      << "\t"
-				<< setw(td) << ratio       << "\t"
-				<< endl;
-
-			previousChange = change;
-			previousValue = value;
-		}
-
-	}
-
-	return 0;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-Function2 solve(RectilinearGrid1 &grid, Real s) {
-	// Constant step-size
-	ReverseConstantStepper stepper(
-		0.,   // Initial time
-		T,    // Expiry time
-		T / N // Timestep size
-	);
-
-	////////////////////////////////////////////////////////////////////////
-
-	// Order of events (forward in time)
-	// 1. Borrower: walk-away or repay
-	// 2. Bank: top-up or liquidate
-	// 3. Interest payment
-
-	// Apply events at all times
-	if(borrowerAll) { borrowerEvents = N; }
-	if(bankAll)     { bankEvents     = N; }
-
-	////////////////////////////////////////////////////////////////////////
-
-	{ // <BorrowerEvent>
-
-	// Time between borrower events
-	const Real dt = T / borrowerEvents;
-
-	for(int i = 0; i < borrowerEvents; ++i) {
-		const Real t_i = dt * i;
-
-		// Accrued interest
-		const Real A = accruedInterest(s, t_i);
-
-		stepper.add(
-			t_i,
-			[=] (const Interpolant1 &U, Real S) {
-				Real newValue = S;
-				if(t_i >= firstPrepay) {
-					const Real prepay = (1+p) * L_hat * A;
-					if(prepay < newValue) {
-						newValue = prepay;
-					}
-				}
-
-				return min( U(S), newValue );
-			},
-			grid
-		);
-	}
-
-	} // </BorrowerEvent>
-	// 2015-03-04: checked; respects monotonicity
-
-	////////////////////////////////////////////////////////////////////////
-
-	{ // <BankEvent>
-
-	// Time between bank events
-	const Real dt = T / bankEvents;
-
-	for(int i = 0; i < bankEvents; ++i) {
-		const Real t_i = dt * i;
-
-		// Accrued interest
-		const Real A = accruedInterest(s, t_i);
-
-		stepper.add(
-			t_i,
-			[=] (const Interpolant1 &U, Real S) {
-				// Continuation value
-				Real best = U(S);
-
-				// Value-to-loan ratio
-				const Real R = L_hat / S;
-
-				// R is above high trigger
-				if(R > beta_hi) {
-
-					// Option to liquidate
-					const Real tmp = min(L_hat * A, S);
-					if(tmp > best) {
-						best = tmp;
-					}
-
-				// R is between low and high triggers
-				} else if(R >= beta_lo) {
-					const Real R_0 = L_0 / S_0;
-
-					{ // Top-up with shares
-						const Real tmp = U(L_hat / R_0);
-						if(tmp > best) {
-							best = tmp;
-						}
-					}
-
-					// Top-up with cash
-					// (similarity reduction)
-					const Real tmp = simU(U, S, S * R_0)
-							+ (L_hat - S * R_0) * A;
-					if(tmp > best) {
-						best = tmp;
-					}
-				}
-
-				return best;
-			},
-			grid
-		);
-	}
-
-	} // </BankEvent>
-
-	////////////////////////////////////////////////////////////////////////
-
-	{ // <interestPayment>
-
-		// Add interest payment events (skip initial time)
-		for(
-			auto it = interestPaymentDates.begin() + 1;
-			it != interestPaymentDates.end();
-			++it
-		) {
-			// Time at which interest payment takes place
-			const Real t_i = *it;
-
-			// Accrued interest
-			const Real A = accruedInterest(s, t_i);
-
-			stepper.add(
-				t_i,
-				[=] (const Interpolant1 &U, Real S) {
-					return U(S) + L_hat * (A - 1.);
-				},
-				grid
-			);
-		}
-
-	} // </InterestPayment>
-	// 2015-03-04: checked; respects monotonicity; if spread is zero and
-	//             events are off, then U(S_0) -> L_0 as S_0 -> infinity
-	//             (i.e. the bank just gets the loan + interest back)
-
-	////////////////////////////////////////////////////////////////////////
-
-	if(q > 0.) { // <DividendPayments>
-
-		// Add dividend payment events (skip initial time)
-		const Real dt = T / dividendPayments;
-
-		for(int i = 1; i <= dividendPayments; ++i) {
-			// Time at which interest payment takes place
-			const Real t_i = dt * i;
-
-			// Accrued interest
-			const Real A = accruedInterest(s, t_i);
-
-			if(dividendsToBank) {
-				stepper.add(
-					t_i,
-					[=] (const Interpolant1 &U, Real S) {
-						// Bank gets dividends
-						Real Lp = L_hat - q * S / A;
-						if(Lp < QuantPDE::epsilon) {
-							Lp = QuantPDE::epsilon;
-							// Saves us from solving
-							// another 1d PDE
-						}
-
-						// Similarity reduction
-						return simU(U, (1-q) * S, Lp)
-								+ q * S;
-					},
-					grid
-				);
-			} else {
-				stepper.add(
-					t_i,
-					[=] (const Interpolant1 &U, Real S) {
-						// Borrower gets dividends
-						return U( (1-q) * S );
-					},
-					grid
-				);
-			}
-		}
-
-	} // </DividendPayments>
-
-	////////////////////////////////////////////////////////////////////////
-
-	// Jump-diffusion operator
-	BlackScholesJumpDiffusion1 bs(
-		grid,
-
-		r,      // Interest
-		sigma,  // Volatility
-		0.,     // No continuous dividends
-
-		lambda, // Mean arrival time
-		lognormal(mu_xi, sigma_xi) // Log-normal probability density
-	);
-	bs.setIteration(stepper);
-
-	// No jump-diffusion test
-	//BlackScholes1 bs(grid, r, sigma, 0.);
-
-	// Discretization method
-	typedef ReverseBDFTwo1 Discretization;
-	Discretization discretization(grid, bs);
-	discretization.setIteration(stepper);
-
-	// Linear system solver
-	BiCGSTABSolver solver;
-	auto U = stepper.solve(
-		grid,           // Domain
-		payoff,         // Initial condition
-		discretization, // Root of linear system tree
-		solver          // Linear system solver
-	);
-
-	////////////////////////////////////////////////////////////////////////
-
-	// Similarity reduction
-	return [=] (Real S, Real L) {
-		if(L < QuantPDE::epsilon) { L = QuantPDE::epsilon; }
-		const Real alpha = L_hat / L;
-		const Real value = U(alpha * S) / alpha;
-		return value;
-	};
-	// 2015-02-28: checked; without events, exp(-r * T) * L_0 - value is the
-	//                      price (at t=0) of a put with strike L_0
 }
