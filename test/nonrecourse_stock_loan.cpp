@@ -47,7 +47,7 @@ Real q               = 0.;    // Discrete dividend rate
 
 Real p               = 0.;    // Penalty for lapsation
 
-Real lambda          = 0.1;   // Jump arrival rate
+Real lambda          = 0.05;  // Jump arrival rate
 Real mu_xi           = -.8;   // Mean jump amplitude
 Real sigma_xi        = .42;   // Jump amplitude standard deviation
 
@@ -270,7 +270,9 @@ int main(int argc, char **argv) {
 				hi *= 2; // Double upper bound
 			}
 
-			RectilinearGrid1 spreads( Axis::uniform(0, hi, N) );
+			const Real ds = 0.001; // Make this an option
+
+			RectilinearGrid1 spreads(Axis::range(0, ds, hi));
 
 			// U as a function of the spread
 			auto U_spread = [&] (Real spread) {
@@ -470,19 +472,26 @@ Function2 solve(RectilinearGrid1 &grid, Real s) {
 				if(R > beta_lo) {
 					const Real R_0 = L_0 / S_0;
 
-					{ // Top-up with shares
+					// Top-up with shares
+					/*
+					{
 						const Real tmp = U(L_hat / R_0);
 						if(tmp > best) {
 							best = tmp;
 						}
 					}
+					*/
 
 					// Top-up with cash
 					// (similarity reduction)
-					const Real tmp = simU(U, S, S * R_0)
-							+ (L_hat - S * R_0) * A;
-					if(tmp > best) {
-						best = tmp;
+					{
+						const Real tmp =
+							simU(U, S, S * R_0)
+							+ (L_hat - S * R_0) * A
+						;
+						if(tmp > best) {
+							best = tmp;
+						}
 					}
 				}
 
@@ -692,7 +701,7 @@ endl <<
 endl <<
 "-s REAL" << endl <<
 endl <<
-"    Sets the spread (default is 10.)." << endl <<
+"    Sets the spread (default is 0.)." << endl <<
 endl <<
 "-S NONNEGATIVE_REAL" << endl <<
 endl <<
