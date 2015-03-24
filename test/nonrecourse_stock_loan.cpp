@@ -37,7 +37,7 @@ Real beta_lo         = 0.85;  // Low trigger
 Real beta_hi         = 0.9;   // High trigger
 
 Real S_0             = 100.;  // Initial stock value
-Real L_0             = 80.;  // Initial loan value
+Real L_0             = 80.;   // Initial loan value
 Real L_hat;                   // Representative value
 
 Real r               = 0.02;  // Interest rate
@@ -248,6 +248,8 @@ int main(int argc, char **argv) {
 
 		if(op == ProgramOperation::PLOT) {
 
+			// Plot
+
 			// Fixed spread computation
 			auto U = solve(grid, s_0);
 
@@ -258,6 +260,8 @@ int main(int argc, char **argv) {
 			);
 
 		} else if(op == ProgramOperation::PLOT_SPREAD) {
+
+			// Plot spread
 
 			Real hi = r; // Initial guess for upper bound is r
 
@@ -283,7 +287,8 @@ int main(int argc, char **argv) {
 			// Print U_spread for all spreads on the grid
 			cout << accessor(spreads, U_spread);
 
-		} else if(op == ProgramOperation::FAIR_SPREAD) {
+		} else {
+			// Fair spread
 
 			// Print headers
 			cout
@@ -292,46 +297,78 @@ int main(int argc, char **argv) {
 				<< endl
 			;
 
-			// Fair spread
-
+			// Initial brackets
 			Real lo = 0.;
-			Real hi = r; // Initial guess for upper bound is r
+			Real hi = r; // Initial guess for upper bound
 
 			// Find upper bound
 			while(1) {
+
 				auto U = solve(grid, hi);
-				if( U(S_0, L_0) >= L_0 ) {
+				const Real value = U(S_0, L_0);
+
+				cout
+					<< setw(td) << hi    << "\t"
+					<< setw(td) << value << "\t"
+				;
+
+				if( value >= L_0 ) {
+					cerr << "\t" << "bracketed in ["
+							<< lo << ", " << hi
+							<< "]; starting hybrid "
+							"Newton" << endl;
 					break;
 				}
+
+				cout << endl;
+
 				hi *= 2; // Double upper bound
 			}
 
-			// Bisection
-			Real mid;
+			// Hybrid Newton's method
+			Real s_0 = (hi + lo) / 2., s_new;
 			while(1) {
-				mid = (lo + hi)/2;
-				if((hi - lo)/2 <= QuantPDE::tolerance) {
-					break; // Close enough
+				auto U_0 = solve(grid, s_0);
+				const Real f_0 = U_0(S_0, L_0);
+
+				// Update brackets
+				if(f_0 >= L_0 && s_0 < hi) {
+					hi = s_0;
+				} else if(f_0 < L_0 && s_0 > lo) {
+					lo = s_0;
 				}
-				auto U = solve(grid, mid);
-				const Real value = U(S_0, L_0);
+
+				auto U_1 = solve(grid, s_0
+						+ QuantPDE::epsilon);
+				const Real f_1 = U_1(S_0, L_0);
+
 				cout
-					<< setw(td) << mid   << "\t"
-					<< setw(td) << value << "\t"
+					<< setw(td) << s_0 << "\t"
+					<< setw(td) << f_0 << "\t"
 					<< endl
 				;
-				if( value >= L_0 ) {
-					hi = mid;
-				} else {
-					lo = mid;
-				}
-			}
 
+				if(f_1 - f_0 < QuantPDE::epsilon) {
+					// Binary search
+					s_new = (lo + hi) / 2;
+				} else {
+					// Newton iteration
+					s_new = s_0 - QuantPDE::epsilon
+							* (f_0 - L_0)
+							/ (f_1 - f_0);
+				}
+
+				const Real err = fabs(s_new - s_0);
+				if(err < QuantPDE::tolerance) {
+					// Found fair fee; break
+					break;
+				}
+
+				s_0 = s_new;
+			}
 		}
 
 	} else {
-
-		// Fixed spread
 
 		// Print headers
 		cout
@@ -348,10 +385,8 @@ int main(int argc, char **argv) {
 			// Refine grid ref times
 			auto grid = initialGrid.refined( ref );
 
-			// Solve U(S)
+			// Fixed spread computation
 			auto U = solve(grid, s_0);
-
-			// Query U at the point (S_0, L_0)
 			value = U(S_0, L_0);
 
 			////////////////////////////////////////////////////////
@@ -1040,3 +1075,4 @@ void printOptions(const RectilinearGrid1 &initialGrid) {
 		<< endl
 	;
 }
+
