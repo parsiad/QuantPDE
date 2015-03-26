@@ -20,6 +20,7 @@ using namespace QuantPDE::Modules;
 #include <iomanip>   // setw
 #include <iostream>  // cout, cerr
 #include <limits>    // infinity
+#include <memory>    // unique_ptr
 #include <string>    // to_string
 
 using namespace std;
@@ -70,8 +71,9 @@ int N                = lcm(interestPayments, dividendPayments);
 int maxRefinement    = 5;     // Maximum number of times to refine
 
 bool dividendsToBank = false; // Dividends go to the bank
-
 bool shareTopUp      = false; // Bank can request for more shares
+
+bool jumps           = true;  // For disabling jumps
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -620,25 +622,30 @@ Function2 solve(RectilinearGrid1 &grid, Real s) {
 
 	////////////////////////////////////////////////////////////////////////
 
-	// Jump-diffusion operator
-	BlackScholesJumpDiffusion1 bs(
-		grid,
+	unique_ptr<LinearSystem> bs;
+	if(jumps) {
+		// Jump-diffusion operator
+		BlackScholesJumpDiffusion1 *tmp=new BlackScholesJumpDiffusion1(
+			grid,
 
-		r,      // Interest
-		sigma,  // Volatility
-		0.,     // No continuous dividends
+			r,      // Interest
+			sigma,  // Volatility
+			0.,     // No continuous dividends
 
-		lambda, // Mean arrival time
-		lognormal(mu_xi, sigma_xi) // Log-normal probability density
-	);
-	bs.setIteration(stepper);
-
-	// No jump-diffusion test
-	//BlackScholes1 bs(grid, r, sigma, 0.);
+			lambda, // Mean arrival time
+			lognormal(mu_xi, sigma_xi) // Density
+		);
+		tmp->setIteration(stepper);
+		bs = unique_ptr<LinearSystem>( (LinearSystem *) tmp );
+	} else {
+		bs = unique_ptr<LinearSystem>(
+			(LinearSystem *) new BlackScholes1(grid, r, sigma, 0.)
+		);
+	}
 
 	// Discretization method
 	typedef ReverseBDFTwo1 Discretization;
-	Discretization discretization(grid, bs);
+	Discretization discretization(grid, *bs);
 	discretization.setIteration(stepper);
 
 	// Linear system solver
@@ -790,6 +797,10 @@ endl <<
 endl <<
 "    Specifies the first time at which the borrower can prepay (default is 0.)." << endl <<
 endl <<
+"--no-jumps" << endl <<
+endl <<
+"    Turns jumps in the collateral off (default is on)." << endl <<
+endl <<
 "--plot" << endl <<
 endl <<
 "    Plot data for the solution vs. the initial stock price (default is off)." << endl <<
@@ -821,6 +832,7 @@ int processOptions(int argc, char **argv) {
 			{ "fair-spread",         no_argument,       0, 0 },
 			{ "no-prepay-until",     required_argument, 0, 0 },
 			{ "share-top-up",        no_argument,       0, 0 },
+			{ "no-jumps",            no_argument,       0, 0 },
 			{ nullptr, 0, 0, 0 }
 		};
 
@@ -911,6 +923,10 @@ int processOptions(int argc, char **argv) {
 
 						case 11:
 						shareTopUp = true;
+						break;
+
+						case 12:
+						jumps = false;
 						break;
 
 						default:
@@ -1036,11 +1052,14 @@ void printOptions(const RectilinearGrid1 &initialGrid) {
 		<< endl
 		<< endl
 
-		<< "Mean jump arrival time:  \t" << lambda
+		<< "Mean jump arrival time:  \t" << (jumps ? to_string(lambda)
+				: "n/a")
 		<< endl
-		<< "Mean jump amplitude:     \t" << mu_xi
+		<< "Mean jump amplitude:     \t" << (jumps ? to_string(mu_xi)
+				: "n/a")
 		<< endl
-		<< "Jump amplitude std:      \t" << sigma_xi
+		<< "Jump amplitude std:      \t" << (jumps ? to_string(sigma_xi)
+				: "n/a")
 		<< endl
 		<< endl
 
@@ -1091,4 +1110,3 @@ void printOptions(const RectilinearGrid1 &initialGrid) {
 		<< endl
 	;
 }
-
