@@ -71,6 +71,8 @@ int maxRefinement    = 5;     // Maximum number of times to refine
 
 bool dividendsToBank = false; // Dividends go to the bank
 
+bool shareTopUp      = false; // Bank can request for more shares
+
 ////////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -274,7 +276,7 @@ int main(int argc, char **argv) {
 				hi *= 2; // Double upper bound
 			}
 
-			const Real ds = 0.001; // Make this an option
+			const Real ds = 0.001; // TODO: Make this an option
 
 			RectilinearGrid1 spreads(Axis::range(0, ds, hi));
 
@@ -361,6 +363,10 @@ int main(int argc, char **argv) {
 				const Real err = fabs(s_new - s_0);
 				if(err < QuantPDE::tolerance) {
 					// Found fair fee; break
+					cout
+						<< setw(td) << s_new << "\t"
+						<< endl
+					;
 					break;
 				}
 
@@ -508,14 +514,12 @@ Function2 solve(RectilinearGrid1 &grid, Real s) {
 					const Real R_0 = L_0 / S_0;
 
 					// Top-up with shares
-					/*
-					{
+					if(shareTopUp) {
 						const Real tmp = U(L_hat / R_0);
 						if(tmp > best) {
 							best = tmp;
 						}
 					}
-					*/
 
 					// Top-up with cash
 					// (similarity reduction)
@@ -750,17 +754,17 @@ endl <<
 endl <<
 "    Sets the volatility (default is 0.3)." << endl <<
 endl <<
-"--bank-lo-trigger POSITIVE_REAL" << endl <<
+"--lender-lo-trigger POSITIVE_REAL" << endl <<
 endl <<
-"    Sets the bank top-up trigger (default is 0.85)." << endl <<
+"    Sets the lender margin call trigger (default is 0.85)." << endl <<
 endl <<
-"--bank-hi-trigger POSITIVE_REAL" << endl <<
+"--lender-hi-trigger POSITIVE_REAL" << endl <<
 endl <<
-"    Sets the bank liquidation trigger (default is 0.9)." << endl <<
+"    Sets the lender liquidation trigger (default is 0.9)." << endl <<
 endl <<
-"--bank-events INTEGER" << endl <<
+"--lender-events INTEGER" << endl <<
 endl <<
-"    Number of bank events; -1 for at all time steps (default is -1)." << endl <<
+"    Number of lender events; -1 for at all time steps (default is -1)." << endl <<
 endl <<
 "--borrower-events INTEGER" << endl <<
 endl <<
@@ -774,9 +778,13 @@ endl <<
 endl <<
 "    Number of dividend payments (default is 20)." << endl <<
 endl <<
-"--bank-gets-dividends" << endl <<
+"--lender-dividends" << endl <<
 endl <<
-"    Specifies that the bank gets the dividends (default is off)." << endl <<
+"    Specifies that the lender gets the dividends (default is off)." << endl <<
+endl <<
+"--share-top-up" << endl <<
+endl <<
+"    The lender can request for shares or cash at a margin call (default is off)." << endl <<
 endl <<
 "--no-prepay-until" << endl <<
 endl <<
@@ -801,17 +809,18 @@ int processOptions(int argc, char **argv) {
 	{
 		// Long option names
 		static struct option opts[] = {
-			{ "bank-events",         required_argument, 0, 0 },
+			{ "lender-events",       required_argument, 0, 0 },
 			{ "borrower-events",     required_argument, 0, 0 },
 			{ "coupons",             required_argument, 0, 0 },
 			{ "dividend-payments",   required_argument, 0, 0 },
-			{ "bank-gets-dividends", no_argument,       0, 0 },
-			{ "bank-lo-trigger",     required_argument, 0, 0 },
-			{ "bank-hi-trigger",     required_argument, 0, 0 },
+			{ "lender-dividends",    no_argument,       0, 0 },
+			{ "lender-lo-trigger",   required_argument, 0, 0 },
+			{ "lender-hi-trigger",   required_argument, 0, 0 },
 			{ "plot",                no_argument,       0, 0 },
 			{ "plot-spread",         no_argument,       0, 0 },
 			{ "fair-spread",         no_argument,       0, 0 },
 			{ "no-prepay-until",     required_argument, 0, 0 },
+			{ "share-top-up",        no_argument,       0, 0 },
 			{ nullptr, 0, 0, 0 }
 		};
 
@@ -898,6 +907,10 @@ int processOptions(int argc, char **argv) {
 
 						case 10:
 						firstPrepay = atof(optarg);
+						break;
+
+						case 11:
+						shareTopUp = true;
 						break;
 
 						default:
@@ -1041,9 +1054,9 @@ void printOptions(const RectilinearGrid1 &initialGrid) {
 		<< endl
 		<< endl
 
-		<< "Bank top-up trigger:     \t" << beta_lo
+		<< "Margin call trigger:     \t" << beta_lo
 		<< endl
-		<< "Bank liquidation trigger:\t" << beta_hi
+		<< "Liquidation trigger:     \t" << beta_hi
 		<< endl
 		<< endl
 
@@ -1051,7 +1064,7 @@ void printOptions(const RectilinearGrid1 &initialGrid) {
 		<< endl
 		<< endl
 
-		<< "Bank events:             \t" << ( bankEvents < 0
+		<< "Lender events:           \t" << ( bankEvents < 0
 				? "at all times" : to_string(bankEvents) )
 		<< endl
 		<< "Borrower events:         \t" << ( borrowerEvents < 0
@@ -1061,8 +1074,11 @@ void printOptions(const RectilinearGrid1 &initialGrid) {
 		<< endl
 		<< "Dividend payments:       \t" << dividendPayments
 		<< endl
-		<< "Bank gets dividends:     \t" <<
+		<< "Lender gets dividends:   \t" <<
 				(dividendsToBank ? "true" : "false")
+		<< endl
+		<< "Margin call in shares:   \t" <<
+				(shareTopUp ? "true" : "false")
 		<< endl
 		<< endl
 
