@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
-// vanilla_convergence_table.cpp
-// -----------------------------
+// convergence_table.cpp
+// ---------------------
 //
 // Outputs the rate of convergence for computing the price of a
 // European/American (digital or nondigital) call/put.
@@ -32,7 +32,7 @@ using namespace std;
  */
 void help() {
 	cerr <<
-"vanilla_convergence_table [OPTIONS]" << endl << endl <<
+"convergence_table [OPTIONS]" << endl << endl <<
 "Outputs the rate of convergence for computing the price of a European/American" << endl <<
 "(digital or nondigital) call/put." << endl <<
 endl <<
