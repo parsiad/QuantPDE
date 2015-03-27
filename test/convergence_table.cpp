@@ -3,7 +3,7 @@
 // -----------------------------
 //
 // Outputs the rate of convergence for computing the price of a
-// European/American call/put.
+// European/American (digital or nondigital) call/put.
 //
 // Author: Parsiad Azimzadeh
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,7 +34,7 @@ void help() {
 	cerr <<
 "vanilla_convergence_table [OPTIONS]" << endl << endl <<
 "Outputs the rate of convergence for computing the price of a European/American" << endl <<
-"call/put." << endl <<
+"(digital or nondigital) call/put." << endl <<
 endl <<
 "-A" << endl <<
 endl <<
@@ -43,6 +43,10 @@ endl <<
 "-d REAL" << endl <<
 endl <<
 "    Sets the dividend rate (default is 0.)." << endl <<
+endl <<
+"-D REAL" << endl <<
+endl <<
+"    Sets the payoff to be digital (default is vanilla)." << endl <<
 endl <<
 "-f" << endl <<
 "    The initial timestep size is decreased by a factor of 4 (default is 2) to" << endl <<
@@ -102,18 +106,22 @@ int main(int argc, char **argv) {
 	bool variable       = false;
 	bool american       = false;
 	bool quadratic      = false;
+	bool digital        = false;
 
 	const Real target   = 1;
 
 	// Setting options with getopt
 	{ char c;
-	while((c = getopt(argc, argv, "Ad:fhK:N:pr:R:S:T:v:V")) != -1) {
+	while((c = getopt(argc, argv, "Ad:DfhK:N:pr:R:S:T:v:V")) != -1) {
 		switch(c) {
 			case 'A':
 				american = true;
 				break;
 			case 'd':
 				dividends = atof(optarg);
+				break;
+			case 'D':
+				digital = true;
 				break;
 			case 'f':
 				quadratic = true;
@@ -147,9 +155,9 @@ int main(int argc, char **argv) {
 				}
 				break;
 			case 'S':
-				if((asset = atof(optarg)) < 0.) {
+				if((asset = atof(optarg)) <= 0.) {
 					cerr <<
-"error: the initial stock price must be nonnegative" << endl;
+"error: the initial stock price must be positive" << endl;
 					return 1;
 				}
 				break;
@@ -196,7 +204,9 @@ int main(int argc, char **argv) {
 	);
 
 	// Payoff function
-	Function1 payoff = call ? callPayoff(strike) : putPayoff(strike);
+	Function1 payoff = digital ? (
+		call ? digitalCallPayoff(strike) : digitalPutPayoff(strike)
+	) : ( call ? callPayoff(strike) : putPayoff(strike) );
 
 	unsigned factor = 1; // factor *= 2 or 4 at every step
 	for(int ref = 0; ref <= maxRefinement; ++ref) {

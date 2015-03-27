@@ -310,6 +310,7 @@ public:
 	 * @param c The constant.
 	 */
 	friend Axis &&operator*(Axis &&axis, Real c) {
+		assert(c != 0.);
 		for(Index i = 0; i < axis.length; ++i) {
 			axis.n[i] *= c;
 		}
@@ -322,6 +323,7 @@ public:
 	 * @param c The constant.
 	 */
 	friend Axis operator*(const Axis &axis, Real c) {
+		assert(c != 0.);
 		Axis newAxis(axis.length);
 		for(Index i = 0; i < axis.length; ++i) {
 			newAxis.n[i] = axis.n[i] * c;
