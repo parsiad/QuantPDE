@@ -951,9 +951,9 @@ int processOptions(int argc, char **argv) {
 				break;
 
 				case 'L':
-				if((L_0 = atof(optarg)) < 0.) {
+				if((L_0 = atof(optarg)) <= 0.) {
 					cerr <<
-"error: the initial loan value must be nonnegative" << endl;
+"error: the initial loan value must be positive" << endl;
 					return 1;
 				}
 				break;
@@ -1005,9 +1005,9 @@ int processOptions(int argc, char **argv) {
 				break;
 
 				case 'S':
-				if((S_0 = atof(optarg)) < 0.) {
+				if((S_0 = atof(optarg)) <= 0.) {
 					cerr <<
-"error: the initial stock price must be nonnegative" << endl;
+"error: the initial stock price must be positive" << endl;
 					return 1;
 				}
 				break;
