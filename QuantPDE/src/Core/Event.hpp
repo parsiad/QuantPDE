@@ -204,6 +204,26 @@ class NullEvent : public EventBase {
 
 };
 
+/**
+ * The do-event lets the user perform a specified action without modifying
+ * the vector (no transformation occurs).
+ */
+class DoEvent : public EventBase {
+
+	virtual void onCall(const Vector &vector) const = 0;
+
+	virtual Vector doEvent(const Vector &vector) const {
+		onCall(vector);
+		return vector;
+	}
+
+	virtual Vector doEvent(Vector &&vector) const {
+		onCall(vector);
+		return vector;
+	}
+
+};
+
 }
 
 #endif
