@@ -34,8 +34,8 @@ using namespace std;
  */
 int lcm(int a, int b);
 
-Real beta_lo         = 0.85;  // Low trigger
-Real beta_hi         = 0.9;   // High trigger
+Real beta_lo         = 80. / 94.; //0.85;  // Low trigger
+Real beta_hi         = 80. / 89.; //0.9;   // High trigger
 
 Real S_0             = 100.;  // Initial stock value
 Real L_0             = 80.;   // Initial loan value
@@ -502,7 +502,7 @@ Function2 solve(RectilinearGrid1 &grid, Real s) {
 				const Real R = L_hat / S;
 
 				// R is above high trigger
-				if(R > beta_hi) {
+				if(R >= beta_hi) {
 
 					// Option to liquidate
 					const Real tmp = min(L_hat * A, S);
@@ -512,7 +512,7 @@ Function2 solve(RectilinearGrid1 &grid, Real s) {
 				}
 
 				// R is above low trigger
-				if(R > beta_lo) {
+				if(R >= beta_lo) {
 					const Real R_0 = L_0 / S_0;
 
 					// Top-up with shares
@@ -711,95 +711,95 @@ void help() {
 endl <<
 "-g REAL" << endl <<
 endl <<
-"    Sets the jump amplitude standard deviation (default is 0.42)." << endl <<
+"    Sets the jump amplitude standard deviation." << endl <<
 endl <<
 "-l NONNEGATIVE_REAL" << endl <<
 endl <<
-"    Sets the mean arrival time for the jump process (default is 0.1)." << endl <<
+"    Sets the mean arrival time for the jump process." << endl <<
 endl <<
 "-L NONNEGATIVE_REAL" << endl <<
 endl <<
-"    Sets the initial loan value (default is 80.)." << endl <<
+"    Sets the initial loan value." << endl <<
 endl <<
 "-m REAL" << endl <<
 endl <<
-"    Sets the mean jump amplitude (default is -0.8)." << endl <<
+"    Sets the mean jump amplitude." << endl <<
 endl <<
 "-N POSITIVE_INTEGER" << endl <<
 endl <<
-"    Sets the initial number of timesteps (default is 12)." << endl <<
+"    Sets the initial number of timesteps." << endl <<
 endl <<
 "-p PROPORTION" << endl <<
 endl <<
-"    Sets the penalty rate for borrower lapsation (default is 0.)." << endl <<
+"    Sets the penalty rate for borrower lapsation." << endl <<
 endl <<
 "-q PROPORTION" << endl <<
 endl <<
-"    Sets the dividend rate (default is 0.)." << endl <<
+"    Sets the dividend rate." << endl <<
 endl <<
 "-r REAL" << endl <<
 endl <<
-"    Sets the interest rate (default is 0.02)." << endl <<
+"    Sets the interest rate." << endl <<
 endl <<
 "-R NONNEGATIVE_INTEGER" << endl <<
 endl <<
-"    Controls the coarseness of the grid, with 0 being coarsest (default is 5)." << endl <<
+"    Controls the coarseness of the grid, with 0 being coarsest." << endl <<
 endl <<
 "-s REAL" << endl <<
 endl <<
-"    Sets the spread (default is 0.)." << endl <<
+"    Sets the spread." << endl <<
 endl <<
 "-S NONNEGATIVE_REAL" << endl <<
 endl <<
-"    Sets the initial stock price (default is 100.)." << endl <<
+"    Sets the initial stock price." << endl <<
 endl <<
 "-T POSITIVE_REAL" << endl <<
 endl <<
-"    Sets the expiry time (default is 5.)." << endl <<
+"    Sets the expiry time." << endl <<
 endl <<
 "-v REAL" << endl <<
 endl <<
-"    Sets the volatility (default is 0.3)." << endl <<
+"    Sets the volatility." << endl <<
 endl <<
 "--lender-lo-trigger POSITIVE_REAL" << endl <<
 endl <<
-"    Sets the lender margin call trigger (default is 0.85)." << endl <<
+"    Sets the lender margin call trigger." << endl <<
 endl <<
 "--lender-hi-trigger POSITIVE_REAL" << endl <<
 endl <<
-"    Sets the lender liquidation trigger (default is 0.9)." << endl <<
+"    Sets the lender liquidation trigger." << endl <<
 endl <<
 "--lender-events INTEGER" << endl <<
 endl <<
-"    Number of lender events; -1 for at all time steps (default is -1)." << endl <<
+"    Number of lender events; -1 for at all time steps." << endl <<
 endl <<
 "--borrower-events INTEGER" << endl <<
 endl <<
-"    Number of borrower events; -1 for at all time steps (default is -1)." << endl <<
+"    Number of borrower events; -1 for at all time steps." << endl <<
 endl <<
 "--coupons INTEGER" << endl <<
 endl <<
-"    Number of coupon payments (default is 20)." << endl <<
+"    Number of coupon payments." << endl <<
 endl <<
 "--dividend-payments INTEGER" << endl <<
 endl <<
-"    Number of dividend payments (default is 20)." << endl <<
+"    Number of dividend payments." << endl <<
 endl <<
 "--lender-dividends" << endl <<
 endl <<
-"    Specifies that the lender gets the dividends (default is off)." << endl <<
+"    Specifies that the lender gets the dividends." << endl <<
 endl <<
 "--share-top-up" << endl <<
 endl <<
-"    The lender can request for shares or cash at a margin call (default is off)." << endl <<
+"    The lender can request for shares or cash at a margin call." << endl <<
 endl <<
 "--no-prepay-until" << endl <<
 endl <<
-"    Specifies the first time at which the borrower can prepay (default is 0.)." << endl <<
+"    Specifies the first time at which the borrower can prepay." << endl <<
 endl <<
 "--no-jumps" << endl <<
 endl <<
-"    Turns jumps in the collateral off (default is on)." << endl <<
+"    Turns jumps in the collateral off." << endl <<
 endl <<
 "--plot" << endl <<
 endl <<
