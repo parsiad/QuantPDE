@@ -47,7 +47,7 @@ Real c_5 = 1.;
 Real c_6 = 1.;
 
 // Effect of an intervention
-Real a = 1.;
+//Real a = 1.;
 
 // Discount
 Real rho = 0.04;
