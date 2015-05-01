@@ -499,7 +499,8 @@ Function2 solve(RectilinearGrid1 &grid, Real s) {
 				Real best = U(S);
 
 				// Value-to-loan ratio
-				const Real R = L_hat / S;
+				// const Real R = L_hat / S; // V1
+				const Real R = A * L_hat / S; // V2
 
 				// R is above high trigger
 				if(R >= beta_hi) {
@@ -526,10 +527,16 @@ Function2 solve(RectilinearGrid1 &grid, Real s) {
 					// Top-up with cash
 					// (similarity reduction)
 					{
+						/*
 						const Real tmp =
 							simU(U, S, S * R_0)
 							+ (L_hat - S * R_0) * A
 						;
+						*/ // V1
+						const Real tmp =
+							simU(U, S, S * R_0)
+							+ L_hat - S * R_0
+						; // V2
 						if(tmp > best) {
 							best = tmp;
 						}
