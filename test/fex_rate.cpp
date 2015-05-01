@@ -10,9 +10,12 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+//#define QUANT_PDE_FEX_RATE_EVEN
+#define QUANT_PDE_FEX_RATE_WRITE
+
 #include <QuantPDE/Core>
 
-#include <cstdlib>  // abs
+#include <cmath>  // fabs
 #include <fstream>  // ofstream
 #include <iomanip>  // setw
 #include <iostream> // cout, cerr
@@ -80,7 +83,7 @@ constexpr int td = 20;
 */
 inline Real interventionCost(Real t, Real x, Real x_j) {
 	const Real zeta = (x_j - x) / c_1;
-	return -(c_2 * abs(zeta) + c_3);
+	return -(c_2 * fabs(zeta) + c_3);
 }
 
 /**
@@ -102,7 +105,11 @@ inline Real F(Real y) {
 * Cost of exchange rate differential.
 */
 inline Real M(Real y) {
+	#ifdef QUANT_PDE_FEX_RATE_EVEN
 	return c_5 * y * y;
+	#else
+	return (y < 0.) ? (c_5 * y * y) : 0.;
+	#endif
 }
 
 /**
@@ -194,6 +201,7 @@ public:
 			A.insert(i, i + 1) = -beta_i;
 		}
 
+		#ifdef QUANT_PDE_FEX_RATE_EVEN
 		{
 			const Real dx = x[n - 1] - x[n - 2];
 
@@ -222,6 +230,9 @@ public:
 			A.insert(n - 1, n - 2) = -(alpha_i + beta_i);
 			A.insert(n - 1, n - 1) =   alpha_i + beta_i + rho;
 		}
+		#else
+		A.insert(n - 1, n - 1) = rho;
+		#endif
 
 		A.makeCompressed();
 		return A;
@@ -260,7 +271,11 @@ int main() {
 		// Uniform grid
 		Axis::uniform(
 			-boundary,
+			#ifdef QUANT_PDE_FEX_RATE_EVEN
 			m,
+			#else
+			+boundary,
+			#endif
 			gridPoints
 		)
 
@@ -367,13 +382,13 @@ int main() {
 		// Print solution at x_0
 		////////////////////////////////////////////////////////////////
 
+		Real adjusted = x_0;
+		#ifdef QUANT_PDE_FEX_RATE_EVEN
 		// If x_0 > m, use the fact that u(.) is symmetric about x=m
-		Real adjusted;
 		if(x_0 > m) {
 			adjusted = m - (x_0 - m);
-		} else {
-			adjusted = x_0;
 		}
+		#endif
 
 		Real value = -u( adjusted );
 		Real
@@ -402,7 +417,7 @@ int main() {
 		// Write to file
 		////////////////////////////////////////////////////////////////
 
-		/*
+		#ifdef QUANT_PDE_FEX_RATE_WRITE
 		// Controls
 		Vector beta = discretizee.control(0);
 		auto mask = penalty.constraintMask();
@@ -416,7 +431,11 @@ int main() {
 		RectilinearGrid1 printGrid(
 			Axis::uniform(
 				-boundary,
-				0.,
+				#ifdef QUANT_PDE_FEX_RATE_EVEN
+				m,
+				#else
+				+boundary,
+				#endif
 				100
 			)
 		);
@@ -424,7 +443,7 @@ int main() {
 		file.open("/tmp/fex_rate_ref_" + to_string(ref) + ".txt");
 		file << accessor( printGrid, u );
 		file.close();
-		*/
+		#endif
 	}
 
 	return 0;
