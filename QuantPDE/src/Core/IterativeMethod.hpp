@@ -1300,6 +1300,8 @@ inline Real relativeError(const Vector &a, const Vector &b,
  */
 class ToleranceIteration final : public Iteration {
 
+private:
+
 	virtual Vector iterateUntilDone(
 		Vector iterand,
 		IterationNode &root,

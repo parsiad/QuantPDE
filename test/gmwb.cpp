@@ -10,10 +10,19 @@
 // stopping and hence the implementation is a bit of a hack, and will most
 // likely not compile in future versions.
 //
+// The ITERATED_OPTIMAL_STOPPING_SMART macro uses a version of iterated optimal
+// stopping in which the optimal stochastic control is also constructed
+// iteratively.
+//
 // Author: Parsiad Azimzadeh
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef ITERATED_OPTIMAL_STOPPING
+#if defined(ITERATED_OPTIMAL_STOPPING) \
+		|| defined(ITERATED_OPTIMAL_STOPPING_SMART)
+	#define ITERATED_OPTIMAL_STOPPING_ANY
+#endif
+
+#ifdef ITERATED_OPTIMAL_STOPPING_ANY
 	#define private public
 	#define protected public
 	#define QUANT_PDE_DO_EVENT_PUBLIC
@@ -21,7 +30,7 @@
 
 #include <QuantPDE/Core>
 
-#ifdef ITERATED_OPTIMAL_STOPPING
+#ifdef ITERATED_OPTIMAL_STOPPING_ANY
 	#undef private
 	#undef protected
 #endif
@@ -343,7 +352,8 @@ public:
 constexpr int progressWidth = 70;
 constexpr int progressSleep = 100;
 
-std::tuple<Real, Real, Real, int> solve(RectilinearGrid2 &grid, Real alpha) {
+std::tuple<Real, Real, Real, int, Real, Real, Real>
+		solve(RectilinearGrid2 &grid, Real alpha) {
 
 	////////////////////////////////////////////////////////////////////////
 	// Iteration tree
@@ -398,7 +408,12 @@ std::tuple<Real, Real, Real, int> solve(RectilinearGrid2 &grid, Real alpha) {
 		stochasticControls,
 		discretizee
 	);
+	#ifdef ITERATED_OPTIMAL_STOPPING
+	ToleranceIteration innermost;
+	stochasticPolicy.setIteration(innermost);
+	#else
 	stochasticPolicy.setIteration(toleranceIteration);
+	#endif
 
 	// What to discretize
 	LinearSystem *discretize;
@@ -537,7 +552,7 @@ std::tuple<Real, Real, Real, int> solve(RectilinearGrid2 &grid, Real alpha) {
 	Real value;
 	BiCGSTABSolver solver;
 
-	#ifdef ITERATED_OPTIMAL_STOPPING
+	#ifdef ITERATED_OPTIMAL_STOPPING_ANY
 	{ // Start iterated optimal stopping test
 
 		// Solutions at each time
@@ -550,6 +565,9 @@ std::tuple<Real, Real, Real, int> solve(RectilinearGrid2 &grid, Real alpha) {
 		// Initialize degenerate circular buffers
 		toleranceIteration.history = new Iteration::CB(1);
 		stepper          ->history = new Iteration::CB(1);
+		#ifdef ITERATED_OPTIMAL_STOPPING
+		innermost         .history = new Iteration::CB(2);
+		#endif
 
 		// Tolerance loop
 		Event<2> event(withdrawal, grid);
@@ -590,6 +608,7 @@ std::tuple<Real, Real, Real, int> solve(RectilinearGrid2 &grid, Real alpha) {
 				toleranceIteration.startNodes();
 				stepper          ->startNodes();
 
+				#ifdef ITERATED_OPTIMAL_STOPPING_SMART
 				// Solve Ax=b
 				((LinearSolver *) &solver)->initialize(
 					root->A(t)
@@ -598,6 +617,15 @@ std::tuple<Real, Real, Real, int> solve(RectilinearGrid2 &grid, Real alpha) {
 					root->b(t),
 					*initial
 				);
+				#else
+				current[n+1] = innermost.iterateUntilDone(
+					*initial,
+					*root,
+					solver,
+					t,
+					false
+				);
+				#endif
 
 				// End nodes
 				stepper          ->endNodes();
@@ -717,7 +745,7 @@ std::tuple<Real, Real, Real, int> solve(RectilinearGrid2 &grid, Real alpha) {
 	#endif
 
 	// Actual number of timesteps
-	#ifdef ITERATED_OPTIMAL_STOPPING
+	#ifdef ITERATED_OPTIMAL_STOPPING_ANY
 	realizedN = N;
 	#else
 	realizedN = stepper->iterations().back();
@@ -727,21 +755,24 @@ std::tuple<Real, Real, Real, int> solve(RectilinearGrid2 &grid, Real alpha) {
 	// Statistics
 	////////////////////////////////////////////////////////////////////////
 
-	Real mean = 1., var = 0.;
-	int max = 1;
+	Real mean = 1., var = 0., imean = 1., ivar = 0.;
+	int max = 1, imax = 1;
 
 	if(method != EXPLICIT) {
 		auto its = toleranceIteration.iterations();
-
 		mean = accumulate(its.begin(),its.end(),0.)/its.size();
-
-		var = 0.;
 		for(auto x : its) { var += (x - mean) * (x - mean); }
-
 		max = ( *max_element(its.begin(), its.end()) );
 	}
 
-	return make_tuple( value, mean, var, max );
+	#ifdef ITERATED_OPTIMAL_STOPPING
+	auto its = innermost.iterations();
+	imean = accumulate(its.begin(),its.end(),0.)/its.size();
+	for(auto x : its) { ivar += (x - imean) * (x - imean); }
+	imax = ( *max_element(its.begin(), its.end()) );
+	#endif
+
+	return make_tuple( value, mean, var, max, imean, ivar, imax );
 
 }
 
@@ -758,6 +789,11 @@ void printHeaders() {
 		<< setw(td) << "Mean Iterations" << "\t"
 		<< setw(td) << "Std Iterations"  << "\t"
 		<< setw(td) << "Max Iterations"  << "\t"
+		#ifdef ITERATED_OPTIMAL_STOPPING
+		<< setw(td) << "Mean Innermost"  << "\t"
+		<< setw(td) << "Std Innermost"   << "\t"
+		<< setw(td) << "Max Innermost"   << "\t"
+		#endif
 		<< setw(td) << "Change"          << "\t"
 	;
 
@@ -774,7 +810,7 @@ void printHeaders() {
 
 int main(int argc, char **argv) {
 
-	#ifdef ITERATED_OPTIMAL_STOPPING
+	#ifdef ITERATED_OPTIMAL_STOPPING_ANY
 	cerr << "warning: compiled with iterated optimal stopping" << endl
 			<< endl;
 	#endif
@@ -862,7 +898,7 @@ int main(int argc, char **argv) {
 			return 1;
 		}
 
-		#ifdef ITERATED_OPTIMAL_STOPPING
+		#ifdef ITERATED_OPTIMAL_STOPPING_ANY
 		if(method == SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS) {
 			cerr << "error: cannot use iterated optimal stopping "
 					"with semi-implicit method" << endl;
@@ -900,8 +936,8 @@ int main(int argc, char **argv) {
 		// Outermost Newton iteration to find fair fee
 		////////////////////////////////////////////////////////////////
 
-		Real value, mean, var;
-		int max;
+		Real value, mean, var, imean, ivar;
+		int max, imax;
 
 		auto start = chrono::steady_clock::now();
 
@@ -920,8 +956,8 @@ int main(int argc, char **argv) {
 
 			while(true) {
 				// f(alpha)
-				std::tie(value, mean, var, max) =
-						solve(grid, alpha);
+				std::tie(value, mean, var, max, imean, ivar,
+						imax) = solve(grid, alpha);
 				const Real f0 = value - w0;
 
 				cout
@@ -954,7 +990,8 @@ int main(int argc, char **argv) {
 			printHeaders();
 		} else {
 			// No Newton iteration
-			std::tie(value, mean, var, max) = solve(grid, alpha);
+			std::tie(value, mean, var, max, imean, ivar, imax) =
+					solve(grid, alpha);
 		}
 
 		auto end = chrono::steady_clock::now();
@@ -982,6 +1019,11 @@ int main(int argc, char **argv) {
 			<< setw(td) << mean        << "\t"
 			<< setw(td) << sqrt(var)   << "\t"
 			<< setw(td) << max         << "\t"
+			#ifdef ITERATED_OPTIMAL_STOPPING
+			<< setw(td) << imean       << "\t"
+			<< setw(td) << sqrt(ivar)  << "\t"
+			<< setw(td) << imax        << "\t"
+			#endif
 			<< setw(td) << change      << "\t"
 		;
 
@@ -1096,7 +1138,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// This results in a nonomonotone scheme and should not be used
+// This results in a nonmonotone scheme and should not be used
 // (testing purposes only)
 
 class ContinuousWithdrawal final : public RawControlledLinearSystem2_1 {
