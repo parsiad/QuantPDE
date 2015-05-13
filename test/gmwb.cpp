@@ -828,8 +828,8 @@ int main(int argc, char **argv) {
 			{ "variable"        , no_argument,       0, 0 },
 			{ "quarter-timestep", no_argument,       0, 0 },
 			{ "fair-fee"        , required_argument, 0, 0 },
-			{ "refinement-min"  , required_argument, 0, 0 },
-			{ "refinement-max"  , required_argument, 0, 0 },
+			{ "min-refinement"  , required_argument, 0, 0 },
+			{ "max-refinement"  , required_argument, 0, 0 },
 			{ nullptr           , 0,                 0, 0 }
 		};
 
@@ -927,6 +927,7 @@ int main(int argc, char **argv) {
 		ref <= Rmax;
 		++ref, N *= (quarter ? 4 : 2), M *= 2, target /= 2.
 	) {
+		if(ref < Rmin) { continue; }
 
 		auto grid = initialGrid.refined( ref );
 

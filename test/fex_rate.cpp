@@ -11,15 +11,16 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 //#define QUANT_PDE_FEX_RATE_EVEN
-#define QUANT_PDE_FEX_RATE_WRITE
 
 #include <QuantPDE/Core>
 
-#include <cmath>  // fabs
+#include <cmath>    // fabs
 #include <fstream>  // ofstream
+#include <getopt.h> // getopt_long
 #include <iomanip>  // setw
 #include <iostream> // cout, cerr
 #include <limits>   // numeric_limits
+#include <memory>   // unique_ptr
 #include <string>   // to_string
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,10 +31,10 @@ using namespace std;
 ////////////////////////////////////////////////////////////////////////////////
 
 // The problem is solved on [-boundary, boundary]
-Real boundary = 3.; // log(1000) ~= 7
+Real boundary = 6.; // log(1000) ~= 7
 
 // Interest rate differential in [-betaMax, +betaMax]
-Real betaMax = 0.5;
+Real betaMax = 0.1;
 
 // Number of points in space (initial discretization)
 int gridPoints = 32;
@@ -43,20 +44,17 @@ int controlPoints = 16;
 
 // Constants
 Real c_1 = 1.;
-Real c_2 = 1.;
-Real c_3 = QuantPDE::epsilon;
-Real c_4 = 1.;
+Real c_2 = 1.; // lambda
+Real c_3 = QuantPDE::epsilon; // c
+Real c_4 = .25; // a
 Real c_5 = 1.;
-Real c_6 = 1.;
-
-// Effect of an intervention
-//Real a = 1.;
+Real c_6 = 3.; // b
 
 // Discount
-Real rho = 0.04;
+Real rho = 0.02;
 
 // Volatility
-Real v = 0.2;
+Real v = 0.3;
 
 // Central parity
 Real m = 0.;
@@ -64,8 +62,32 @@ Real m = 0.;
 // Initial (log of the) exchange rate
 Real x_0 = 0.;
 
-int maxRefinement = 10;
+// Finite horizon
+Real T = -1;
 
+// Initial number of timesteps
+int TN = 32;
+
+// Max/min refinement level
+int Rmin = 0;
+int Rmax = 6;
+
+////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Controls the output of the program.
+ */
+enum class ProgramOperation {
+	CONVERGENCE_TEST, /**< convergence test */
+	PLOT, /**< prints plotting data for the solution at time 0 */
+	STOCHASTIC, /**< prints stochastic control data at time 0 */
+	IMPULSE /** < prints impulse control data at time 0 */
+};
+ProgramOperation op = ProgramOperation::CONVERGENCE_TEST;
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Spacing
 constexpr int td = 20;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,7 +130,7 @@ inline Real M(Real y) {
 	#ifdef QUANT_PDE_FEX_RATE_EVEN
 	return c_5 * y * y;
 	#else
-	return (y < 0.) ? (c_5 * y * y) : 0.;
+	return (y > 0.) ? (c_5 * y * y) : 0.;
 	#endif
 }
 
@@ -263,12 +285,93 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int main() {
+int main(int argc, char **argv) {
+
+	////////////////////////////////////////////////////////////////////////
+	// Options
+	////////////////////////////////////////////////////////////////////////
+
+	{
+		// Long option names
+		static struct option opts[] = {
+			{ "plot"            , no_argument,       0, 0 },
+			{ "stochastic"      , no_argument,       0, 0 },
+			{ "impulse"         , no_argument,       0, 0 },
+			{ "min-refinement"  , required_argument, 0, 0 },
+			{ "max-refinement"  , required_argument, 0, 0 },
+			{ "expiry"          , required_argument, 0, 0 },
+			{ nullptr           , 0,                 0, 0 }
+		};
+
+		int c;
+		int index;
+		while(
+			(
+				c = getopt_long(
+					argc,
+					argv,
+					"",
+					opts,
+					&index
+				)
+			) != -1
+		) {
+			switch(c) {
+
+				// Long options
+				case 0:
+					switch(index)
+					{
+						case 0:
+							op = ProgramOperation::
+									PLOT;
+							break;
+						case 1:
+							op = ProgramOperation::
+									STOCHASTIC;
+							break;
+						case 2:
+							op = ProgramOperation::
+									IMPULSE;
+							break;
+						case 3:
+							Rmin = atoi(optarg);
+							break;
+						case 4:
+							Rmax = atoi(optarg);
+							break;
+						case 5:
+							T = atof(optarg);
+							if(T <= 0.) {
+								cerr <<
+"error: expiry time must be positive" << endl;
+								return 1;
+							}
+							break;
+						default:
+							break;
+					}
+				break;
+			}
+		}
+
+		if(Rmin < 0 || Rmax < Rmin) {
+			cerr << "error: the minimum level of refinement must be"
+					" nonnegative and less than or equal to"
+					" the maximum level of refinement"
+					<< endl;
+			return 1;
+		}
+	}
+
+	// Finite-horizon or infinite-horizon?
+	const bool finite_horizon = T > 0.;
 
 	Real previousValue = nan(""), previousChange = nan("");
 
 	RectilinearGrid1 initialGrid(
 		// Uniform grid
+		/*
 		Axis::uniform(
 			-boundary,
 			#ifdef QUANT_PDE_FEX_RATE_EVEN
@@ -278,29 +381,51 @@ int main() {
 			#endif
 			gridPoints
 		)
+		*/
 
 		// Clustered grid
-		/*Axis::cluster(
+		Axis::cluster(
 			-boundary,  // Left-hand boundary
-			0.,         // Feature to cluster around
-			0.,         // Right-hand boundary
+			m,         // Feature to cluster around
+			#ifdef QUANT_PDE_FEX_RATE_EVENT
+			m,
+			#else
+			+boundary,  // Right-hand boundary
+			#endif
 			gridPoints, // Number of points
 			10.         // Clustering intensity
-		)*/
+		)
 	);
 
-	// Table headers
-	cout
-		<< setw(td) << "Nodes"         << "\t"
-		<< setw(td) << "Control Nodes" << "\t"
-		<< setw(td) << "Value at x=0"  << "\t"
-		<< setw(td) << "Iterations"    << "\t"
-		<< setw(td) << "Change"        << "\t"
-		<< setw(td) << "Ratio"
-		<< endl
-	;
+	//cerr << initialGrid << endl;
 
-	for(int ref = 0; ref <= maxRefinement; ++ref, controlPoints *= 2) {
+	// Table headers
+	if(op != ProgramOperation::CONVERGENCE_TEST) {
+		Rmin = Rmax;
+	} else {
+		cout
+			<< setw(td) << "Nodes"         << "\t"
+			<< setw(td) << "Control Nodes" << "\t"
+		;
+
+		if(finite_horizon) { cout << setw(td) << "Timesteps" << "\t"; }
+
+		cout
+			<< setw(td) << "Value at x=0"  << "\t"
+			<< setw(td) << "Iterations"    << "\t"
+			<< setw(td) << "Change"        << "\t"
+			<< setw(td) << "Ratio"
+			<< endl
+		;
+	}
+
+	for(
+		int ref = 0;
+		ref <= Rmax;
+		++ref, controlPoints*=2, TN*=2
+	) {
+
+		if(ref < Rmin) { continue; }
 
 		// Refine the grid ref times
 		auto grid = initialGrid.refined( ref );
@@ -339,7 +464,7 @@ int main() {
 		stochasticPolicy.setIteration(toleranceIteration);
 
 		// Policy iteration for impulse control
-			Impulse1_1 impulseWithdrawal(
+		Impulse1_1 impulseWithdrawal(
 			grid,             // Spatial grid
 			interventionCost, // Cost of an intervention
 			xplus             // State of exchange rate after
@@ -352,11 +477,46 @@ int main() {
 		);
 		impulsePolicy.setIteration(toleranceIteration);
 
+		////////////////////////////////////////////////////////////////
+		// Stepper
+		////////////////////////////////////////////////////////////////
+
+		typedef ReverseBDFOne1 Discretization;
+
+		ReverseConstantStepper stepper(
+			0.,   // Initial time
+			T,    // Expiry time
+			T/TN  // Timestep size
+		);
+
+		stepper.setInnerIteration(toleranceIteration);
+
+		// Discretize
+		Discretization discretization(grid, stochasticPolicy);
+		discretization.setIteration(stepper);
+
+		////////////////////////////////////////////////////////////////
+		// Horizon selection
+		////////////////////////////////////////////////////////////////
+
+		Iteration *iteration;
+		LinearSystem *penalized;
+
+		if(finite_horizon) {
+			iteration = &stepper;
+			penalized = &discretization;
+		} else {
+			iteration = &toleranceIteration;
+			penalized = &stochasticPolicy;
+		}
+
+		////////////////////////////////////////////////////////////////
+
 		// Penalty method
 		PenaltyMethod penalty(
-			grid,             // Domain
-			stochasticPolicy, // Stochastic control component
-			impulsePolicy     // Impulse control component
+			grid,         // Domain
+			*penalized,   // Stochastic control component
+			impulsePolicy // Impulse control component
 		);
 		penalty.setIteration(toleranceIteration);
 
@@ -369,7 +529,7 @@ int main() {
 		////////////////////////////////////////////////////////////////
 
 		BiCGSTABSolver solver;
-		auto u = toleranceIteration.solve(
+		auto u = iteration->solve(
 			grid,                        // Domain
 			[=] (Real x) { return 0.; }, // Initial guess (zero
 			                             // everywhere)
@@ -378,74 +538,104 @@ int main() {
 			solver                       // Linear system solver
 		);
 
-		////////////////////////////////////////////////////////////////
-		// Print solution at x_0
-		////////////////////////////////////////////////////////////////
+		if(op == ProgramOperation::PLOT) {
 
-		Real adjusted = x_0;
-		#ifdef QUANT_PDE_FEX_RATE_EVEN
-		// If x_0 > m, use the fact that u(.) is symmetric about x=m
-		if(x_0 > m) {
-			adjusted = m - (x_0 - m);
-		}
-		#endif
+			RectilinearGrid1 printGrid(
+				Axis::uniform(
+					-boundary,
+					#ifdef QUANT_PDE_FEX_RATE_EVEN
+					m,
+					#else
+					+boundary,
+					#endif
+					100
+				)
+			);
 
-		Real value = -u( adjusted );
-		Real
-			change = value - previousValue,
-			ratio = previousChange / change
-		;
-		previousValue = value;
-		previousChange = change;
+			cout << accessor( printGrid, u );
 
-		cout.precision(12);
+		} else if(op == ProgramOperation::STOCHASTIC) {
 
-		const int its = toleranceIteration.iterations().back();
+			// Print stochastic control
 
-		// Print row of table
-		cout
-			<< setw(td) << grid.size()               << "\t"
-			<< setw(td) << stochasticControls.size() << "\t"
-			<< setw(td) << value                     << "\t"
-			<< setw(td) << its                       << "\t"
-			<< setw(td) << change                    << "\t"
-			<< setw(td) << ratio                     << "\t"
-			<< endl
-		;
-
-		////////////////////////////////////////////////////////////////
-		// Write to file
-		////////////////////////////////////////////////////////////////
-
-		#ifdef QUANT_PDE_FEX_RATE_WRITE
-		// Controls
-		Vector beta = discretizee.control(0);
-		auto mask = penalty.constraintMask();
-		for(int i = 0; i < grid.size(); i++) {
-			if(mask[i]) {
-				beta(i) = numeric_limits<Real>::infinity();
+			Vector beta = discretizee.control(0);
+			auto mask = penalty.constraintMask();
+			for(int i = 0; i < grid.size(); i++) {
+				if(mask[i]) {
+					beta(i) = numeric_limits<Real>
+							::infinity();
+				}
 			}
+
+			for(Index i = 0; i < grid[0].size(); ++i) {
+				cout << grid[0][i] << "\t" << beta(i) << endl;
+			}
+
+		} else if(op == ProgramOperation::IMPULSE) {
+
+			// Print impulse control
+
+			Vector beta = impulseWithdrawal.control(0);
+			auto mask = penalty.constraintMask();
+			for(int i = 0; i < grid.size(); i++) {
+				if(!mask[i]) {
+					beta(i) = numeric_limits<Real>
+							::infinity();
+				}
+			}
+
+			for(Index i = 0; i < grid[0].size(); ++i) {
+				cout << grid[0][i] << "\t" << beta(i) << endl;
+			}
+
+		} else {
+
+			////////////////////////////////////////////////////////
+			// Print solution at x_0
+			////////////////////////////////////////////////////////
+
+			Real adjusted = x_0;
+			#ifdef QUANT_PDE_FEX_RATE_EVEN
+			// If x_0 > m, use the fact that u(.) is symmetric about
+			// x=m
+			if(x_0 > m) {
+				adjusted = m - (x_0 - m);
+			}
+			#endif
+
+			Real value = -u( adjusted );
+			Real
+				change = value - previousValue,
+				ratio = previousChange / change
+			;
+			previousValue = value;
+			previousChange = change;
+
+			cout.precision(12);
+
+			const int its = toleranceIteration.iterations().back();
+
+			// Print row of table
+			cout
+				<< setw(td) << grid.size()               << "\t"
+				<< setw(td) << stochasticControls.size() << "\t"
+			;
+
+			if(finite_horizon) { cout << setw(td) << TN << "\t"; }
+
+			cout
+				<< setw(td) << value                     << "\t"
+				<< setw(td) << its                       << "\t"
+				<< setw(td) << change                    << "\t"
+				<< setw(td) << ratio                     << "\t"
+				<< endl
+			;
+
 		}
 
-		// Write to file
-		RectilinearGrid1 printGrid(
-			Axis::uniform(
-				-boundary,
-				#ifdef QUANT_PDE_FEX_RATE_EVEN
-				m,
-				#else
-				+boundary,
-				#endif
-				100
-			)
-		);
-		ofstream file;
-		file.open("/tmp/fex_rate_ref_" + to_string(ref) + ".txt");
-		file << accessor( printGrid, u );
-		file.close();
-		#endif
 	}
 
 	return 0;
 
 }
+
