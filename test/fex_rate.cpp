@@ -21,6 +21,7 @@
 #include <iostream> // cout, cerr
 #include <limits>   // numeric_limits
 #include <memory>   // unique_ptr
+#include <numeric>  // accumulate
 #include <string>   // to_string
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,8 +34,9 @@ using namespace std;
 // The problem is solved on [-boundary, boundary]
 Real boundary = 6.; // log(1000) ~= 7
 
-// Interest rate differential in [-betaMax, +betaMax]
-Real betaMax = 0.1;
+// Interest rate differential in [betaMin, betaMax]
+Real betaMin = 0.;
+Real betaMax = 0.05;
 
 // Number of points in space (initial discretization)
 int gridPoints = 32;
@@ -300,6 +302,7 @@ int main(int argc, char **argv) {
 			{ "min-refinement"  , required_argument, 0, 0 },
 			{ "max-refinement"  , required_argument, 0, 0 },
 			{ "expiry"          , required_argument, 0, 0 },
+			{ "fixed-cost"      , required_argument, 0, 0 },
 			{ nullptr           , 0,                 0, 0 }
 		};
 
@@ -345,6 +348,14 @@ int main(int argc, char **argv) {
 							if(T <= 0.) {
 								cerr <<
 "error: expiry time must be positive" << endl;
+								return 1;
+							}
+							break;
+						case 6:
+							c_3 = atof(optarg);
+							if(c_3 < 0.) {
+								cerr <<
+"error: fixed transaction cost must be nonnegative" << endl;
 								return 1;
 							}
 							break;
@@ -432,8 +443,8 @@ int main(int argc, char **argv) {
 
 		RectilinearGrid1 stochasticControls(
 			Axis::uniform(
-				-betaMax,
-				+betaMax,
+				betaMin,
+				betaMax,
 				controlPoints
 			)
 		);
@@ -613,7 +624,9 @@ int main(int argc, char **argv) {
 
 			cout.precision(12);
 
-			const int its = toleranceIteration.iterations().back();
+			auto its = toleranceIteration.iterations();
+			const Real mean = accumulate(its.begin(),its.end(),0.)
+					/ its.size();
 
 			// Print row of table
 			cout
@@ -624,10 +637,10 @@ int main(int argc, char **argv) {
 			if(finite_horizon) { cout << setw(td) << TN << "\t"; }
 
 			cout
-				<< setw(td) << value                     << "\t"
-				<< setw(td) << its                       << "\t"
-				<< setw(td) << change                    << "\t"
-				<< setw(td) << ratio                     << "\t"
+				<< setw(td) << value  << "\t"
+				<< setw(td) << mean   << "\t"
+				<< setw(td) << change << "\t"
+				<< setw(td) << ratio  << "\t"
 				<< endl
 			;
 
