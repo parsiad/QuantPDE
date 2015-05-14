@@ -64,10 +64,10 @@ using namespace std;
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr int SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS = 1 << 0;
-constexpr int SEMI_LAGRANGIAN_WITHDRAWAL_IMPULSE    = 1 << 1;
+constexpr int EXPLICIT_IMPULSE = 1 << 1;
 
 constexpr int EXPLICIT =
-		  SEMI_LAGRANGIAN_WITHDRAWAL_IMPULSE
+		  EXPLICIT_IMPULSE
 		| SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS;
 
 constexpr int IMPLICIT = 0;
@@ -453,7 +453,7 @@ std::tuple<Real, Real, Real, int, Real, Real, Real>
 
 	// Root
 	IterationNode *root;
-	if(method & SEMI_LAGRANGIAN_WITHDRAWAL_IMPULSE) {
+	if(method & EXPLICIT_IMPULSE) {
 		// No impulse root
 		root = &discretization;
 	} else {
@@ -498,7 +498,7 @@ std::tuple<Real, Real, Real, int, Real, Real, Real>
 
 		// Penalty
 		if(
-			(method & SEMI_LAGRANGIAN_WITHDRAWAL_IMPULSE)
+			(method & EXPLICIT_IMPULSE)
 			&& A > Gdt
 		) {
 
@@ -822,7 +822,7 @@ int main(int argc, char **argv) {
 	{
 		// Long option names
 		static struct option opts[] = {
-			{ "semi-implicit"   , no_argument,       0, 0 },
+			{ "mixed"           , no_argument,       0, 0 },
 			{ "explicit"        , no_argument,       0, 0 },
 			{ "newton"          , no_argument,       0, 0 },
 			{ "variable"        , no_argument,       0, 0 },
@@ -901,7 +901,7 @@ int main(int argc, char **argv) {
 		#ifdef ITERATED_OPTIMAL_STOPPING_ANY
 		if(method == SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS) {
 			cerr << "error: cannot use iterated optimal stopping "
-					"with semi-implicit method" << endl;
+					"with mixed method" << endl;
 			return 1;
 		}
 		#endif
@@ -1314,7 +1314,7 @@ class WithdrawalEvent final : public EventBase {
 
 			// Maximum withdrawal amount (inclusive)
 			Real U;
-			if(method & SEMI_LAGRANGIAN_WITHDRAWAL_IMPULSE) {
+			if(method & EXPLICIT_IMPULSE) {
 				// Impulse withdrawal is handled here
 				U = A[j];
 			} else {
@@ -1358,8 +1358,8 @@ class WithdrawalEvent final : public EventBase {
 
 				// Full surrender at penalty
 				if(
-					(A[j] > Gdt) && (method
-					& SEMI_LAGRANGIAN_WITHDRAWAL_IMPULSE)
+					(A[j] > Gdt) &&
+					(method & EXPLICIT_IMPULSE)
 				) {
 					const Real newValue =
 							Vminus(

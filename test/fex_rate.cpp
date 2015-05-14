@@ -30,13 +30,28 @@ using namespace QuantPDE;
 using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
+// Methods
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr int SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS = 1 << 0;
+constexpr int EXPLICIT_IMPULSE = 1 << 1;
+
+constexpr int EXPLICIT =
+		  EXPLICIT_IMPULSE
+		| SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS;
+
+constexpr int IMPLICIT = 0;
+
+////////////////////////////////////////////////////////////////////////////////
+
+int method = 0;
 
 // The problem is solved on [-boundary, boundary]
 Real boundary = 6.; // log(1000) ~= 7
 
-// Interest rate differential in [betaMin, betaMax]
-Real betaMin = 0.;
-Real betaMax = 0.05;
+// Interest rate differential in [q_min, q_max]
+Real q_min = 0.;
+Real q_max = 0.05;
 
 // Number of points in space (initial discretization)
 int gridPoints = 32;
@@ -152,6 +167,9 @@ class Discretizee final : public RawControlledLinearSystem1_1 {
 	const Function1 F, M, N;
 	const Real rho, v, m;
 
+	const bool controlled;
+	const Vector zero;
+
 	// TODO: Nonconstant coefficients
 
 public:
@@ -164,7 +182,8 @@ public:
 		F3 &&interestDifferentialCost,
 		Real discount,
 		Real volatility,
-		Real centralParity = 0.
+		Real centralParity = 0.,
+		bool controlled = true
 	) noexcept :
 		grid(grid),
 		F( std::forward<F1>(interestDifferentialEffect) ),
@@ -172,7 +191,9 @@ public:
 		N( std::forward<F2>(interestDifferentialCost) ),
 		rho( discount ),
 		v( volatility ),
-		m( centralParity )
+		m( centralParity ),
+		controlled( controlled ),
+		zero( grid.zero() )
 	{
 	}
 
@@ -185,7 +206,7 @@ public:
 		const int n = x.size();
 
 		// Control as a vector
-		const Vector &raw = control(0);
+		const Vector &raw = controlled ? control(0) : zero;
 
 		// Left boundary (derivatives disappear)
 		A.insert(0, 0) = rho;
@@ -268,7 +289,7 @@ public:
 		const Axis &x = grid[0];
 
 		// Control as a vector
-		const Vector &raw = control(0);
+		const Vector &raw = controlled ? control(0) : zero;
 
 		// Interior and boundary points
 		for(Index i = 0; i < x.size(); ++i) {
@@ -296,6 +317,8 @@ int main(int argc, char **argv) {
 	{
 		// Long option names
 		static struct option opts[] = {
+			{ "mixed"           , no_argument,       0, 0 },
+			{ "explicit"        , no_argument,       0, 0 },
 			{ "plot"            , no_argument,       0, 0 },
 			{ "stochastic"      , no_argument,       0, 0 },
 			{ "impulse"         , no_argument,       0, 0 },
@@ -326,24 +349,31 @@ int main(int argc, char **argv) {
 					switch(index)
 					{
 						case 0:
-							op = ProgramOperation::
-									PLOT;
+							method =
+					SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS;
 							break;
 						case 1:
-							op = ProgramOperation::
-									STOCHASTIC;
+							method = EXPLICIT;
 							break;
 						case 2:
 							op = ProgramOperation::
-									IMPULSE;
+									PLOT;
 							break;
 						case 3:
-							Rmin = atoi(optarg);
+							op = ProgramOperation::
+								STOCHASTIC;
 							break;
 						case 4:
-							Rmax = atoi(optarg);
+							op = ProgramOperation::
+									IMPULSE;
 							break;
 						case 5:
+							Rmin = atoi(optarg);
+							break;
+						case 6:
+							Rmax = atoi(optarg);
+							break;
+						case 7:
 							T = atof(optarg);
 							if(T <= 0.) {
 								cerr <<
@@ -351,7 +381,7 @@ int main(int argc, char **argv) {
 								return 1;
 							}
 							break;
-						case 6:
+						case 8:
 							c_3 = atof(optarg);
 							if(c_3 < 0.) {
 								cerr <<
@@ -372,6 +402,26 @@ int main(int argc, char **argv) {
 					" the maximum level of refinement"
 					<< endl;
 			return 1;
+		}
+
+		if(method != IMPLICIT && T <= 0.) {
+			cerr << "error: an implicit method must be used for the"
+					" infinite horizon solution" << endl;
+			return 1;
+		}
+
+		if( (method & SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS)
+				&& op == ProgramOperation::STOCHASTIC) {
+			cerr << "error: querying the stochastic control for the"
+					" semi-Lagrangian scheme is not"
+					" implemented" << endl;
+		}
+
+		if( (method & EXPLICIT_IMPULSE)
+				&& op == ProgramOperation::IMPULSE) {
+			cerr << "error: querying the impulse control for the"
+					" explicit impulse scheme is not"
+					" implemented" << endl;
 		}
 	}
 
@@ -443,8 +493,8 @@ int main(int argc, char **argv) {
 
 		RectilinearGrid1 stochasticControls(
 			Axis::uniform(
-				betaMin,
-				betaMax,
+				q_min,
+				q_max,
 				controlPoints
 			)
 		);
@@ -463,7 +513,10 @@ int main(int argc, char **argv) {
 			N,    // Cost of exchange rate differential
 			rho,  // Discount factor
 			v,    // Volatility
-			m     // Central parity
+			m,    // Central parity
+
+			// Is the q control handled implicitly?
+			!( method & SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS )
 		);
 
 		// Policy iteration for stochastic control
@@ -500,10 +553,20 @@ int main(int argc, char **argv) {
 			T/TN  // Timestep size
 		);
 
-		stepper.setInnerIteration(toleranceIteration);
+		if(method != EXPLICIT) {
+			stepper.setInnerIteration(toleranceIteration);
+		}
+
+		// What to discretize
+		LinearSystem *discretize;
+		if(method & SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS) {
+			discretize = &discretizee;
+		} else {
+			discretize = &stochasticPolicy;
+		}
 
 		// Discretize
-		Discretization discretization(grid, stochasticPolicy);
+		Discretization discretization(grid, *discretize);
 		discretization.setIteration(stepper);
 
 		////////////////////////////////////////////////////////////////
@@ -511,7 +574,7 @@ int main(int argc, char **argv) {
 		////////////////////////////////////////////////////////////////
 
 		Iteration *iteration;
-		LinearSystem *penalized;
+		IterationNode *penalized;
 
 		if(finite_horizon) {
 			iteration = &stepper;
@@ -532,8 +595,72 @@ int main(int argc, char **argv) {
 		penalty.setIteration(toleranceIteration);
 
 		IterationNode *root;
-		//root = &stochasticPolicy;
-		root = &penalty;
+		if(method & EXPLICIT_IMPULSE) {
+			// No impulse root
+			root = penalized;
+		} else {
+			// Impulse root
+			root = &penalty;
+		}
+
+		////////////////////////////////////////////////////////////////
+		// Exercise events
+		////////////////////////////////////////////////////////////////
+
+		auto setDifferential = [=,&stepper] (
+			const Interpolant1 &u,
+			Real x
+		) {
+
+			Real best = -numeric_limits<Real>::infinity();
+
+			const Real dt = stepper.timestep();
+
+			if(method & SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS) {
+				const Real dq = (q_max-q_min)/(controlPoints-1);
+				for(int i = 0; i < controlPoints; ++i) {
+					const Real q = q_min + i * dq;
+					const Real newValue =
+						u( x - F(q) * dt )
+						- N(q) * dt
+					;
+					if(newValue > best) {
+						best = newValue;
+					}
+				}
+			}
+
+			if(method & EXPLICIT_IMPULSE) {
+				const Axis &X = grid[0];
+				for(int i = 0; i < X.size(); ++i) {
+					const Real newValue =
+						u( X[i] )
+						+ interventionCost(0., x, X[i])
+					;
+					if(newValue > best) {
+						best = newValue;
+					}
+				}
+			}
+
+			return best;
+
+		};
+
+		if(method != IMPLICIT) {
+			for(int m = 0; m < TN; ++m) {
+				stepper.add(
+					// Time at which the event takes place
+					T / TN * m,
+
+					// Domestic gov't sets differential
+					setDifferential,
+
+					// Spatial grid to interpolate on
+					grid
+				);
+			}
+		}
 
 		////////////////////////////////////////////////////////////////
 		// Run
@@ -542,10 +669,8 @@ int main(int argc, char **argv) {
 		BiCGSTABSolver solver;
 		auto u = iteration->solve(
 			grid,                        // Domain
-			[=] (Real x) { return 0.; }, // Initial guess (zero
-			                             // everywhere)
+			[=] (Real x) { return 0.; }, // Payoff
 			*root,                       // Root of linear system
-			                             // tree
 			solver                       // Linear system solver
 		);
 
@@ -614,7 +739,7 @@ int main(int argc, char **argv) {
 			}
 			#endif
 
-			Real value = -u( adjusted );
+			Real value = u( adjusted );
 			Real
 				change = value - previousValue,
 				ratio = previousChange / change
