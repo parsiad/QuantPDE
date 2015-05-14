@@ -14,6 +14,7 @@
 
 #include <QuantPDE/Core>
 
+#include <chrono>   // duration
 #include <cmath>    // fabs
 #include <fstream>  // ofstream
 #include <getopt.h> // getopt_long
@@ -469,13 +470,20 @@ int main(int argc, char **argv) {
 			<< setw(td) << "Control Nodes" << "\t"
 		;
 
-		if(finite_horizon) { cout << setw(td) << "Timesteps" << "\t"; }
+		if(finite_horizon) {
+			cout << setw(td) << "Timesteps" << "\t";
+		}
+
+		cout << setw(td) << "Value at x=0"  << "\t";
+
+		if(method != EXPLICIT) {
+			cout << setw(td) << "Iterations" << "\t";
+		}
 
 		cout
-			<< setw(td) << "Value at x=0"  << "\t"
-			<< setw(td) << "Iterations"    << "\t"
-			<< setw(td) << "Change"        << "\t"
-			<< setw(td) << "Ratio"
+			<< setw(td) << "Change"  << "\t"
+			<< setw(td) << "Ratio"   << "\t"
+			<< setw(td) << "Seconds" << "\t"
 			<< endl
 		;
 	}
@@ -666,6 +674,8 @@ int main(int argc, char **argv) {
 		// Run
 		////////////////////////////////////////////////////////////////
 
+		auto start = chrono::steady_clock::now();
+
 		BiCGSTABSolver solver;
 		auto u = iteration->solve(
 			grid,                        // Domain
@@ -673,6 +683,9 @@ int main(int argc, char **argv) {
 			*root,                       // Root of linear system
 			solver                       // Linear system solver
 		);
+
+		auto end = chrono::steady_clock::now();
+		auto diff = end - start;
 
 		if(op == ProgramOperation::PLOT) {
 
@@ -749,23 +762,30 @@ int main(int argc, char **argv) {
 
 			cout.precision(12);
 
-			auto its = toleranceIteration.iterations();
-			const Real mean = accumulate(its.begin(),its.end(),0.)
-					/ its.size();
-
 			// Print row of table
 			cout
 				<< setw(td) << grid.size()               << "\t"
 				<< setw(td) << stochasticControls.size() << "\t"
 			;
 
-			if(finite_horizon) { cout << setw(td) << TN << "\t"; }
+			if(finite_horizon) {
+				cout << setw(td) << TN << "\t";
+			}
+
+			cout << setw(td) << value << "\t";
+
+			if(method != EXPLICIT) {
+				auto its = toleranceIteration.iterations();
+				const Real mean = accumulate(its.begin(),
+						its.end(), 0.) / its.size();
+				cout << setw(td) << mean << "\t";
+			}
 
 			cout
-				<< setw(td) << value  << "\t"
-				<< setw(td) << mean   << "\t"
 				<< setw(td) << change << "\t"
 				<< setw(td) << ratio  << "\t"
+				<< setw(td) << chrono::duration <double>
+						(diff).count()
 				<< endl
 			;
 
