@@ -58,7 +58,7 @@ Real q_max = +0.05;
 int gridPoints = 32;
 
 // Number of points for interest rate control (initial discretization)
-int controlPoints = 16;
+int controlPoints = 32;
 
 // Constants
 Real c_1 = 1.;
