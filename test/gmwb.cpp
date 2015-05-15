@@ -35,8 +35,6 @@
 	#undef protected
 #endif
 
-#include <QuantPDE/Modules/Operators>
-
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <algorithm> // max, min
@@ -55,7 +53,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace QuantPDE;
-using namespace QuantPDE::Modules;
 
 using namespace std;
 
@@ -183,13 +180,13 @@ inline Real Vminus(const Interpolant2 &V, Real t, Real W, Real A, Real q) {
 
 ////////////////////////////////////////////////////////////////////////////////
 // Operator to discretize
-// i.e. Lu + f, where L is the infinitesimal generator of process (W_t, A_t)
+// i.e. Lu - r + f, where L is the infinitesimal generator of process (W_t, A_t)
 ////////////////////////////////////////////////////////////////////////////////
 
 class Discretizee final : public RawControlledLinearSystem2_1 {
 
 	const RectilinearGrid2 &grid;
-	const Real r, v, q;
+	const Real r, v, div;
 
 	const bool controlled;
 	const Vector zero;
@@ -207,7 +204,7 @@ public:
 		grid( grid ),
 		r( interest ),
 		v( volatility ),
-		q( dividends ),
+		div( dividends ),
 		controlled( controlled ),
 		zero( grid.zero() )
 	{
@@ -230,12 +227,14 @@ public:
 
 			// W = 0
 			if(j > 0) {
+				// (W=0, A>0)
 				const Real dA  = A[j] - A[j-1];
 				const Real tmp = raw(k) / dA;
 
 				M.insert(k, k           ) =  tmp + r;
 				M.insert(k, k - W.size()) = -tmp;
 			} else {
+				// (W=0, A=0)
 				M.insert(k, k) = r;
 			}
 			++k;
@@ -251,7 +250,7 @@ public:
 				;
 
 				const Real tmp1 = v * v * W[i] * W[i];
-				const Real tmp2 = (r - q) * W[i] - raw(k);
+				const Real tmp2 = (r - div) * W[i] - raw(k);
 
 				const Real alpha_common = tmp1 / dWb / dWc ;
 				const Real  beta_common = tmp1 / dWf / dWc ;
@@ -276,12 +275,14 @@ public:
 				// the other work that we have to do
 				const Real base = alpha_i + beta_i + r;
 				if(j > 0) {
+					// (W>0, A>0)
 					const Real dA  = A[j] - A[j-1];
 					const Real tmp = raw(k) / dA;
 
 					M.insert(k, k           ) =  tmp + base;
 					M.insert(k, k - W.size()) = -tmp;
 				} else {
+					// (W>0, A=0)
 					M.insert(k, k) = base;
 				}
 
@@ -291,13 +292,27 @@ public:
 
 			// W = W_max
 			if(j > 0) {
-				const Real dA  = A[j] - A[j-1];
-				const Real tmp = raw(k) / dA;
+				// (W=W_max, A>0)
 
-				M.insert(k, k           ) =  tmp + q;
+				const Real q = raw(k);
+
+				const Real dA  = A[j] - A[j-1];
+				const Real tmp = q / dA;
+
+				const Real W_max = W[W.size() - 1];
+
+				// Still consistent if we remove the q / W_max
+				// and take W_max -> infinity (q is bounded)
+				//
+				// However, if W_max is constant, the following
+				// is more accurate
+
+				M.insert(k, k) =  tmp + div + q / W_max;
 				M.insert(k, k - W.size()) = -tmp;
+
 			} else {
-				M.insert(k, k) = q;
+				// (W=W_max, A=0)
+				M.insert(k, k) = div;
 			}
 			++k;
 
@@ -307,7 +322,7 @@ public:
 		return M;
 	}
 
-	virtual Vector b(Real t) {
+	virtual Vector b(Real) {
 		Vector b = grid.vector();
 
 		const Axis &W = grid[0];
@@ -323,19 +338,13 @@ public:
 			++k;
 		}
 
-		//const Real Wmax = W[ W.size() - 1 ];
-
 		// A > 0
 		for(Index j = 1; j < A.size(); ++j) {
-			// 0 <= W < W_max
-			for(Index i = 0; i < W.size() - 1; ++i) {
+			// 0 <= W <= W_max
+			for(Index i = 0; i < W.size(); ++i) {
 				b(k) = raw(k);
 				++k;
 			}
-
-			// W = W_max
-			b(k) = raw(k);
-			++k;
 		}
 
 		return b;

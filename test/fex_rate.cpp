@@ -10,9 +10,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-//#define QUANT_PDE_FEX_RATE_EVEN
-
 #include <QuantPDE/Core>
+
+////////////////////////////////////////////////////////////////////////////////
 
 #include <chrono>   // duration
 #include <cmath>    // fabs
@@ -51,8 +51,8 @@ int method = 0;
 Real boundary = 6.; // log(1000) ~= 7
 
 // Interest rate differential in [q_min, q_max]
-Real q_min = 0.;
-Real q_max = 0.05;
+Real q_min = 0.; //-0.05; // Symmetric Q for test from [1]
+Real q_max = +0.05;
 
 // Number of points in space (initial discretization)
 int gridPoints = 32;
@@ -145,11 +145,8 @@ inline Real F(Real y) {
 * Cost of exchange rate differential.
 */
 inline Real M(Real y) {
-	#ifdef QUANT_PDE_FEX_RATE_EVEN
-	return c_5 * y * y;
-	#else
 	return (y > 0.) ? (c_5 * y * y) : 0.;
-	#endif
+	//return c_5 * y * y; // Even function (e.g. as in [1])
 }
 
 /**
@@ -301,8 +298,7 @@ public:
 	}
 
 	virtual bool isATheSame() const {
-		// TODO: Check the coefficients
-		return true;
+		return !controlled;
 	}
 
 };
@@ -448,12 +444,8 @@ int main(int argc, char **argv) {
 		// Clustered grid
 		Axis::cluster(
 			-boundary,  // Left-hand boundary
-			m,         // Feature to cluster around
-			#ifdef QUANT_PDE_FEX_RATE_EVENT
-			m,
-			#else
+			m,          // Feature to cluster around
 			+boundary,  // Right-hand boundary
-			#endif
 			gridPoints, // Number of points
 			10.         // Clustering intensity
 		)
@@ -692,12 +684,8 @@ int main(int argc, char **argv) {
 			RectilinearGrid1 printGrid(
 				Axis::uniform(
 					-boundary,
-					#ifdef QUANT_PDE_FEX_RATE_EVEN
-					m,
-					#else
 					+boundary,
-					#endif
-					100
+					200
 				)
 			);
 
@@ -743,16 +731,7 @@ int main(int argc, char **argv) {
 			// Print solution at x_0
 			////////////////////////////////////////////////////////
 
-			Real adjusted = x_0;
-			#ifdef QUANT_PDE_FEX_RATE_EVEN
-			// If x_0 > m, use the fact that u(.) is symmetric about
-			// x=m
-			if(x_0 > m) {
-				adjusted = m - (x_0 - m);
-			}
-			#endif
-
-			Real value = u( adjusted );
+			Real value = u( x_0 );
 			Real
 				change = value - previousValue,
 				ratio = previousChange / change
