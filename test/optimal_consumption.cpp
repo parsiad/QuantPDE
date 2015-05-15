@@ -9,47 +9,73 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
-////////////////////////////////////////////////////////////////////////////////
-
 using namespace QuantPDE;
 
 using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
+// Methods
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr int SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS = 1 << 0;
+constexpr int EXPLICIT_IMPULSE = 1 << 1;
+
+constexpr int EXPLICIT =
+		  EXPLICIT_IMPULSE
+		| SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS;
+
+constexpr int IMPLICIT = 0;
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Stochastic control
+Real q_max = 1.;
+int controlPoints = 16;
+
+// Interest rate
+Real r = 0.02;
+
+// Volatility
+Real v = 0.3;
+
+// Drift
+Real mu = 0.1;
+
+// Risk-aversion
+Real gamma = 1.;
+
+// Discount factor
+Real rho = 0.02;
+
+// Finite horizon
+Real T = 10.;
+
+// Initial number of timesteps
+int N = 32;
+
+// Max/min refinement level
+int Rmin = 0;
+int Rmax = 6;
+
+////////////////////////////////////////////////////////////////////////////////
 // Solution grid
 ////////////////////////////////////////////////////////////////////////////////
 
-// Grid
-RectilinearGrid2 initialGrid(
-	// Hand-picked axis, scaled by w0
-	// Used in GMWB paper by Zhuliang and Forsyth
-	(w0 / 100.) * Axis {
-		0., 5., 10., 15., 20., 25.,
-		30., 35., 40., 45.,
-		50., 55., 60., 65., 70., 72.5, 75., 77.5, 80., 82., 84.,
-		86., 88., 90., 91., 92., 93., 94., 95.,
-		96., 97., 98., 99., 100.,
-		101., 102., 103., 104., 105., 106.,
-		107., 108., 109., 110., 112., 114.,
-		116., 118., 120., 123., 126.,
-		130., 135., 140., 145., 150., 160., 175., 200., 225.,
-		250., 300., 500., 750., 1000.
-	},
+Axis axis = (w0 / 100.) * Axis {
+	0., 5., 10., 15., 20., 25.,
+	30., 35., 40., 45.,
+	50., 55., 60., 65., 70., 72.5, 75., 77.5, 80., 82., 84.,
+	86., 88., 90., 91., 92., 93., 94., 95.,
+	96., 97., 98., 99., 100.,
+	101., 102., 103., 104., 105., 106.,
+	107., 108., 109., 110., 112., 114.,
+	116., 118., 120., 123., 126.,
+	130., 135., 140., 145., 150., 160., 175., 200., 225.,
+	250., 300., 500., 750., 1000.
+};
 
-	(w0 / 100.) * Axis {
-		0., 5., 10., 15., 20., 25.,
-		30., 35., 40., 45.,
-		50., 55., 60., 65., 70., 72.5, 75., 77.5, 80., 82., 84.,
-		86., 88., 90., 91., 92., 93., 94., 95.,
-		96., 97., 98., 99., 100.,
-		101., 102., 103., 104., 105., 106.,
-		107., 108., 109., 110., 112., 114.,
-		116., 118., 120., 123., 126.,
-		130., 135., 140., 145., 150., 160., 175., 200., 225.,
-		250., 300., 500., 750., 1000.
-	}
-);
+// Grid
+RectilinearGrid2 initialGrid( axis, axis );
 
 ////////////////////////////////////////////////////////////////////////////////
 // Operator to discretize
@@ -195,5 +221,98 @@ class Discretizee final : public RawControlledLinearSystem2_1 {
 };
 
 int main() {
+
+	for(int ref = 0; ref <= Rmax; ++ref, N *= 2, controlPoints *= 2) {
+
+		if(ref < Rmin) { continue; }
+
+		// Refine the grid ref times
+		auto grid = initialGrid.refined( ref );
+
+		RectilinearGrid1 stochasticControls(
+			Axis::uniform(
+				0.,           // Control lower bound
+				q_max,        // Control upper bound
+				controlPoints // Number of nodes
+			)
+		);
+
+		ToleranceIteration toleranceIteration;
+
+		////////////////////////////////////////////////////////////////
+		// Linear system tree
+		////////////////////////////////////////////////////////////////
+
+		Discretizee discretizee(
+			grid,  // Domain
+			r,     // Interest rate
+			v,     // Volatility
+			mu,    // Drift
+			rho,   // Discount factor
+			gamma, // Risk-aversion
+
+			// Is the q control handled implicitly?
+			!( method & SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS )
+		);
+
+		// Policy iteration for stochastic control
+		MinPolicyIteration2_1 stochasticPolicy(
+			grid,               // Domain
+			stochasticControls, // Control grid
+			discretizee         // Lu - rho*u + f
+		);
+		stochasticPolicy.setIteration(toleranceIteration);
+
+		// Policy iteration for impulse control
+		Impulse2_1 impulseWithdrawal(
+			// Spatial grid
+			grid,
+
+			// The intervention does not cost anything; the cost
+			// is taken out of the bank account
+			[] (Real t, Real w, Real b, Real w_j, Real b_j) {
+				return 0.;
+			},
+
+			// State after an intervention
+			xplus
+		);
+		MinPolicyIteration2_1 impulsePolicy(
+			grid,             // Domain
+			grid,             // Control grid
+			impulseWithdrawal // Impulse
+		);
+		impulsePolicy.setIteration(toleranceIteration);
+
+		////////////////////////////////////////////////////////////////
+		// Stepper
+		////////////////////////////////////////////////////////////////
+
+		typedef ReverseBDFOne1 Discretization;
+
+		ReverseConstantStepper stepper(
+			0.,  // Initial time
+			T,   // Expiry time
+			T/N  // Timestep size
+		);
+
+		if(method != EXPLICIT) {
+			stepper.setInnerIteration(toleranceIteration);
+		}
+
+		// What to discretize
+		LinearSystem *discretize;
+		if(method & SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS) {
+			discretize = &discretizee;
+		} else {
+			discretize = &stochasticPolicy;
+		}
+
+		// Discretize
+		Discretization discretization(grid, *discretize);
+		discretization.setIteration(stepper);
+
+	}
+
 	return 0;
 }

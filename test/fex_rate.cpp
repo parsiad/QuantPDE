@@ -81,7 +81,7 @@ Real m = 0.;
 Real x_0 = 0.;
 
 // Finite horizon
-Real T = -1;
+Real T = -1.;
 
 // Initial number of timesteps
 int TN = 32;
@@ -156,6 +156,10 @@ inline Real N(Real y) {
 	return c_6 * y * y;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Operator to discretize
+// i.e. Lu - rho + f, where L is the infinitesimal generator of process
+//      (B_t, W_t)
 ////////////////////////////////////////////////////////////////////////////////
 
 class Discretizee final : public RawControlledLinearSystem1_1 {
