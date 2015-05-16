@@ -1,11 +1,7 @@
 #ifndef QUANT_PDE_CORE_STEPPER_HPP
 #define QUANT_PDE_CORE_STEPPER_HPP
 
-#include <functional> // std::greater
-#include <memory>     // std::unique_ptr
-#include <queue>      // std::priority_queue
-#include <tuple>      // std::tuple
-#include <vector>     // std::vector
+#include <limits> // std::numeric_limits
 
 namespace QuantPDE {
 

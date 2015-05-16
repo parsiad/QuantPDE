@@ -1,7 +1,7 @@
 #ifndef QUANT_PDE_CORE_PENALTY_METHOD_HPP
 #define QUANT_PDE_CORE_PENALTY_METHOD_HPP
 
-#include <vector>
+#include <vector> // std::vector
 
 namespace QuantPDE {
 

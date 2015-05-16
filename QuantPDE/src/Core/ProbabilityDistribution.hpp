@@ -2,7 +2,6 @@
 #define QUANT_PDE_CORE_PROBABILITY_DISTRIBUTION_HPP
 
 #include <array>  // std::array
-#include <memory> // std::unique_ptr
 
 namespace QuantPDE {
 

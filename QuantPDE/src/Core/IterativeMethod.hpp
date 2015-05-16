@@ -2,7 +2,7 @@
 #define QUANT_PDE_CORE_ITERATIVE_METHOD_HPP
 
 #include <array>         // std::array
-#include <cstdlib>       // std:abs, size_t
+#include <cstdlib>       // std::abs, size_t
 #include <list>          // std::list
 #include <memory>        // std::shared_ptr, std::unique_ptr
 #include <queue>         // std::priority_queue

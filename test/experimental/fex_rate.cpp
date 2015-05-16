@@ -210,7 +210,7 @@ public:
 		// Control as a vector
 		const Vector &raw = controlled ? control(0) : zero;
 
-		// Left boundary (derivatives disappear)
+		// Left boundary (Neumann = 0)
 		A.insert(0, 0) = rho;
 
 		// Interior point
@@ -248,38 +248,8 @@ public:
 			A.insert(i, i + 1) = -beta_i;
 		}
 
-		#ifdef QUANT_PDE_FEX_RATE_EVEN
-		{
-			const Real dx = x[n - 1] - x[n - 2];
-
-			const Real tmp1 = v * v;
-			const Real tmp2 = -F( raw(n - 1) );
-
-			const Real alpha_common = tmp1 / dx / (2 * dx);
-			const Real  beta_common = tmp1 / dx / (2 * dx);
-
-			// Central
-			Real alpha_i = alpha_common - tmp2 / (2 * dx);
-			Real beta_i  =  beta_common + tmp2 / (2 * dx);
-			if(alpha_i < 0.) {
-				// Forward
-				alpha_i = alpha_common;
-				beta_i  =  beta_common + tmp2 / dx;
-			} else if(beta_i < 0.) {
-				// Backward
-				alpha_i = alpha_common - tmp2 / dx;
-				beta_i  =  beta_common;
-			}
-
-			assert(alpha_i >= 0.);
-			assert( beta_i >= 0.);
-
-			A.insert(n - 1, n - 2) = -(alpha_i + beta_i);
-			A.insert(n - 1, n - 1) =   alpha_i + beta_i + rho;
-		}
-		#else
+		// Right boundary (Nuemann = 0)
 		A.insert(n - 1, n - 1) = rho;
-		#endif
 
 		A.makeCompressed();
 		return A;
@@ -487,7 +457,7 @@ int main(int argc, char **argv) {
 	for(
 		int ref = 0;
 		ref <= Rmax;
-		++ref, controlPoints*=2, TN*=2
+		++ref, controlPoints*=2, TN*=4
 	) {
 
 		if(ref < Rmin) { continue; }
@@ -532,7 +502,7 @@ int main(int argc, char **argv) {
 		stochasticPolicy.setIteration(toleranceIteration);
 
 		// Policy iteration for impulse control
-		Impulse1_1 impulseWithdrawal(
+		Impulse1_1 impulseBuySell(
 			grid,             // Spatial grid
 			interventionCost, // Cost of an intervention
 			xplus             // State of exchange rate after
@@ -541,7 +511,7 @@ int main(int argc, char **argv) {
 		MinPolicyIteration1_1 impulsePolicy(
 			grid,             // Domain
 			grid,             // Control grid
-			impulseWithdrawal // Impulse
+			impulseBuySell // Impulse
 		);
 		impulsePolicy.setIteration(toleranceIteration);
 
@@ -550,15 +520,22 @@ int main(int argc, char **argv) {
 		////////////////////////////////////////////////////////////////
 
 		typedef ReverseBDFOne1 Discretization;
+		//typedef ReverseBDFTwo1 Discretization;
 
-		ReverseConstantStepper stepper(
-			0.,   // Initial time
-			T,    // Expiry time
-			T/TN  // Timestep size
-		);
+		unique_ptr<ReverseTimeIteration> stepper;
+		if(finite_horizon) {
+			stepper = unique_ptr<ReverseTimeIteration>(
+				(ReverseTimeIteration *)
+				new ReverseConstantStepper(
+					0.,    // Initial time
+					T,     // Expiry time
+					T / TN  // Timestep size
+				)
+			);
 
-		if(method != EXPLICIT) {
-			stepper.setInnerIteration(toleranceIteration);
+			if(method != EXPLICIT) {
+				stepper->setInnerIteration(toleranceIteration);
+			}
 		}
 
 		// What to discretize
@@ -571,7 +548,10 @@ int main(int argc, char **argv) {
 
 		// Discretize
 		Discretization discretization(grid, *discretize);
-		discretization.setIteration(stepper);
+
+		if(finite_horizon) {
+			discretization.setIteration(*stepper);
+		}
 
 		////////////////////////////////////////////////////////////////
 		// Horizon selection
@@ -581,7 +561,7 @@ int main(int argc, char **argv) {
 		IterationNode *penalized;
 
 		if(finite_horizon) {
-			iteration = &stepper;
+			iteration = stepper.get();
 			penalized = &discretization;
 		} else {
 			iteration = &toleranceIteration;
@@ -611,14 +591,11 @@ int main(int argc, char **argv) {
 		// Exercise events
 		////////////////////////////////////////////////////////////////
 
-		auto setDifferential = [=,&stepper] (
-			const Interpolant1 &u,
-			Real x
-		) {
+		auto eventFEX = [=, &stepper] (const Interpolant1 &u, Real x) {
 
 			Real best = -numeric_limits<Real>::infinity();
 
-			const Real dt = stepper.timestep();
+			const Real dt = stepper->timestep();
 
 			if(method & SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS) {
 				const Real dq = (q_max-q_min)/(controlPoints-1);
@@ -653,12 +630,12 @@ int main(int argc, char **argv) {
 
 		if(method != IMPLICIT) {
 			for(int m = 0; m < TN; ++m) {
-				stepper.add(
+				stepper->add(
 					// Time at which the event takes place
 					T / TN * m,
 
 					// Domestic gov't sets differential
-					setDifferential,
+					eventFEX,
 
 					// Spatial grid to interpolate on
 					grid
@@ -674,10 +651,10 @@ int main(int argc, char **argv) {
 
 		BiCGSTABSolver solver;
 		auto u = iteration->solve(
-			grid,                        // Domain
-			[=] (Real x) { return 0.; }, // Payoff
-			*root,                       // Root of linear system
-			solver                       // Linear system solver
+			grid,                      // Domain
+			[=] (Real) { return 0.; }, // Payoff
+			*root,                     // Root of linear system
+			solver                     // Linear system solver
 		);
 
 		auto end = chrono::steady_clock::now();
@@ -716,7 +693,7 @@ int main(int argc, char **argv) {
 
 			// Print impulse control
 
-			Vector beta = impulseWithdrawal.control(0);
+			Vector beta = impulseBuySell.control(0);
 			auto mask = penalty.constraintMask();
 			for(int i = 0; i < grid.size(); i++) {
 				if(!mask[i]) {

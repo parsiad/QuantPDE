@@ -2,7 +2,6 @@
 #define QUANT_PDE_CORE_LINEAR_SYSTEM_SUM_HPP
 
 #include <forward_list> // std::forward_list
-#include <memory>       // std::unique_ptr
 
 namespace QuantPDE {
 

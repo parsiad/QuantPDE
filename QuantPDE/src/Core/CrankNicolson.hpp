@@ -1,7 +1,7 @@
 #ifndef QUANT_PDE_CORE_CRANK_NICOLSON_HPP
 #define QUANT_PDE_CORE_CRANK_NICOLSON_HPP
 
-#include <climits>
+#include <limits> // std::numeric_limits
 
 /**
  * QuantPDE namespace.
@@ -26,7 +26,13 @@ template <Index Dimension, bool Forward, int ThetaInverse = 2>
 class CrankNicolson : public Discretization<Dimension> {
 
 	static_assert(ThetaInverse > 0, "ThetaInverse must be positive.");
+
+	// GCC has trouble with this if NDEBUG is off
+	#ifndef NDEBUG
+	const Real theta = 1. / ((Real) ThetaInverse);
+	#else
 	static constexpr Real theta = 1. / ((Real) ThetaInverse);
+	#endif
 
 	LinearSystem &system;
 

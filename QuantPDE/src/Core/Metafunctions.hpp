@@ -3,7 +3,6 @@
 
 #include <cstdint>     // std::intmax_t
 #include <cstdlib>     // std::size_t
-#include <type_traits> // std::true_type
 #include <utility>     // std::forward
 
 namespace QuantPDE {

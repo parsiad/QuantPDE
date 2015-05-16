@@ -38,6 +38,7 @@ all: $(BINARIES)
 
 $(BINARIES_DIRECTORY)/% : %.cpp
 	mkdir -p $(BINARIES_DIRECTORY)
+	mkdir -p $(BINARIES_DIRECTORY)/experimental
 	$(CXX) \
 			-std=c++11 $(OPTS) $(CFLAGS) \
 			-I../ $(EIGEN) -o $@ $<
