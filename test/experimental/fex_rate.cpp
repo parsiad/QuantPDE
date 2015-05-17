@@ -685,9 +685,7 @@ int main(int argc, char **argv) {
 				}
 			}
 
-			for(Index i = 0; i < grid[0].size(); ++i) {
-				cout << grid[0][i] << "\t" << beta(i) << endl;
-			}
+			cout << accessor( grid, beta );
 
 		} else if(op == ProgramOperation::IMPULSE) {
 
@@ -702,9 +700,7 @@ int main(int argc, char **argv) {
 				}
 			}
 
-			for(Index i = 0; i < grid[0].size(); ++i) {
-				cout << grid[0][i] << "\t" << beta(i) << endl;
-			}
+			cout << accessor( grid, beta );
 
 		} else {
 

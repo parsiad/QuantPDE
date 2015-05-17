@@ -47,6 +47,7 @@
 #include <iostream>  // cout
 #include <memory>    // unique_ptr
 #include <numeric>   // accumulate
+#include <string>    // string
 #include <thread>    // thread
 #include <tuple>     // get
 
@@ -81,7 +82,7 @@ Real r = .05;
 Real v = .2;
 
 //Real alpha = 0.036;
-//Real alpha = 0.0138458; // Computed in 2015-01-01
+//Real alpha = 0.0138456;
 Real alpha = 0.;
 
 //Real G = 7.;
@@ -100,10 +101,21 @@ int Rmax = 6; // Maximum level of refinement
 int realizedN = -1; // Realized timesteps
 Real target = 1.; // Target relative error for variable timestepping
 
-bool newton = false;
 bool variable = false; // Variable stepping does not work for anything other
                        // than fully implicit!
 bool quarter = false; // Quarter timestep on each refinement
+
+////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Controls the output of the program.
+ */
+enum class ProgramOperation {
+	CONVERGENCE_TEST, /**< convergence test */
+	NEWTON, /**< calculates the fair fee */
+	CONTROLS /**< outputs control data to a file */
+};
+ProgramOperation op = ProgramOperation::CONVERGENCE_TEST;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Solution grid
@@ -761,6 +773,44 @@ std::tuple<Real, Real, Real, int, Real, Real, Real>
 	#endif
 
 	////////////////////////////////////////////////////////////////////////
+	// Controls
+	////////////////////////////////////////////////////////////////////////
+
+	if(op == ProgramOperation::CONTROLS) {
+
+		// Print stochastic and impulse control
+
+		auto mask = penalty.constraintMask();
+
+		Vector ctrl_s = discretizee.control(0);
+		for(int i = 0; i < grid.size(); i++) {
+			if(mask[i]) {
+				ctrl_s(i) = numeric_limits<Real>::infinity();
+			}
+		}
+
+		Vector ctrl_i = impulseWithdrawal.control(0);
+		for(int i = 0; i < grid.size(); i++) {
+			if(!mask[i]) {
+				ctrl_i(i) = numeric_limits<Real>::infinity();
+			}
+		}
+
+		int k = 0;
+		for(auto node : grid) {
+			cout
+				<< node[0]   << "\t"
+				<< node[1]   << "\t"
+				<< ctrl_s(k) << "\t"
+				<< ctrl_i(k) << "\t"
+				<< endl
+			;
+			++k;
+		}
+
+	}
+
+	////////////////////////////////////////////////////////////////////////
 	// Statistics
 	////////////////////////////////////////////////////////////////////////
 
@@ -806,7 +856,7 @@ void printHeaders() {
 		<< setw(td) << "Change"          << "\t"
 	;
 
-	if(!newton) {
+	if(op != ProgramOperation::NEWTON) {
 		cout << setw(td) << "Ratio";
 	}
 
@@ -839,6 +889,7 @@ int main(int argc, char **argv) {
 			{ "fair-fee"        , required_argument, 0, 0 },
 			{ "min-refinement"  , required_argument, 0, 0 },
 			{ "max-refinement"  , required_argument, 0, 0 },
+			{ "controls"        , no_argument,       0, 0 },
 			{ nullptr           , 0,                 0, 0 }
 		};
 
@@ -869,7 +920,8 @@ int main(int argc, char **argv) {
 							method = EXPLICIT;
 							break;
 						case 2:
-							newton = true;
+							op = ProgramOperation::
+									NEWTON;
 							break;
 						case 3:
 							variable = true;
@@ -885,6 +937,10 @@ int main(int argc, char **argv) {
 							break;
 						case 7:
 							Rmax = atoi(optarg);
+							break;
+						case 8:
+							op = ProgramOperation::
+								CONTROLS;
 							break;
 						default:
 							break;
@@ -913,7 +969,17 @@ int main(int argc, char **argv) {
 					"with mixed method" << endl;
 			return 1;
 		}
+
+		if(op == ProgramOperation::CONTROLS) {
+			cerr << "error: cannot output controls under iterated "
+					"optimal stopping" << endl;
+		}
 		#endif
+
+		if(op == ProgramOperation::CONTROLS && method != IMPLICIT) {
+			cerr << "error: cannot output controls unless an "
+					"implicit method is used" << endl;
+		}
 	}
 
 	////////////////////////////////////////////////////////////////////////
@@ -923,13 +989,17 @@ int main(int argc, char **argv) {
 	cout.precision(12);
 	Real previousValue = nan(""), previousChange = nan("");
 
-	if(!newton) {
+	if(op != ProgramOperation::NEWTON && op != ProgramOperation::CONTROLS) {
 		printHeaders();
 	}
 
 	////////////////////////////////////////////////////////////////////////
 	// Refinement loop
 	////////////////////////////////////////////////////////////////////////
+
+	if(op == ProgramOperation::CONTROLS) {
+		Rmin = Rmax;
+	}
 
 	for(
 		int ref = 0;
@@ -951,7 +1021,7 @@ int main(int argc, char **argv) {
 
 		auto start = chrono::steady_clock::now();
 
-		if(newton) {
+		if(op == ProgramOperation::NEWTON) {
 			// Spacing
 			cout << endl;
 
@@ -1004,6 +1074,10 @@ int main(int argc, char **argv) {
 					solve(grid, alpha);
 		}
 
+		if(op == ProgramOperation::CONTROLS) {
+			break;
+		}
+
 		auto end = chrono::steady_clock::now();
 		auto diff = end - start;
 
@@ -1037,7 +1111,7 @@ int main(int argc, char **argv) {
 			<< setw(td) << change      << "\t"
 		;
 
-		if(!newton) {
+		if(op != ProgramOperation::NEWTON) {
 			cout << setw(td) << ratio << "\t";
 		}
 
