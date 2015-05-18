@@ -86,6 +86,9 @@ Real T = -1.;
 // Initial number of timesteps
 int TN = 32;
 
+// Quarter timestep size on every refinement
+bool quarter = false;
+
 // Max/min refinement level
 int Rmin = 0;
 int Rmax = 6;
@@ -297,6 +300,7 @@ int main(int argc, char **argv) {
 			{ "max-refinement"  , required_argument, 0, 0 },
 			{ "expiry"          , required_argument, 0, 0 },
 			{ "fixed-cost"      , required_argument, 0, 0 },
+			{ "quarter"         , no_argument      , 0, 0 },
 			{ nullptr           , 0,                 0, 0 }
 		};
 
@@ -359,6 +363,9 @@ int main(int argc, char **argv) {
 "error: fixed transaction cost must be nonnegative" << endl;
 								return 1;
 							}
+							break;
+						case 9:
+							quarter = true;
 							break;
 						default:
 							break;
@@ -457,7 +464,7 @@ int main(int argc, char **argv) {
 	for(
 		int ref = 0;
 		ref <= Rmax;
-		++ref, controlPoints*=2, TN*=4
+		++ref, controlPoints*=2, TN*=(quarter ? 4 : 2)
 	) {
 
 		if(ref < Rmin) { continue; }
