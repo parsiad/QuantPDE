@@ -89,7 +89,7 @@ Real alpha = 0.;
 Real G = 10.; // Contract rate
 Real kappa = 0.1; // Penalty rate
 
-Real w0 = 100.; // Initial value of the account
+Real w_0 = 100.; // Initial value of the account
 
 int N = 32; // Initial number of timesteps
 int M = 2; // Initial control set partition
@@ -113,7 +113,8 @@ bool quarter = false; // Quarter timestep on each refinement
 enum class ProgramOperation {
 	CONVERGENCE_TEST, /**< convergence test */
 	NEWTON, /**< calculates the fair fee */
-	CONTROLS /**< outputs control data to a file */
+	PLOT, /**< outputs value function */
+	PLOT_CONTROLS /**< outputs control data */
 };
 ProgramOperation op = ProgramOperation::CONVERGENCE_TEST;
 
@@ -123,9 +124,9 @@ ProgramOperation op = ProgramOperation::CONVERGENCE_TEST;
 
 // Grid
 RectilinearGrid2 initialGrid(
-	// Hand-picked axis, scaled by w0
+	// Hand-picked axis, scaled by w_0
 	// Used in GMWB paper by Zhuliang and Forsyth
-	(w0 / 100.) * Axis {
+	(w_0 / 100.) * Axis {
 		0., 5., 10., 15., 20., 25.,
 		30., 35., 40., 45.,
 		50., 55., 60., 65., 70., 72.5, 75., 77.5, 80., 82., 84.,
@@ -138,8 +139,8 @@ RectilinearGrid2 initialGrid(
 		250., 300., 500., 750., 1000.
 	},
 
-	// 51 points evenly spaced on [0, w0]
-	Axis::uniform(0., w0, 51)
+	// 51 points evenly spaced on [0, w_0]
+	Axis::uniform(0., w_0, 51)
 );
 
 // Automatically generated grid
@@ -147,8 +148,8 @@ RectilinearGrid2 initialGrid(
 constexpr int points2 = 51;
 
 RectilinearGrid2 grid(
-	Axis::cluster(0., w0, 1000., points1, 10.),
-	Axis::uniform(0., w0, points2)
+	Axis::cluster(0., w_0, 1000., points1, 10.),
+	Axis::uniform(0., w_0, points2)
 );*/
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -373,8 +374,8 @@ public:
 constexpr int progressWidth = 70;
 constexpr int progressSleep = 100;
 
-std::tuple<Real, Real, Real, int, Real, Real, Real>
-		solve(RectilinearGrid2 &grid, Real alpha) {
+tuple<Real, Real, Real, int, Real, Real, Real> solve(RectilinearGrid2 &grid,
+		Real alpha) {
 
 	////////////////////////////////////////////////////////////////////////
 	// Iteration tree
@@ -486,10 +487,14 @@ std::tuple<Real, Real, Real, int, Real, Real, Real>
 	// Exercise events
 	////////////////////////////////////////////////////////////////////////
 
-	auto withdrawal = [=,&stepper] (const Interpolant2 &V, Real W, Real A) {
+	auto wsub = [=,&stepper] (const Interpolant2 &V, Real W, Real A) {
 
 		// No withdrawal
 		Real best = V(W, A);
+
+		// Optimal controls
+		Real sc = numeric_limits<Real>::infinity();
+		Real ic = numeric_limits<Real>::infinity();
 
 		const Real dt = stepper->timestep();
 
@@ -512,6 +517,7 @@ std::tuple<Real, Real, Real, int, Real, Real, Real>
 
 				if(newValue > best) {
 					best = newValue;
+					sc = gamma;
 				}
 			//}
 
@@ -519,8 +525,8 @@ std::tuple<Real, Real, Real, int, Real, Real, Real>
 
 		// Penalty
 		if(
-			(method & EXPLICIT_IMPULSE)
-			&& A > Gdt
+			(method & EXPLICIT_IMPULSE) &&
+			A > Gdt
 		) {
 
 			for(int i = 1; i <= M; ++i) {
@@ -534,18 +540,36 @@ std::tuple<Real, Real, Real, int, Real, Real, Real>
 
 				if(newValue > best) {
 					best = newValue;
+					sc = numeric_limits<Real>::infinity();
+					ic = gamma;
 				}
 
 			}
 
 		}
 
-		return best;
+		return make_tuple(best, sc, ic);
 
 	};
 
+	auto withdrawal = [=,&stepper] (const Interpolant2 &V, Real W, Real A) {
+		return get<0>( wsub(V, W, A) );
+	};
+
+	auto withdrawalPrintControl = [=,&stepper] (const Interpolant2 &V,
+			Real W, Real A) {
+		Real best, sc, ic;
+		tie(best, sc, ic) = wsub(V, W, A);
+		cout << W << "\t" << A << "\t" << sc << "\t" << ic << endl;
+		return best;
+	};
+
 	if(method != IMPLICIT) {
-		for(int m = 0; m < N; ++m) {
+		// Special routine for printing
+		const int mstart = (op==ProgramOperation::PLOT_CONTROLS) ? 1:0;
+		if(mstart) { stepper->add(0., withdrawalPrintControl, grid); }
+
+		for(int m = mstart; m < N; ++m) {
 			stepper->add(
 				// Time at which the event takes place
 				T / N * m,
@@ -688,9 +712,9 @@ std::tuple<Real, Real, Real, int, Real, Real, Real>
 			++toleranceIteration.its.back();
 		} while(!converged);
 
-		// Linear interpolate to get V(w0, w0)
+		// Linear interpolate to get V(w_0, w_0)
 		PiecewiseLinear2 V(grid, previous[N]);
-		value = V(w0, w0);
+		value = V(w_0, w_0);
 
 		// Housekeeping
 
@@ -760,7 +784,28 @@ std::tuple<Real, Real, Real, int, Real, Real, Real>
 		progress.join();
 		#endif
 
-		value = V(w0, w0);
+		value = V(w_0, w_0);
+
+		////////////////////////////////////////////////////////////////
+		// Plot
+		////////////////////////////////////////////////////////////////
+
+		if(op == ProgramOperation::PLOT) {
+			RectilinearGrid2 printGrid(
+				Axis::uniform(
+					0.,
+					200.,
+					200
+				),
+				Axis::uniform(
+					0.,
+					100.,
+					200
+				)
+			);
+
+			cout << accessor(printGrid, V);
+		}
 
 	} // End policy iteration test
 	#endif
@@ -776,7 +821,7 @@ std::tuple<Real, Real, Real, int, Real, Real, Real>
 	// Controls
 	////////////////////////////////////////////////////////////////////////
 
-	if(op == ProgramOperation::CONTROLS) {
+	if(method == IMPLICIT && op == ProgramOperation::PLOT_CONTROLS) {
 
 		// Print stochastic and impulse control
 
@@ -889,7 +934,9 @@ int main(int argc, char **argv) {
 			{ "fair-fee"        , required_argument, 0, 0 },
 			{ "min-refinement"  , required_argument, 0, 0 },
 			{ "max-refinement"  , required_argument, 0, 0 },
-			{ "controls"        , no_argument,       0, 0 },
+			{ "plot-controls"   , no_argument,       0, 0 },
+			{ "controls"        , required_argument, 0, 0 },
+			{ "plot"            , no_argument,       0, 0 },
 			{ nullptr           , 0,                 0, 0 }
 		};
 
@@ -900,7 +947,7 @@ int main(int argc, char **argv) {
 				c = getopt_long(
 					argc,
 					argv,
-					"",
+					"v:",
 					opts,
 					&index
 				)
@@ -940,13 +987,31 @@ int main(int argc, char **argv) {
 							break;
 						case 8:
 							op = ProgramOperation::
-								CONTROLS;
+								PLOT_CONTROLS;
 							break;
+						case 9:
+							M = atoi(optarg);
+							break;
+						case 10:
+							op = ProgramOperation::
+									PLOT;
 						default:
 							break;
 					}
 				break;
+				case 'v':
+					v = atof(optarg);
+					break;
+				case ':':
+				case '?':
+					return 1;
 			}
+		}
+
+		if(M < 2) {
+			cerr << "error: a minimum of two points are required"
+					" in the control set partition"
+					<< endl;
 		}
 
 		if(Rmin < 0 || Rmax < Rmin) {
@@ -970,15 +1035,18 @@ int main(int argc, char **argv) {
 			return 1;
 		}
 
-		if(op == ProgramOperation::CONTROLS) {
-			cerr << "error: cannot output controls under iterated "
-					"optimal stopping" << endl;
+		if(op == ProgramOperation::PLOT_CONTROLS
+				|| op == ProgramOperation::PLOT) {
+			cerr << "error: cannot output plotting data in iterated"
+					" optimal stopping" << endl;
 		}
 		#endif
 
-		if(op == ProgramOperation::CONTROLS && method != IMPLICIT) {
+		if(op == ProgramOperation::PLOT_CONTROLS && method
+				== SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS) {
 			cerr << "error: cannot output controls unless an "
-					"implicit method is used" << endl;
+					"implicit/explicit method is used"
+					<< endl;
 		}
 	}
 
@@ -989,7 +1057,11 @@ int main(int argc, char **argv) {
 	cout.precision(12);
 	Real previousValue = nan(""), previousChange = nan("");
 
-	if(op != ProgramOperation::NEWTON && op != ProgramOperation::CONTROLS) {
+	if(
+		   op != ProgramOperation::NEWTON
+		&& op != ProgramOperation::PLOT_CONTROLS
+		&& op != ProgramOperation::PLOT
+	) {
 		printHeaders();
 	}
 
@@ -997,7 +1069,8 @@ int main(int argc, char **argv) {
 	// Refinement loop
 	////////////////////////////////////////////////////////////////////////
 
-	if(op == ProgramOperation::CONTROLS) {
+	if(op == ProgramOperation::PLOT_CONTROLS
+			|| op == ProgramOperation::PLOT) {
 		Rmin = Rmax;
 	}
 
@@ -1036,9 +1109,9 @@ int main(int argc, char **argv) {
 
 			while(true) {
 				// f(alpha)
-				std::tie(value, mean, var, max, imean, ivar,
+				tie(value, mean, var, max, imean, ivar,
 						imax) = solve(grid, alpha);
-				const Real f0 = value - w0;
+				const Real f0 = value - w_0;
 
 				cout
 					<< setw(td) << "\t"
@@ -1054,7 +1127,7 @@ int main(int argc, char **argv) {
 
 				// f(alpha + epsilon)
 				auto tmp = solve(grid, alpha + epsilon);
-				const Real f1 = std::get<0>(tmp) - w0;
+				const Real f1 = get<0>(tmp) - w_0;
 
 				// f'(alpha)
 				const Real fp = (f1 - f0) / epsilon;
@@ -1070,11 +1143,12 @@ int main(int argc, char **argv) {
 			printHeaders();
 		} else {
 			// No Newton iteration
-			std::tie(value, mean, var, max, imean, ivar, imax) =
+			tie(value, mean, var, max, imean, ivar, imax) =
 					solve(grid, alpha);
 		}
 
-		if(op == ProgramOperation::CONTROLS) {
+		if(op == ProgramOperation::PLOT_CONTROLS ||
+				op == ProgramOperation::PLOT) {
 			break;
 		}
 
@@ -1171,22 +1245,22 @@ public:
 			auto data = linearInterpolationData(grid,
 					{{Wplus,Aplus}});
 
-			const Index i0 = std::get<0>( data[0] );
-			const Index i1 = std::get<0>( data[1] );
-			const Real  w0 = std::get<1>( data[0] );
-			const Real  w1 = std::get<1>( data[1] );
+			const Index i0 = get<0>( data[0] );
+			const Index i1 = get<0>( data[1] );
+			const Real  w_0 = get<1>( data[0] );
+			const Real  w1 = get<1>( data[1] );
 
 			assert( (grid[0][i0+1] - Wplus)
-					/ (grid[0][i0+1] - grid[0][i0]) == w0 );
+					/ (grid[0][i0+1] - grid[0][i0]) == w_0 );
 			assert( (grid[1][i1+1] - Aplus)
 					/ (grid[1][i1+1] - grid[1][i1]) == w1 );
 
 			const Index j = grid.index(i0, i1);
 
-			M.insert(k, j                     ) =    w0  *    w1 ;
-			M.insert(k, j     + grid[0].size()) =    w0  * (1-w1);
-			M.insert(k, j + 1                 ) = (1-w0) *    w1 ;
-			M.insert(k, j + 1 + grid[0].size()) = (1-w0) * (1-w1);
+			M.insert(k, j                     ) =    w_0  *    w1 ;
+			M.insert(k, j     + grid[0].size()) =    w_0  * (1-w1);
+			M.insert(k, j + 1                 ) = (1-w_0) *    w1 ;
+			M.insert(k, j + 1 + grid[0].size()) = (1-w_0) * (1-w1);
 
 			++k;
 		}
