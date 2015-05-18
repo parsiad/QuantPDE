@@ -114,6 +114,7 @@ enum class ProgramOperation {
 	CONVERGENCE_TEST, /**< convergence test */
 	NEWTON, /**< calculates the fair fee */
 	PLOT, /**< outputs value function */
+	PLOT_FIXED_A, /**< outputs value function for fixed guarantee */
 	PLOT_CONTROLS /**< outputs control data */
 };
 ProgramOperation op = ProgramOperation::CONVERGENCE_TEST;
@@ -792,18 +793,15 @@ tuple<Real, Real, Real, int, Real, Real, Real> solve(RectilinearGrid2 &grid,
 
 		if(op == ProgramOperation::PLOT) {
 			RectilinearGrid2 printGrid(
-				Axis::uniform(
-					0.,
-					200.,
-					200
-				),
-				Axis::uniform(
-					0.,
-					100.,
-					200
-				)
+				Axis::uniform( 0., 200., 200 ),
+				Axis::uniform( 0., 100., 200 )
 			);
-
+			cout << accessor(printGrid, V);
+		} else if(op == ProgramOperation::PLOT_FIXED_A) {
+			RectilinearGrid2 printGrid(
+				Axis::uniform( 0., 200., 200 ),
+				Axis { 100. }
+			);
 			cout << accessor(printGrid, V);
 		}
 
@@ -937,6 +935,7 @@ int main(int argc, char **argv) {
 			{ "plot-controls"   , no_argument,       0, 0 },
 			{ "controls"        , required_argument, 0, 0 },
 			{ "plot"            , no_argument,       0, 0 },
+			{ "plot-fixed-a"    , no_argument,       0, 0 },
 			{ nullptr           , 0,                 0, 0 }
 		};
 
@@ -995,6 +994,11 @@ int main(int argc, char **argv) {
 						case 10:
 							op = ProgramOperation::
 									PLOT;
+							break;
+						case 11:
+							op = ProgramOperation::
+								PLOT_FIXED_A;
+							break;
 						default:
 							break;
 					}
@@ -1036,7 +1040,8 @@ int main(int argc, char **argv) {
 		}
 
 		if(op == ProgramOperation::PLOT_CONTROLS
-				|| op == ProgramOperation::PLOT) {
+				|| op == ProgramOperation::PLOT
+				|| op == ProgramOperation::PLOT_FIXED_A) {
 			cerr << "error: cannot output plotting data in iterated"
 					" optimal stopping" << endl;
 		}
@@ -1061,6 +1066,7 @@ int main(int argc, char **argv) {
 		   op != ProgramOperation::NEWTON
 		&& op != ProgramOperation::PLOT_CONTROLS
 		&& op != ProgramOperation::PLOT
+		&& op != ProgramOperation::PLOT_FIXED_A
 	) {
 		printHeaders();
 	}
@@ -1070,7 +1076,8 @@ int main(int argc, char **argv) {
 	////////////////////////////////////////////////////////////////////////
 
 	if(op == ProgramOperation::PLOT_CONTROLS
-			|| op == ProgramOperation::PLOT) {
+			|| op == ProgramOperation::PLOT
+			|| op == ProgramOperation::PLOT_FIXED_A) {
 		Rmin = Rmax;
 	}
 
@@ -1147,8 +1154,9 @@ int main(int argc, char **argv) {
 					solve(grid, alpha);
 		}
 
-		if(op == ProgramOperation::PLOT_CONTROLS ||
-				op == ProgramOperation::PLOT) {
+		if(op == ProgramOperation::PLOT_CONTROLS
+				|| op == ProgramOperation::PLOT
+				|| op == ProgramOperation::PLOT_FIXED_A) {
 			break;
 		}
 
