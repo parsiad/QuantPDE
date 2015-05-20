@@ -9,15 +9,19 @@
 // stochastic control and optimal stopping, and application to numerical
 // approximation of combined stochastic and impulse control." Proceedings of the
 // Steklov Institute of Mathematics. VA Steklov. 237.0 (2002): 149-172.
+//
+// Author: Parsiad Azimzadeh
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <QuantPDE/Core>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#include <cmath> // fabs
+#include <cmath>    // fabs
+#include <getopt.h>  // getopt_long
 #include <iomanip>  // setw
 #include <iostream> // cout, cerr
+#include <limits>   // numeric_limits
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +40,7 @@ constexpr int EXPLICIT =
 		  EXPLICIT_IMPULSE
 		| SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS;
 
-constexpr int IMPLICIT = EXPLICIT;
+constexpr int IMPLICIT = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Parameters from Chancelier
@@ -45,9 +49,9 @@ constexpr int IMPLICIT = EXPLICIT;
 int method = 0;
 
 // Stochastic control
-Real q_max = 1.;
-int stochasticControlPoints = 8;
-int impulseControlPoints = 8;
+Real q_max = 100.;
+int stochasticControlPoints = 11;
+int impulseControlPoints = 11;
 
 // Volatility
 Real v = 0.3;
@@ -82,8 +86,17 @@ int N = 32;
 int Rmin = 0;
 int Rmax = 6;
 
-// Spacing
-constexpr int td = 20;
+////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Controls the output of the program.
+ */
+enum class ProgramOperation {
+	CONVERGENCE_TEST, /**< convergence test */
+	PLOT, /**< outputs value function */
+	PLOT_CONTROLS /**< outputs control data */
+};
+ProgramOperation op = ProgramOperation::CONVERGENCE_TEST;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Solution grid
@@ -203,7 +216,7 @@ public:
 
 				// Neumann boundary condition set to zero as in
 				// Chancelier's paper
-				const Real W_i = (i < Ws - 1) ? W[i] : 0.;
+				const Real W_i = W[i];
 
 				const Real tmp1 = v * v * W_i * W_i;
 				const Real tmp2 = mu * W_i;
@@ -223,10 +236,12 @@ public:
 					if(alpha_i < 0.) {
 						// Forward
 						alpha_i = alpha_common;
-						 beta_i =  beta_common+tmp2/dWf;
+						 beta_i =  beta_common
+						 		+ tmp2 / dWf;
 					} else if(beta_i < 0.) {
 						// Backward
-						alpha_i = alpha_common-tmp2/dWb;
+						alpha_i = alpha_common
+								- tmp2 / dWb;
 						 beta_i =  beta_common;
 					}
 
@@ -243,18 +258,18 @@ public:
 					dBf = B[j+1] - B[j  ]
 				;
 
-				// Upwind
+				// Upwind (cannot use central for monotonicity)
 				Real alpha_j = 0.;
 				Real  beta_j = 0.;
 				if(j > 0 && j < Bs - 1) {
 					// 0 < B < B_max
 
-					const Real tmp3 = r * B_j - raw(k);
-					if(tmp3 < 0.) {
-						alpha_j = -tmp3 / dBb;
+					const Real tmp = r * B_j - raw(k);
+					if(tmp < 0.) {
+						alpha_j = -tmp / dBb;
 						M.insert(k, k - Ws) = -alpha_j;
 					} else {
-						 beta_j =  tmp3 / dBf;
+						 beta_j =  tmp / dBf;
 						M.insert(k, k + Ws) = - beta_j;
 					}
 				}
@@ -266,11 +281,16 @@ public:
 					+ alpha_j + beta_j
 					+ rho;
 
+				// Check positive coefficient condition
+				assert(alpha_i >= 0.);
+				assert( beta_i >= 0.);
+				assert(alpha_j >= 0.);
+				assert( beta_j >= 0.);
+
 				++k;
 
 			}
 		}
-
 
 		M.makeCompressed();
 		return M;
@@ -293,7 +313,7 @@ public:
 			++k;
 		}
 
-		// B > 0
+		// 0 < B < B_max
 		for(Index j = 1; j < B.size(); ++j) {
 			// 0 <= W <= W_max
 			for(Index i = 0; i < W.size(); ++i) {
@@ -311,12 +331,125 @@ public:
 
 };
 
-int main() {
+// Spacing
+constexpr int td = 20;
+
+int main(int argc, char **argv) {
+
+	////////////////////////////////////////////////////////////////////////
+	// Options
+	////////////////////////////////////////////////////////////////////////
+
+	{
+		// Long option names
+		static struct option opts[] = {
+			{ "mixed"           , no_argument,       0, 0 },
+			{ "explicit"        , no_argument,       0, 0 },
+			{ "min-refinement"  , required_argument, 0, 0 },
+			{ "max-refinement"  , required_argument, 0, 0 },
+			{ "plot-controls"   , no_argument,       0, 0 },
+			{ "plot"            , no_argument,       0, 0 },
+			{ nullptr           , 0,                 0, 0 }
+		};
+
+		int c;
+		int index;
+		while(
+			(
+				c = getopt_long(
+					argc,
+					argv,
+					"v:",
+					opts,
+					&index
+				)
+			) != -1
+		) {
+			switch(c) {
+
+				// Long options
+				case 0:
+					switch(index)
+					{
+						case 0:
+							method =
+					SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS;
+							break;
+						case 1:
+							method = EXPLICIT;
+							break;
+						case 2:
+							Rmin = atoi(optarg);
+							break;
+						case 3:
+							Rmax = atoi(optarg);
+							break;
+						case 4:
+							op = ProgramOperation::
+								PLOT_CONTROLS;
+							break;
+						case 5:
+							op = ProgramOperation::
+									PLOT;
+							break;
+						default:
+							break;
+					}
+				break;
+				case 'v':
+					v = atof(optarg);
+					break;
+				case ':':
+				case '?':
+					return 1;
+			}
+		}
+
+		if(Rmin < 0 || Rmax < Rmin) {
+			cerr << "error: the minimum level of refinement must be"
+					" nonnegative and less than or equal to"
+					" the maximum level of refinement"
+					<< endl;
+			return 1;
+		}
+
+		if(op == ProgramOperation::PLOT_CONTROLS && method
+				== SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS) {
+			cerr << "error: cannot output controls unless an "
+					"implicit/explicit method is used"
+					<< endl;
+		}
+	}
+
+	const bool plot = (op == ProgramOperation::PLOT_CONTROLS)
+			|| (op == ProgramOperation::PLOT);
 
 	// Grid
 	RectilinearGrid2 initialGrid( (w_0/100.) * axis, (b_0/100.) * axis );
 
 	Real previousValue = nan(""), previousChange = nan("");
+
+	if(plot) {
+		Rmin = Rmax;
+	} else {
+		cout
+			<< setw(td) << "Nodes"              << "\t"
+			<< setw(td) << "q Control Nodes"    << "\t"
+			<< setw(td) << "zeta Control Nodes" << "\t"
+			<< setw(td) << "Timesteps"          << "\t"
+			<< setw(td) << "Value"              << "\t"
+		;
+
+		if(method != EXPLICIT) {
+			cout << setw(td) << "Iterations"    << "\t";
+		}
+
+		cout
+			<< setw(td) << "Change"             << "\t"
+			<< setw(td) << "Ratio"              << "\t"
+			<< endl
+		;
+	}
 
 	for(
 		int ref = 0;
@@ -438,7 +571,117 @@ int main() {
 			root = &penalty;
 		}
 
-		// TODO: Events
+		////////////////////////////////////////////////////////////////
+		// Exercise events
+		////////////////////////////////////////////////////////////////
+
+		auto ctSubroutine = [=,&stepper] (const Interpolant2 &u, Real W,
+				Real B) {
+
+			// Do nothing
+			Real best = u(W, B);
+
+			// Optimal controls
+			Real sc = numeric_limits<Real>::infinity();
+			Real ic = numeric_limits<Real>::infinity();
+
+			const Real dt = stepper.timestep();
+
+			// Consume
+			if(method & SEMI_LAGRANGIAN_WITHDRAWAL_CONTINUOUS) {
+				const Real dq = q_max
+						/ (stochasticControlPoints - 1);
+
+				for(
+					int i = 1;
+					i < stochasticControlPoints;
+					++i
+				) {
+					const Real q = i * dq;
+
+					// Don't have enough money to consume
+					// that much!
+					if(B < q * dt) { continue; }
+
+					const Real newValue =
+						u(W, B - q * dt)
+						+ pow( q, aver ) / aver * dt
+					;
+
+					if(newValue > best) {
+						best = newValue;
+						sc = q;
+					}
+				}
+			}
+
+			// Transfer money from accounts
+			const Real lo = -W;
+			const Real hi = (B - c)/(1 + lambda);
+			if(
+				(method & EXPLICIT_IMPULSE)
+				&& lo <= hi
+			) {
+				const Real dz = 1. / (impulseControlPoints - 1);
+
+				for(
+					int i = 1;
+					i < impulseControlPoints;
+					++i
+				) {
+					const Real zeta_frac = i * dz;
+
+					const Real newValue = u(
+						Wplus(0., W, B, zeta_frac),
+						Bplus(0., W, B, zeta_frac)
+					);
+
+					if(newValue > best) {
+						best = newValue;
+						sc = numeric_limits<Real>
+								::infinity();
+						ic = zeta(W, B, zeta_frac);
+					}
+				}
+			}
+
+			return make_tuple(best, sc, ic);
+
+		};
+
+		auto ct = [=,&stepper] (const Interpolant2 &u, Real W, Real B) {
+			return get<0>( ctSubroutine(u, W, B) );
+		};
+
+		auto ctPrintControl = [=,&stepper] (const Interpolant2 &u,
+				Real W, Real B) {
+			Real best, sc, ic;
+			tie(best, sc, ic) = ctSubroutine(u, W, B);
+			cout << W << "\t" << B << "\t" << sc << "\t" << ic
+					<< endl;
+			return best;
+		};
+
+		if(method != IMPLICIT) {
+			// Special routine for printing
+			const int mstart = (
+				op == ProgramOperation::PLOT_CONTROLS
+			) ? 1 : 0;
+			if(mstart) { stepper.add(0., ctPrintControl, grid); }
+
+			for(int m = mstart; m < N; ++m) {
+				stepper.add(
+					// Time at which the event takes place
+					T / N * m,
+
+					// Consume or transfer
+					ct,
+
+					// Spatial grid to interpolate on
+					grid
+				);
+			}
+		}
 
 		////////////////////////////////////////////////////////////////
 		// Running
@@ -456,37 +699,83 @@ int main() {
 		// Print solution at (w_0, b_0)
 		////////////////////////////////////////////////////////////////
 
-		Real value = u( w_0, b_0 );
-		Real
-			change = value - previousValue,
-			ratio = previousChange / change
-		;
-		previousValue = value;
-		previousChange = change;
+		if(op == ProgramOperation::PLOT) {
 
-		cout.precision(12);
+			RectilinearGrid2 printGrid(
+				Axis::uniform( 0., 200., 200 ),
+				Axis::uniform( 0., 200., 200 )
+			);
+			cout << accessor(printGrid, u);
 
-		// Print row of table
-		cout
-			<< setw(td) << grid.size()               << "\t"
-			<< setw(td) << stochasticControls.size() << "\t"
-			<< setw(td) << N                         << "\t"
-		;
+		} else if(op == ProgramOperation::PLOT_CONTROLS) {
 
-		cout << setw(td) << value << "\t";
+			// Print stochastic and impulse control
 
-		if(method != EXPLICIT) {
-			auto its = toleranceIteration.iterations();
-			const Real mean = accumulate(its.begin(),
-					its.end(), 0.) / its.size();
-			cout << setw(td) << mean << "\t";
+			auto mask = penalty.constraintMask();
+
+			Vector ctrl_s = discretizee.control(0);
+			for(int i = 0; i < grid.size(); i++) {
+				if(mask[i]) {
+					ctrl_s(i) = numeric_limits<Real>
+							::infinity();
+				}
+			}
+
+			Vector ctrl_i = impulseTransfer.control(0);
+			for(int i = 0; i < grid.size(); i++) {
+				if(!mask[i]) {
+					ctrl_i(i) = numeric_limits<Real>
+							::infinity();
+				}
+			}
+
+			int k = 0;
+			for(auto node : grid) {
+				cout
+					<< node[0]   << "\t"
+					<< node[1]   << "\t"
+					<< ctrl_s(k) << "\t"
+					<< ctrl_i(k) << "\t"
+					<< endl
+				;
+				++k;
+			}
+
+		} else {
+
+			Real value = u( w_0, b_0 );
+			Real
+				change = value - previousValue,
+				ratio = previousChange / change
+			;
+			previousValue = value;
+			previousChange = change;
+
+			cout.precision(12);
+
+			// Print row of table
+			cout
+				<< setw(td) << grid.size()               << "\t"
+				<< setw(td) << stochasticControls.size() << "\t"
+				<< setw(td) << impulseControls.size()    << "\t"
+				<< setw(td) << N                         << "\t"
+				<< setw(td) << value                     << "\t"
+			;
+
+			if(method != EXPLICIT) {
+				auto its = toleranceIteration.iterations();
+				const Real mean = accumulate(its.begin(),
+						its.end(), 0.) / its.size();
+				cout << setw(td) << mean << "\t";
+			}
+
+			cout
+				<< setw(td) << change << "\t"
+				<< setw(td) << ratio  << "\t"
+				<< endl
+			;
+
 		}
-
-		cout
-			<< setw(td) << change << "\t"
-			<< setw(td) << ratio  << "\t"
-			<< endl
-		;
 
 	}
 

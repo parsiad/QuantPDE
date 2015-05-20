@@ -45,6 +45,7 @@
 #include <getopt.h>  // getopt_long
 #include <iomanip>   // setw
 #include <iostream>  // cout
+#include <limits>    // numeric_limits
 #include <memory>    // unique_ptr
 #include <numeric>   // accumulate
 #include <string>    // string

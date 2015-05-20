@@ -2,7 +2,7 @@
 // stock_loan.cpp
 // --------------
 //
-// Author: Parsiad Azimzadeh, Peter Forsyth, Kenneth Vetzal
+// Author: Parsiad Azimzadeh
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <QuantPDE/Core>
