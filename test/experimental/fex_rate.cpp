@@ -8,6 +8,7 @@
 // control with application to the exchange rate." Journal of Mathematical
 // Economics 29.2 (1998): 225-243.
 //
+// Author: Parsiad Azimzadeh
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <QuantPDE/Core>
