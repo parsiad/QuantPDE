@@ -433,7 +433,7 @@ int main(int argc, char **argv) {
 		)
 	);
 
-	cerr << initialGrid << endl;
+	//cerr << initialGrid << endl;
 
 	// Table headers
 	if(op != ProgramOperation::CONVERGENCE_TEST) {

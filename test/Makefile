@@ -44,7 +44,7 @@ $(BIN_DIR)/experimental/hjbqvi: experimental/hjbqvi.cpp
 	mkdir -p $(BIN_DIR)/experimental
 	$(CXX) \
 			-std=c++11 $(OPTS) $(CFLAGS) \
-			-I $(OCTAVE_INC_DIR) -I $(OCTAVE_INC_DIR)/octave \
+			-isystem $(OCTAVE_INC_DIR) -I $(OCTAVE_INC_DIR)/octave \
 			-L $(OCTAVE_LIB_DIR) -l octinterp -l octave \
 			-I ../ $(EIGEN) -o $@ $<
 

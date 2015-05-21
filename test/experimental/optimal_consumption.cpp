@@ -208,26 +208,24 @@ public:
 
 				////////////////////////////////////////////////
 
-				const Real
-					dWb = W[i  ] - W[i-1],
-					dWc = W[i+1] - W[i-1],
-					dWf = W[i+1] - W[i  ]
-				;
-
-				// Neumann boundary condition set to zero as in
-				// Chancelier's paper
-				const Real W_i = W[i];
-
-				const Real tmp1 = v * v * W_i * W_i;
-				const Real tmp2 = mu * W_i;
-
-				const Real alpha_common = tmp1 / dWb / dWc;
-				const Real  beta_common = tmp1 / dWf / dWc;
-
 				Real alpha_i = 0.;
 				Real  beta_i = 0.;
 				if(i > 0 && i < Ws - 1) {
 					// 0 < W < W_max
+
+					const Real W_i = W[i];
+
+					const Real tmp1 = v * v * W_i * W_i;
+					const Real tmp2 = mu * W_i;
+
+					const Real
+						dWb = W[i  ] - W[i-1],
+						dWc = W[i+1] - W[i-1],
+						dWf = W[i+1] - W[i  ]
+					;
+
+					const Real alpha_common = tmp1/dWb/dWc;
+					const Real  beta_common = tmp1/dWf/dWc;
 
 					// Central
 					alpha_i = alpha_common - tmp2 / dWc;
@@ -253,16 +251,16 @@ public:
 
 				const Real B_j = B[j];
 
-				const Real
-					dBb = B[j  ] - B[j-1],
-					dBf = B[j+1] - B[j  ]
-				;
-
 				// Upwind (cannot use central for monotonicity)
 				Real alpha_j = 0.;
 				Real  beta_j = 0.;
 				if(j > 0 && j < Bs - 1) {
 					// 0 < B < B_max
+
+					const Real
+						dBb = B[j  ] - B[j-1],
+						dBf = B[j+1] - B[j  ]
+					;
 
 					const Real tmp = r * B_j - raw(k);
 					if(tmp < 0.) {
