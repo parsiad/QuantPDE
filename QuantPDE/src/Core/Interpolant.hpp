@@ -229,7 +229,7 @@ class PiecewiseLinear : public Interpolant<Dimension> {
 	typedef std::unique_ptr<InterpolantFactory<Dimension>> F;
 	typedef InterpolantWrapper<Dimension> WI;
 
-	const RectilinearGrid<Dimension> *grid;
+	const RectilinearGrid<Dimension> grid;
 	V vector;
 
 	/*
@@ -252,6 +252,7 @@ class PiecewiseLinear : public Interpolant<Dimension> {
 
 	virtual Real interpolate(const std::array<Real, Dimension> &coordinates)
 			const {
+
 		/*
 		Real weights[Dimension];
 		Index indices[Dimension];
@@ -301,7 +302,7 @@ class PiecewiseLinear : public Interpolant<Dimension> {
 		*/
 
 		auto data = linearInterpolationData<Dimension>(
-			*grid,
+			grid,
 			coordinates
 		);
 
@@ -357,9 +358,15 @@ class PiecewiseLinear : public Interpolant<Dimension> {
 			NaryMethodConst<Index, RectilinearGrid<Dimension>,
 					Dimension, Index> tmp =
 					&RectilinearGrid<Dimension>::index;
-			Index k = packAndCall<Dimension>(*grid, tmp, idxs);
+			Index k = packAndCall<Dimension>(grid, tmp, idxs);
 
-			interpolated += factor * vector[k];
+			// Check if this weight is bigger than epsilon;
+			// This way, if an adjacent cell has the value inf or
+			// nan but a weight of zero, the result will not be
+			// nan
+			if(factor > QuantPDE::epsilon) {
+				interpolated += factor * vector[k];
+			}
 		};
 
 		return interpolated;
@@ -369,15 +376,15 @@ public:
 
 	class Factory : public InterpolantFactory<Dimension> {
 
-		const RectilinearGrid<Dimension> *grid;
+		const RectilinearGrid<Dimension> grid;
 
 	public:
 
 		/**
 		 * Constructor.
 		 */
-		template <typename G>
-		Factory(G &grid) noexcept : grid(&grid) {
+		Factory(const RectilinearGrid<Dimension> &grid) noexcept :
+				grid(grid) {
 		}
 
 		/**
@@ -386,20 +393,14 @@ public:
 		Factory(const Factory &that) noexcept : grid(that.grid) {
 		}
 
-		/**
-		 * Assignment operator.
-		 */
-		Factory &operator=(const Factory &that) noexcept {
-			grid = that.grid;
-			return *this;
-		}
+		Factory &operator=(const Factory &that) = delete;
 
 		virtual WI make(const Vector &vector) const {
-			return WI(I(new PiecewiseLinear(*grid, vector)));
+			return WI(I(new PiecewiseLinear(grid, vector)));
 		}
 
 		virtual WI make(Vector &&vector) const {
-			return WI(I(new PiecewiseLinear(*grid,
+			return WI(I(new PiecewiseLinear(grid,
 					std::move(vector))));
 		}
 
@@ -412,8 +413,9 @@ public:
 	/**
 	 * Constructor.
 	 */
-	template <typename G, typename V1>
-	PiecewiseLinear(G &grid, V1 &&vector) noexcept : grid(&grid),
+	template <typename V1>
+	PiecewiseLinear(const RectilinearGrid<Dimension> &grid, V1 &&vector)
+			noexcept : grid(grid),
 			vector( std::forward<V1>(vector) ) {
 	}
 
@@ -424,30 +426,11 @@ public:
 			vector(that.vector) {
 	}
 
-	/**
-	 * Move constructor.
-	 */
-	PiecewiseLinear(PiecewiseLinear &&that) noexcept : grid(that.grid),
-			vector( std::move(that.vector) ) {
-	}
+	// 2015-05-21: Decided to remove operator assignment and move
+	//             construction; breaks immutability of solutions.
 
-	/**
-	 * Copy assignment operator.
-	 */
-	PiecewiseLinear &operator=(const PiecewiseLinear &that) & noexcept {
-		grid = that.grid;
-		vector = that.vector;
-		return *this;
-	}
-
-	/**
-	 * Move assignment operator.
-	 */
-	PiecewiseLinear &operator=(PiecewiseLinear &&that) & noexcept {
-		grid = that.grid;
-		vector = std::move(that.vector);
-		return *this;
-	}
+	PiecewiseLinear(PiecewiseLinear &&that) = delete;
+	PiecewiseLinear &operator=(const PiecewiseLinear &) = delete;
 
 	virtual I clone() const {
 		return I(new PiecewiseLinear(*this));

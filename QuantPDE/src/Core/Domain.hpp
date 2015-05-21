@@ -1069,7 +1069,7 @@ public:
 	 * @param times Number of times to refine (default is 0).
 	 * @return A refined grid.
 	 */
-	RectilinearGrid refined(int times = 1) {
+	RectilinearGrid refined(int times = 1) const {
 		// If no refinemenent is requested, return the original grid
 		assert(times >= 0);
 		if(times <= 0) {
