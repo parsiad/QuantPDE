@@ -1,130 +1,182 @@
+////////////////////////////////////////////////////////////////////////////////
+//
+// Author: Parsiad Azimzadeh
+//
+////////////////////////////////////////////////////////////////////////////////
+
 #include <QuantPDE/Core>
 
-////////////////////////////////////////////////////////////////////////////////
-
-#include <octave/oct.h>
-#include <octave/octave.h>
-#include <octave/parse.h>
-#include <octave/toplev.h> // for do_octave_atexit
+using namespace QuantPDE;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#include <chrono>   // duration
-#include <iostream> // cerr
-#include <limits>   // numeric_limits
-#include <memory>   // unique_ptr
-#include <string>   // string
+#include <array>      // array
+#include <chrono>     // duration
+#include <cmath>      // fabs
+#include <functional> // std::function
+#include <iostream>   // cerr
+#include <limits>     // numeric_limits
+#include <memory>     // unique_ptr
+#include <string>     // string
+
+using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<QuantPDE::DomainBase> parse_grid(int d, int refinement,
-		const std::string &s) {
-	octave_value_list list = get_top_level_value( s, false );
-	Cell cell = list(0).cell_value();
+template <unsigned N, unsigned M>
+using ArrayFunction = std::function<
+	NaryFunctionSignature<
+		std::array<Real, M>,
+		N,
+		Real
+	>
+>;
 
-	if(cell.length() != d) {
-		throw 1; // FIXME
-	}
+enum class ControlHandling {
+	IMPLICIT,
+	EXPLICIT,
+	MIXED
+};
 
-	if(d == 1) {
-		Matrix a0 = cell(0).matrix_value();
+template <Index Dimension>
+struct HJBQVI {
 
-		QuantPDE::RectilinearGrid1 initial_grid(
-			QuantPDE::Axis(
-				a0.data(),
-				a0.length()
-			)
-		);
+	const RectilinearGrid<Dimension> spatial_grid;
 
-		return std::unique_ptr<QuantPDE::DomainBase>(
-			(QuantPDE::DomainBase*)
-			new QuantPDE::RectilinearGrid1(
-				initial_grid.refined( refinement )
-			)
-		);
-	} // TODO: Other dimensions
+	// TODO: Extend this to arbitrary dimensions
+	const RectilinearGrid1 stochastic_control_grid;
+	const RectilinearGrid1 impulse_control_grid;
 
-	throw 1; // FIXME
-}
+	const double expiry;
+	const double discount;
 
-template <int Dimension, int ControlDimension = 1>
-struct ControlledOperator final : public QuantPDE
-		::RawControlledLinearSystem<Dimension, ControlDimension> {
+	const ArrayFunction<Dimension+1, Dimension> volatility;
+	const ArrayFunction<Dimension+2, Dimension> controlled_drift;
+	const ArrayFunction<Dimension+1, Dimension> uncontrolled_drift;
+	const Function<Dimension+2> controlled_continuous_flow;
+	const Function<Dimension+1> uncontrolled_continuous_flow;
+	const ArrayFunction<Dimension+2, Dimension> transition;
+	const Function<Dimension+2> impulse_flow;
+	const Function<Dimension+1> exit_function;
 
-	const QuantPDE::RectilinearGrid<Dimension> &spatial_grid;
-	const bool is_controlled;
+	const ControlHandling handling;
+	const int timesteps;
+
+	HJBQVI(
+		const RectilinearGrid<Dimension> spatial_grid,
+
+		// TODO: Extend this to arbitrary dimensions
+		const RectilinearGrid1 stochastic_control_grid,
+		const RectilinearGrid1 impulse_control_grid,
+
+		const double expiry,
+		const double discount,
+
+		const ArrayFunction<Dimension+1, Dimension> volatility,
+		const ArrayFunction<Dimension+2, Dimension> controlled_drift,
+		const ArrayFunction<Dimension+1, Dimension> uncontrolled_drift,
+		const Function<Dimension+2> controlled_continuous_flow,
+		const Function<Dimension+1> uncontrolled_continuous_flow,
+		const ArrayFunction<Dimension+2, Dimension> transition,
+		const Function<Dimension+2> impulse_flow,
+		const Function<Dimension+1> exit_function,
+
+		const ControlHandling handling,
+		const int timesteps
+	) noexcept :
+		spatial_grid(spatial_grid),
+
+		stochastic_control_grid(stochastic_control_grid),
+		impulse_control_grid(impulse_control_grid),
+
+		expiry(expiry),
+		discount(discount),
+
+		volatility(volatility),
+		controlled_drift(controlled_drift),
+		uncontrolled_drift(uncontrolled_drift),
+		controlled_continuous_flow(controlled_continuous_flow),
+		uncontrolled_continuous_flow(uncontrolled_continuous_flow),
+		transition(transition),
+		impulse_flow(impulse_flow),
+		exit_function(exit_function),
+
+		handling(handling),
+		timesteps(timesteps)
+	{}
+
+};
+
+template <int Dimension>
+struct ControlledOperator final : public
+		RawControlledLinearSystem<Dimension, 1> {
+
+	const HJBQVI<Dimension> hjbqvi;
 	int offsets[Dimension];
 
-	template <typename G>
-	ControlledOperator(
-		G &spatial_grid,
-		bool is_controlled
-	) noexcept :
-		spatial_grid( spatial_grid ),
-		is_controlled( is_controlled )
-	{
-		// Space between tickets
+	template <typename H>
+	ControlledOperator(H &hjbqvi) noexcept : hjbqvi(hjbqvi) {
+		// Space between ticks
 		offsets[0] = 1;
 		for(int d = 1; d < Dimension; ++d) {
-			offsets[d] = offsets[d-1] * spatial_grid[d].size();
+			offsets[d] = offsets[d-1]
+					* hjbqvi.spatial_grid[d].size();
 		}
 	}
 
-	virtual QuantPDE::Matrix A(double time) {
-		QuantPDE::Matrix A = spatial_grid.matrix();
+	virtual Matrix A(double time) {
+		Matrix A = hjbqvi.spatial_grid.matrix();
 		A.reserve(
-			QuantPDE::IntegerVector::Constant(
-				spatial_grid.size(),
+			IntegerVector::Constant(
+				hjbqvi.spatial_grid.size(),
 				1 + 2 * Dimension
 			)
 		); // Reserve nonzero entries per row
 
 		// Control as a vector
-		const QuantPDE::Vector &q = is_controlled ? this->control(0)
-				: spatial_grid.zero();
+		const Vector &q = hjbqvi.handling == ControlHandling::IMPLICIT ?
+			this->control(0)
+			: hjbqvi.spatial_grid.zero()
+		;
 
 		// Iterate through points on grid
 		int i[Dimension];
-		for(int row = 0; row < spatial_grid.size(); ++row) {
+		for(int row = 0; row < hjbqvi.spatial_grid.size(); ++row) {
 			double total = 0.;
 
 			// Get coordinates of point
-			octave_value_list args;
-			args(0) = time; // Time
+			Real args[Dimension+2];
+			args[0] = time; // Time
 			for(int d = 0; d < Dimension; ++d) {
 				i[d] = (row / offsets[d])
-						% spatial_grid[d].size();
-				args(1+d) = spatial_grid[d][i[d]];
+						% hjbqvi.spatial_grid[d].size();
+				args[1+d] = hjbqvi.spatial_grid[d][i[d]];
 			}
-			args(1+Dimension) = q(row); // Control
+			args[1+Dimension] = q(row); // Control
 
 			// Get volatility
-			Matrix volatility = (
-				feval("volatility", args, 1)
-			)(0).matrix_value();
-
-			// TODO: Throw error on size mismatch
-			// TODO: Throw error on cross-derivative terms
+			auto volatility = packAndCall<Dimension+1>(
+				hjbqvi.volatility,
+				args
+			);
 
 			// Get drifts
-			Matrix controlled, uncontrolled;
-
-			{
-				auto tmp = feval("drift", args, 1);
-				controlled = tmp(0).matrix_value();
-				uncontrolled = tmp(1).matrix_value();
-			}
-
-			// TODO: Throw error on size mismatch
+			auto controlled = packAndCall<Dimension+2>(
+				hjbqvi.controlled_drift,
+				args
+			);
+			auto uncontrolled = packAndCall<Dimension+1>(
+				hjbqvi.uncontrolled_drift,
+				args
+			);
 
 			for(int d = 0; d < Dimension; ++d) {
 				// Skip boundary points
-				if(
-					   i[d] == 0
-					|| i[d] == spatial_grid[d].size() - 1
-				) { continue; }
+				if(i[d] == 0 || i[d] ==
+						hjbqvi.spatial_grid[d].size()
+						- 1) { continue; }
 
-				const QuantPDE::Axis &x = spatial_grid[d];
+				const Axis &x = hjbqvi.spatial_grid[d];
 
 				const double
 					dxb = x[ i[d]     ] - x[ i[d] - 1 ],
@@ -133,13 +185,14 @@ struct ControlledOperator final : public QuantPDE
 				;
 
 				// Local volatility
-				const double v = volatility(d, d);
+				const double v = volatility[d];
 
 				// Local drift
-				const double mu =
-					(is_controlled ? controlled(d) : 0.)
-					+ uncontrolled(d)
-				;
+				const double mu = (hjbqvi.handling ==
+					ControlHandling::IMPLICIT ?
+						controlled[d]
+						: 0.
+				) + uncontrolled[d];
 
 				const double vv = v * v;
 
@@ -163,49 +216,52 @@ struct ControlledOperator final : public QuantPDE
 				total += alpha + beta;
 			}
 
-			const double rho = (
-				feval("discount", args, 1)
-			)(0).scalar_value();
-
-			A.insert(row, row) = total + rho;
+			A.insert(row, row) = total + hjbqvi.discount;
 		}
 
 		A.makeCompressed();
 		return A;
 	}
 
-	virtual QuantPDE::Vector b(double time) {
-		QuantPDE::Vector b = spatial_grid.vector();
+	virtual Vector b(double time) {
+		Vector b = hjbqvi.spatial_grid.vector();
 
 		// Control as a vector
-		const QuantPDE::Vector &q = is_controlled ? this->control(0)
-				: spatial_grid.zero();
+		const Vector &q = hjbqvi.handling == ControlHandling::IMPLICIT ?
+			this->control(0)
+			: hjbqvi.spatial_grid.zero()
+		;
+
 
 		// Iterate through points on grid
 		int i[Dimension];
-		for(int row = 0; row < spatial_grid.size(); ++row) {
+		for(int row = 0; row < hjbqvi.spatial_grid.size(); ++row) {
+
 			// Get coordinates of point
-			octave_value_list args;
-			args(0) = time; // Time
+			Real args[Dimension+2];
+			args[0] = time; // Time
 			for(int d = 0; d < Dimension; ++d) {
 				i[d] = (row / offsets[d])
-						% spatial_grid[d].size();
-				args(1+d) = spatial_grid[d][i[d]];
+						% hjbqvi.spatial_grid[d].size();
+				args[1+d] = hjbqvi.spatial_grid[d][i[d]];
 			}
-			args(1+Dimension) = q(row); // Control
+			args[1+Dimension] = q(row); // Control
 
 			// Get flows
-			double controlled, uncontrolled;
-			{
-				auto tmp = feval("continuous_flow", args, 1);
-				controlled = tmp(0).scalar_value();
-				uncontrolled = tmp(1).scalar_value();
-			}
+			double controlled = packAndCall<Dimension+2>(
+				hjbqvi.controlled_continuous_flow,
+				args
+			);
+			double uncontrolled = packAndCall<Dimension+1>(
+				hjbqvi.uncontrolled_continuous_flow,
+				args
+			);
 
-			b(row) =
-				(is_controlled ? controlled : 0.)
-				+ uncontrolled
-			;
+			b(row) = (hjbqvi.handling == ControlHandling::IMPLICIT ?
+				controlled
+				: 0.
+			) + uncontrolled;
+
 		}
 
 		return b;
@@ -218,280 +274,346 @@ struct ControlledOperator final : public QuantPDE
 
 };
 
-void solve(int refinement) {
+// 1D
+template <Index Dimension>
+std::unique_ptr<ControlledLinearSystemBase> make_impulse(
+		const HJBQVI<Dimension> &hjbqvi, int refinement) {
 
-	////////////////////////////////////////////////////////////////////////
-	// Parse constant parameters
-	////////////////////////////////////////////////////////////////////////
+	static_assert(Dimension == 1, "Dimension mismatch");
 
-	// Read spatial dimension
-	const int d = get_top_level_value("spatial_dimension").int_value();
-	// Error is thrown if dimension is not supported
-
-	// Read grids
-	auto spatial_grid = parse_grid(
-		d,
-		refinement,
-		"spatial_grid"
+	return std::unique_ptr<ControlledLinearSystemBase>(
+		(ControlledLinearSystemBase*)
+		new Impulse1_1(
+			hjbqvi.spatial_grid,
+			[&hjbqvi] (double t, double x, double zeta) {
+				Real args[3];
+				args[0] = hjbqvi.expiry;
+				args[1] = x;
+				args[2] = zeta;
+				return packAndCall<1+2>(
+					hjbqvi.impulse_flow,
+					args
+				);
+			},
+			[&hjbqvi] (double t, double x, double zeta) {
+				Real args[3];
+				args[0] = t;
+				args[1] = x;
+				args[2] = zeta;
+				auto res = packAndCall<1+2>(
+					hjbqvi.transition,
+					args
+				);
+				return res[0];
+			}
+		)
 	);
-	auto stochastic_control_grid = parse_grid(
-		1,
-		refinement,
-		"stochastic_control_grid"
+
+}
+
+// 2D
+template <>
+std::unique_ptr<ControlledLinearSystemBase> make_impulse<2>(
+		const HJBQVI<2> &hjbqvi, int refinement) {
+
+	return std::unique_ptr<ControlledLinearSystemBase>(
+		(ControlledLinearSystemBase*)
+		new Impulse2_1(
+			hjbqvi.spatial_grid,
+			[&hjbqvi] (double t, double x, double y,
+					double zeta) {
+				Real args[4];
+				args[0] = hjbqvi.expiry;
+				args[1] = x;
+				args[2] = y;
+				args[3] = zeta;
+				return packAndCall<2+2>(
+					hjbqvi.impulse_flow,
+					args
+				);
+			},
+			[&hjbqvi] (double t, double x, double y,
+					double zeta) {
+				Real args[4];
+				args[0] = t;
+				args[1] = x;
+				args[2] = y;
+				args[3] = zeta;
+				auto res = packAndCall<2+2>(
+					hjbqvi.transition,
+					args
+				);
+				return res[0];
+			},
+			[&hjbqvi] (double t, double x, double y,
+					double zeta) {
+				Real args[4];
+				args[0] = t;
+				args[1] = x;
+				args[2] = y;
+				args[3] = zeta;
+				auto res = packAndCall<2+2>(
+					hjbqvi.transition,
+					args
+				);
+				return res[1];
+			}
+		)
 	);
-	auto impulse_control_grid = parse_grid(
-		1,
-		refinement,
-		"impulse_control_grid"
+
+}
+
+template <Index Dimension>
+InterpolantWrapper<Dimension> make_solution(const HJBQVI<Dimension> &hjbqvi,
+		Iteration *iteration, IterationNode *root) {
+
+	static_assert(Dimension == 1, "Dimension mismatch");
+
+	BiCGSTABSolver solver;
+
+	return iteration->solve(
+		hjbqvi.spatial_grid,
+		[=] (double x) {
+			Real args[2];
+			args[0] = hjbqvi.expiry;
+			args[1] = x;
+			return packAndCall<1+1>(
+				hjbqvi.exit_function,
+				args
+			);
+		},
+		*root,
+		solver
 	);
 
-	const bool implicit = get_top_level_value("implicit").int_value();
-	const double expiry = get_top_level_value("expiry").scalar_value();
+}
 
-	const int timesteps = get_top_level_value("timesteps").int_value()
-			* refinement;
+template <>
+InterpolantWrapper<2> make_solution(const HJBQVI<2> &hjbqvi,
+		Iteration *iteration, IterationNode *root) {
 
-	////////////////////////////////////////////////////////////////////////
+	BiCGSTABSolver solver;
+
+	return iteration->solve(
+		hjbqvi.spatial_grid,
+		[=] (double x, double y) {
+			Real args[2];
+			args[0] = hjbqvi.expiry;
+			args[1] = x;
+			args[2] = x;
+			return packAndCall<2+1>(
+				hjbqvi.exit_function,
+				args
+			);
+		},
+		*root,
+		solver
+	);
+
+}
+
+template <Index Dimension>
+void solve(const HJBQVI<Dimension> &hjbqvi, int refinement) {
+
+	static_assert(Dimension <= 2 && Dimension >= 1,
+			"Only dimensions 1 and 2 are currently supported.");
 
 	const bool finite_horizon =
-			expiry < std::numeric_limits<double>::infinity();
+			hjbqvi.expiry < std::numeric_limits<double>::infinity();
 
-	QuantPDE::ToleranceIteration tolerance_iteration;
+	ToleranceIteration tolerance_iteration;
 
-	std::unique_ptr<QuantPDE::ControlledLinearSystemBase>
-		controlled_operator,
-		impulse
-	;
+	ControlledOperator<Dimension> controlled_operator(hjbqvi);
 
-	std::unique_ptr<QuantPDE::IterationNode>
-		stochastic_policy,
-		impulse_policy,
-		discretization
-	;
+	MinPolicyIteration<Dimension, 1> stochastic_policy(
+		hjbqvi.spatial_grid,
+		hjbqvi.stochastic_control_grid,
+		controlled_operator
+	);
 
-	if(d == 1) {
-		// Operator
-		controlled_operator = std::unique_ptr<
-				QuantPDE::ControlledLinearSystemBase>(
-			(QuantPDE::ControlledLinearSystemBase*)
-			new ControlledOperator<1>(
-				*(
-					(QuantPDE::RectilinearGrid1*)
-					spatial_grid.get()
-				),
-				implicit // FIXME: method != SEMILAGRANGIAN
-			)
-		);
+	std::unique_ptr<ControlledLinearSystemBase> impulse =
+			make_impulse<Dimension>(hjbqvi, refinement);
 
-		// Policy iteration for stochastic control
-		stochastic_policy = std::unique_ptr<QuantPDE::IterationNode>(
-			(QuantPDE::IterationNode*)
-			new QuantPDE::MinPolicyIteration1_1(
-				*(
-					(QuantPDE::RectilinearGrid1*)
-					spatial_grid.get()
-				),
-				*(
-					(QuantPDE::RectilinearGrid1*)
-					stochastic_control_grid.get()
-				),
-				*(
-					(QuantPDE::RawControlledLinearSystem1_1*)
-					controlled_operator.get()
-				)
-			)
-		);
+	MinPolicyIteration<Dimension, 1> impulse_policy(
+		hjbqvi.spatial_grid,
+		hjbqvi.impulse_control_grid,
+		*impulse
+	);
 
-		// Policy iteration for stochastic control
-		impulse = std::unique_ptr<QuantPDE::ControlledLinearSystemBase>(
-			(QuantPDE::ControlledLinearSystemBase*)
-			new QuantPDE::Impulse1_1(
-				*(
-					(QuantPDE::RectilinearGrid1*)
-					spatial_grid.get()
-				),
-				[] (double t, double x, double zeta) {
-					octave_value_list args;
-					args(0) = t;
-					args(1) = x;
-					args(2) = zeta;
-					const double res = (
-						feval("impulse_flow", args, 1)
-					)(0).scalar_value();
-					return res;
-				},
-				[] (double t, double x, double zeta) {
-					octave_value_list args;
-					args(0) = t;
-					args(1) = x;
-					args(2) = zeta;
-					Matrix transition = (
-						feval("transition", args, 1)
-					)(0).matrix_value();
-					return transition(0);
-				}
-			)
-		);
-		impulse_policy = std::unique_ptr<QuantPDE::IterationNode>(
-			(QuantPDE::IterationNode*)
-			new QuantPDE::MinPolicyIteration1_1(
-				*(
-					(QuantPDE::RectilinearGrid1*)
-					spatial_grid.get()
-				),
-				*(
-					(QuantPDE::RectilinearGrid1*)
-					impulse_control_grid.get()
-				),
-				*(
-					(QuantPDE::RawControlledLinearSystem1_1*)
-					impulse.get()
-				)
-			)
-		);
-	} // TODO: Other dimensions
+	stochastic_policy.setIteration(tolerance_iteration);
+	impulse_policy.setIteration(tolerance_iteration);
 
-	stochastic_policy->setIteration(tolerance_iteration);
-	impulse_policy->setIteration(tolerance_iteration);
-
-	std::unique_ptr<QuantPDE::ReverseTimeIteration> stepper;
+	std::unique_ptr<ReverseTimeIteration> stepper;
 	if(finite_horizon) {
-		stepper = std::unique_ptr<QuantPDE::ReverseTimeIteration>(
-			(QuantPDE::ReverseTimeIteration*)
-			new QuantPDE::ReverseConstantStepper(
-				0.,                // Initial time
-				expiry,            // Expiry time
-				expiry / timesteps // Timestep size
+		stepper = std::unique_ptr<ReverseTimeIteration>(
+			(ReverseTimeIteration*)
+			new ReverseConstantStepper(
+				0.,
+				hjbqvi.expiry,
+				hjbqvi.expiry / hjbqvi.timesteps
 			)
 		);
 
-		if(implicit) { // FIXME: method != EXPLICIT
+		if(hjbqvi.handling != ControlHandling::EXPLICIT) {
 			stepper->setInnerIteration(tolerance_iteration);
 		}
 	}
 
-	QuantPDE::LinearSystem *discretize;
-	if(implicit) { // FIXME: method != SEMILAGRANGIAN
-		discretize = stochastic_policy.get();
+	LinearSystem *discretize;
+	if(hjbqvi.handling == ControlHandling::IMPLICIT) {
+		discretize = &stochastic_policy;
 	} else {
-		discretize = controlled_operator.get();
+		// Semi-Lagrangian
+		discretize = &controlled_operator;
 	}
 
+	ReverseBDFOne<Dimension> discretization(
+		hjbqvi.spatial_grid,
+		*discretize
+	);
+
 	// Finite or infinite horizon
-	QuantPDE::Iteration *iteration;
-	QuantPDE::IterationNode *penalized;
+	Iteration *iteration;
+	IterationNode *penalized;
 	if(finite_horizon) {
-		if(d == 1) {
-			discretization = std::unique_ptr<QuantPDE::IterationNode>(
-				(QuantPDE::IterationNode*)
-				new QuantPDE::ReverseBDFOne1(
-					*(
-						(QuantPDE::RectilinearGrid1*)
-						spatial_grid.get()
-					),
-					*discretize
-				)
-			);
-		} // TODO: Other dimensions
-		discretization->setIteration(*stepper);
+		discretization.setIteration(*stepper);
 
 		iteration = stepper.get();
-		penalized = discretization.get();
+		penalized = &discretization;
 	} else {
 		iteration = &tolerance_iteration;
-		penalized = stochastic_policy.get();
+		penalized = &stochastic_policy;
 	}
 
 	// Penalty method
-	QuantPDE::PenaltyMethod penalty(
-		*(spatial_grid.get()),
+	PenaltyMethod penalty(
+		hjbqvi.spatial_grid,
 		*penalized,
-		*(impulse_policy.get())
+		impulse_policy
 	);
 	penalty.setIteration(tolerance_iteration);
 
 	// Pick root
-	QuantPDE::IterationNode *root;
-	if(implicit) { // method == EXPLICIT_IMPULSE
-		root = &penalty;
-	} else {
+	IterationNode *root;
+	if(hjbqvi.handling == ControlHandling::EXPLICIT) {
+		// Explicit impulse
 		root = penalized;
+	} else {
+		// Implicit impulse
+		root = &penalty;
 	}
 
 	// TODO: Events
 
-	// Solve
+	// Timing
 	auto start = std::chrono::steady_clock::now();
-	QuantPDE::BiCGSTABSolver solver;
-	if(d == 1) {
-		auto u = iteration->solve(
-			*( (QuantPDE::RectilinearGrid1*) spatial_grid.get() ),
-			[=] (double x) {
-				octave_value_list args;
-				args(0) = expiry; // Payoff
-				args(1) = x;
-				return (
-					feval("exit_flow", args, 1)
-				)(0).scalar_value();
-			},
-			*root,
-			solver
-		);
+	double seconds;
 
-		// Print solution
-		/*
-		std::cout << accessor(
-			*(
-				(QuantPDE::RectilinearGrid1*)
-				spatial_grid.get()
-			),
-			u
-		) << std::endl;
-		*/
-	}
-	auto end = std::chrono::steady_clock::now();
+	auto u = make_solution(hjbqvi, iteration, root);
+
+	// Timing
+	auto end = chrono::steady_clock::now();
 	auto diff = end - start;
+	seconds = chrono::duration<double>(diff).count();
 
-	/*
-	std::cout << "nodes: " << spatial_grid->size() << std::endl;
-	std::cout << "q nodes: " << stochastic_control_grid->size() << std::endl;
-	std::cout << "zeta nodes: " << impulse_control_grid->size() << std::endl;
+	// Print solution
+	std::cout << accessor( hjbqvi.spatial_grid, u ) << std::endl;
 
-	std::cout << "iterations: " << tolerance_iteration.iterations().back() << std::endl;
-	*/
-
-	std::cout
-		<< "seconds: "
-		<< std::chrono::duration <double> (diff).count()
-		<< std::endl
-	;
 }
 
 int main(int argc, char **argv) {
-	// Check number of arguments
-	if(argc != 2) {
-		std::cerr << "usage: hjbqvi OCTAVE_SOURCE_FILE" << std::endl;
-		return 1;
-	}
 
-	// Start octave
-	const char *argvv[] = { "", "--silent" };
-	octave_main(2, (char **) argvv, true /* embedded */);
+	const RectilinearGrid1 spatial_grid = RectilinearGrid1(
+		Axis::cluster(
+			-6., // Left-hand boundary
+			0.,  // Feature to cluster around
+			+6., // Right-hand boundary
+			32,  // Number of points
+			10.  // Clustering intensity
+		)
+	);
 
-	// Load source file
-	source_file(argv[1]);
-	// TODO: Check status and die gracefully if unable to load
+	constexpr int dimension = 1;
+	HJBQVI<dimension> hjbqvi(
+		// Spatial grid
+		spatial_grid,
 
-	// TODO: Change this to allow for different program options
-	solve(0);
-	solve(1);
-	solve(2);
-	solve(3);
-	solve(4);
+		// Stochastic control grid
+		RectilinearGrid1(
+			Axis::uniform(
+				0.,   // Left-hand boundary
+				0.05, // Right-hand boundary
+				32    // Number of points
+			)
+		),
 
-	// Exit octave
-	clean_up_and_exit(0);
+		// Impulse control grid
+		spatial_grid,
+
+		// Expiry
+		10., //numeric_limits<double>::infinity(),
+
+		// Discount
+		0.02,
+
+		// Volatility
+		[] (Real t, Real x) {
+			const std::array<Real, 1> res { 0.3 };
+			return res;
+		},
+
+		// Controlled drift
+		[] (Real t, Real x, Real q) {
+			const Real a = 0.25;
+			const std::array<Real, 1> res { -a * q };
+			return res;
+		},
+
+		// Uncontrolled drift
+		[] (Real t, Real x) {
+			const std::array<Real, 1> res { 0. };
+			return res;
+		},
+
+		// Controlled continuous flow
+		[] (Real t, Real x, Real q) {
+			const Real b = 3.;
+			return -q * q * b;
+		},
+
+		// Uncontrolled continuous flow
+		[] (Real t, Real x) {
+			const Real m = 0.;
+			const Real tmp = max(x - m, 0.);
+			return -tmp * tmp;
+		},
+
+		// Transition
+		[] (Real t, Real x, Real x_new) {
+			const std::array<Real, 1> res { x_new };
+			return res;
+		},
+
+		// Impulse flow
+		[] (Real t, Real x, Real x_new) {
+			const Real lambda = 1., c = 0.;
+			const Real zeta = x_new - x;
+			return - lambda * fabs(zeta) - c;
+		},
+
+		// Exit function
+		[] (Real t, Real x) { return 0.; },
+
+		// Implicit method?
+		ControlHandling::IMPLICIT,
+
+		// Number of timesteps
+		32
+	);
+
+	solve<1>(hjbqvi, 0);
 
 	return 0;
+
 }
 

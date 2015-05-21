@@ -11,7 +11,7 @@ namespace QuantPDE {
  */
 class PenaltyMethod : public IterationNode {
 
-	DomainBase *domain;
+	const DomainBase *domain;
 	LinearSystem *left, *right;
 	Real large;
 	Matrix P;

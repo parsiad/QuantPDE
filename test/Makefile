@@ -6,9 +6,6 @@ BIN:=$(addprefix $(BIN_DIR)/, $(SOURCES:.cpp=))
 EIGEN:=-I/usr/include/eigen3 -I/usr/local/include/eigen3
 GCC:=/usr/bin/gcc-4.8
 
-OCTAVE_INC_DIR:=/usr/include/octave-3.8.2
-OCTAVE_LIB_DIR:=/usr/lib/octave/3.8.2
-
 OPTS:=
 
 DEBUG_OPTS:=-g3
@@ -38,15 +35,6 @@ OPTS:=$(OPTS) -Wall -pedantic
 endif
 
 all: $(BIN)
-
-$(BIN_DIR)/experimental/hjbqvi: experimental/hjbqvi.cpp
-	mkdir -p $(BIN_DIR)
-	mkdir -p $(BIN_DIR)/experimental
-	$(CXX) \
-			-std=c++11 $(OPTS) $(CFLAGS) \
-			-isystem $(OCTAVE_INC_DIR) -I $(OCTAVE_INC_DIR)/octave \
-			-L $(OCTAVE_LIB_DIR) -l octinterp -l octave \
-			-I ../ $(EIGEN) -o $@ $<
 
 $(BIN_DIR)/% : %.cpp
 	mkdir -p $(BIN_DIR)
