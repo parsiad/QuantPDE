@@ -1,4 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
+// fex_rate.cpp
+// ------------
 //
 // Optimal combined control of the exchange rate, as formulated in [1].
 //
@@ -17,8 +19,8 @@ using namespace QuantPDE::HJBQVI;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#include <array> // array
-#include <cmath> // fabs
+#include <cmath>  // fabs
+#include <limits> // numeric_limits
 
 using namespace std;
 
@@ -26,103 +28,153 @@ using namespace std;
 
 int main() {
 
-	constexpr int Dimension = 1; // Spatial dimension
+	// Dimensions
+	constexpr int Dimension = 1;
+	constexpr int StochasticControlDimension = 1;
+	constexpr int ImpulseControlDimension = 1;
 
-	const Axis X = Axis::cluster(
-		-6., // Left-hand boundary
-		0.,  // Feature to cluster around
-		+6., // Right-hand boundary
-		32,  // Number of points
-		10.  // Clustering intensity
+	// Boundaries
+	const Real x_min = -6.;
+	const Real x_max = +6.;
+
+	// Number of points to use in discretizations
+	const int points = 32;
+
+	// Parameter that controls the clustering of nodes to the optimal parity
+	const Real intensity = 10.;
+
+	// Optimal parity
+	const Real m = 0.;
+
+	// Interest rate differential bounds
+	const Real q_min = 0.;
+	const Real q_max = 0.05;
+
+	// Expiry time (infinity for corresponding elliptic problem)
+	//const Real T = 10.;
+	const Real T = numeric_limits<double>::infinity();
+
+	// Discount
+	const Real rho = 0.02;
+
+	// Volatility
+	const Real sigma = 0.3;
+
+	// Other parameters
+	const Real a = 0.25;
+	const Real b = 3.;
+	const Real lambda = 1.;
+	const Real c = 0.;
+
+	// Number of timesteps
+	const int timesteps = 32;
+
+	// How to handle the control
+	auto method = ControlMethod::FULLY_IMPLICIT;
+	//auto method = ControlMethod::FULLY_EXPLICIT;
+
+	// Maximum level of refinement
+	// Solution and control data are printed at this level of refinement
+	const int max_refinement = 6;
+
+	// x axis
+	const Axis x = Axis::cluster(
+		x_min,
+		m,
+		x_max,
+		points,
+		intensity
 	);
 
 	// Problem description
-	Description<Dimension> hjbqvi(
+	Description<
+		Dimension,
+		StochasticControlDimension,
+		ImpulseControlDimension
+	> hjbqvi(
 		// Initial spatial grid
-		{ X },
+		{ x },
 
 		// Initial stochastic control grid
-		{ Axis::uniform( 0., 0.05, 32 ) },
+		{ Axis::uniform( q_min, q_max, points ) },
 
 		// Initial impulse control grid
-		{ X },
+		{ x },
 
 		// Expiry
-		/* 10. */ numeric_limits<double>::infinity(),
+		T,
 
 		// Discount
-		0.02,
+		[=] (Real t, Real x) {
+			return rho;
+		},
 
 		// Volatility
 		{
-			[] (Real t, Real x) {
-				return 0.3;
+			[=] (Real t, Real x) {
+				return sigma;
 			}
 		},
 
 		// Controlled drift
 		{
-			[] (Real t, Real x, Real q) {
-				const Real a = 0.25;
+			[=] (Real t, Real x, Real q) {
 				return -a * q;
 			}
 		},
 
 		// Uncontrolled drift
 		{
-			[] (Real t, Real x) {
+			[=] (Real t, Real x) {
 				return 0.;
 			}
 		},
 
 		// Controlled continuous flow
-		[] (Real t, Real x, Real q) {
-			const Real b = 3.;
+		[=] (Real t, Real x, Real q) {
 			return -q * q * b;
 		},
 
 		// Uncontrolled continuous flow
-		[] (Real t, Real x) {
-			const Real m = 0.;
+		[=] (Real t, Real x) {
 			const Real tmp = max(x - m, 0.);
 			return -tmp * tmp;
 		},
 
 		// Transition
 		{
-			[] (Real t, Real x, Real x_new) {
+			[=] (Real t, Real x, Real x_new) {
 				return x_new;
 			}
 		},
 
 		// Impulse flow
-		[] (Real t, Real x, Real x_new) {
-			const Real lambda = 1., c = 0.;
+		[=] (Real t, Real x, Real x_new) {
 			const Real zeta = x_new - x;
 			return - lambda * fabs(zeta) - c;
 		},
 
 		// Exit function
-		[] (Real t, Real x) {
+		[=] (Real t, Real x) {
 			return 0.;
 		},
 
-		// How to handle the control
-		ControlMethod::FULLY_IMPLICIT,
-
 		// Initial number of timesteps
-		32
+		timesteps,
+
+		// How to handle the control
+		method
 	);
 
 	Options<Dimension> opts(
 		// Convergence test point
-		{ 0. },
+		{ m }, // Optimal parity
 
 		// Max refinement
-		6
+		max_refinement
 	);
 
-	// Use common routine
+	// Run
 	run(hjbqvi, opts);
 
 	return 0;
