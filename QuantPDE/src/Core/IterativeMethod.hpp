@@ -852,97 +852,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/**
- * A linear system that allows expressing boundary conditions (currently only
- * Dirichlet boundary conditions).
- */
-template <Index Dimension>
-class Discretization : public IterationNode {
-
-	std::unordered_map< Index, Function<Dimension + 1> > boundary;
-
-protected:
-
-	const Domain<Dimension> &domain;
-
-public:
-
-	/**
-	 * Constructor.
-	 */
-	template <typename D>
-	Discretization(D &domain) noexcept : LinearSystem(), domain(domain) {
-	}
-
-	/**
-	 * @return The left-hand-side matrix (A) before boundary conditions are
-	 *         applied.
-	 */
-	virtual Matrix Ad(Real time) = 0;
-
-	virtual Matrix A(Real time) final {
-		Matrix A = Ad( time );
-
-		// TODO: Zero out rows except for identity
-
-		#if 0
-		for(auto pair : boundary) {
-			if(pair.first > 0) {
-				A.block(pair.first, 0, 1, pair.first).setZero();
-			}
-
-			if(pair.first < domain.size() - 1) {
-				A.block(pair.first, pair.first + 1, 1,
-						domain.size() - 1 - pair.first)
-						.setZero();
-			}
-		}
-		#endif
-
-		return A;
-	}
-
-	/**
-	 * @return The right-hand-side vector (b) before boundary conditions are
-	 *         applied.
-	 */
-	virtual Vector bd(Real time) = 0;
-
-	virtual Vector b(Real time) final {
-		Vector b = bd( time );
-
-		for(auto pair : boundary) {
-			const Index index = pair.first;
-
-			// Curry
-			auto function = curry<Dimension + 1>(pair.second, time);
-
-			// Get coordinates of this node
-			// TODO: Just store this so we do not incur this cost
-			//       every time
-			auto coordinates = domain.coordinates(index);
-
-			b(index) = packAndCall<Dimension>(
-				function,
-				coordinates.data()
-			);
-		}
-
-		return b;
-	}
-
-	/**
-	 * Creates a Dirichlet boundary condition at the specified node.
-	 */
-	template <typename F>
-	void addDirichletNode(Index index, F &&function) {
-		boundary[index] = std::forward<F>(function);
-	}
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 // TODO: Make solution object so that Iteration can seem stateless
 
 /**
@@ -1483,7 +1392,7 @@ public:
 	 * Returns the size of the timestep to take.
 	 * @return Size of timestep.
 	 */
-	virtual Real timestep() = 0;
+	virtual Real timestep() const = 0;
 
 	/**
 	 * Constructor.

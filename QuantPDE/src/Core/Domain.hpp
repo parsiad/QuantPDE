@@ -1145,6 +1145,17 @@ public:
 	}
 
 	/**
+	 * Construct from array.
+	 */
+	RectilinearGrid(const std::array<Axis, Dimension> &axes) {
+		int i = 0;
+		for(auto it = axes.begin(); it != axes.end(); ++it) {
+			this->axes[i++] = *it;
+		}
+		initialize();
+	}
+
+	/**
 	 * Copy constructor.
 	 */
 	RectilinearGrid(const RectilinearGrid &that) noexcept

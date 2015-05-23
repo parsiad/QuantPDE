@@ -65,6 +65,22 @@ public:
 	{
 	}
 
+	/**
+	 * @param transitions The transition functions (passed as an array).
+	 * @see QuantPDE::Impulse::Impulse
+	 */
+	template <typename G, typename F1>
+	Impulse(
+		G &grid,
+		F1 &&flow,
+		const std::array<F, Dimension> &transitions
+	) noexcept :
+		grid(grid),
+		flow( std::forward<F1>(flow) ),
+		transitions( transitions )
+	{
+	}
+
 	// TODO: Allow for multiple types of interpolation
 
 	virtual Matrix A(Real t) {

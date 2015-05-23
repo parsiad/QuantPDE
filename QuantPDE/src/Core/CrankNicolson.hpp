@@ -22,8 +22,8 @@ namespace QuantPDE {
  *
  * @see QuantPDE::TimeIteration
  */
-template <Index Dimension, bool Forward, int ThetaInverse = 2>
-class CrankNicolson : public Discretization<Dimension> {
+template <bool Forward, int ThetaInverse = 2>
+class CrankNicolson : public IterationNode {
 
 	static_assert(ThetaInverse > 0, "ThetaInverse must be positive.");
 
@@ -34,6 +34,7 @@ class CrankNicolson : public Discretization<Dimension> {
 	static constexpr Real theta = 1. / ((Real) ThetaInverse);
 	#endif
 
+	const DomainBase &domain;
 	LinearSystem &system;
 
 	inline Real dt() const {
@@ -48,7 +49,7 @@ class CrankNicolson : public Discretization<Dimension> {
 		return dt;
 	}
 
-	virtual Matrix Ad(Real t1) {
+	virtual Matrix A(Real t1) {
 		// Explicit
 		if(theta < QuantPDE::epsilon) {
 			return this->domain.identity();
@@ -61,7 +62,7 @@ class CrankNicolson : public Discretization<Dimension> {
 		;
 	}
 
-	virtual Vector bd(Real t1) {
+	virtual Vector b(Real t1) {
 		const Real    t0 = this->time(0);
 		const Vector &v0 = this->iterand(0);
 
@@ -95,41 +96,20 @@ public:
 		D &domain,
 		LinearSystem &system
 	) noexcept :
-		Discretization<Dimension>(domain),
-		system(system) {
+		domain(domain),
+		system(system)
+	{
 	}
 
 };
 
-template <Index Dimension>
-using ReverseCrankNicolson = CrankNicolson<Dimension, false>;
+typedef CrankNicolson<false> ReverseCrankNicolson;
+typedef CrankNicolson<true>  ForwardCrankNicolson;
 
-template <Index Dimension>
-using ForwardCrankNicolson = CrankNicolson<Dimension, true>;
-
-typedef ReverseCrankNicolson<1> ReverseCrankNicolson1;
-typedef ReverseCrankNicolson<2> ReverseCrankNicolson2;
-typedef ReverseCrankNicolson<3> ReverseCrankNicolson3;
-
-typedef ForwardCrankNicolson<1> ForwardCrankNicolson1;
-typedef ForwardCrankNicolson<2> ForwardCrankNicolson2;
-typedef ForwardCrankNicolson<3> ForwardCrankNicolson3;
-
-template <Index Dimension>
-using ReverseExplicitMethod = CrankNicolson<Dimension, false,
-	std::numeric_limits<int>::max()>;
-
-template <Index Dimension>
-using ForwardExplicitMethod = CrankNicolson<Dimension, true,
-	std::numeric_limits<int>::max()>;
-
-typedef ReverseExplicitMethod<1> ReverseExplicitMethod1;
-typedef ReverseExplicitMethod<2> ReverseExplicitMethod2;
-typedef ReverseExplicitMethod<3> ReverseExplicitMethod3;
-
-typedef ForwardExplicitMethod<1> ForwardExplicitMethod1;
-typedef ForwardExplicitMethod<2> ForwardExplicitMethod2;
-typedef ForwardExplicitMethod<3> ForwardExplicitMethod3;
+typedef CrankNicolson<false, std::numeric_limits<int>::max()>
+		ReverseExplicitMethod;
+typedef CrankNicolson<true,  std::numeric_limits<int>::max()>
+		ForwardExplicitMethod;
 
 } // QuantPDE
 

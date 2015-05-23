@@ -3,8 +3,8 @@
 
 namespace QuantPDE {
 
-template <Index Dimension, bool Forward, size_t Lookback>
-class BDFBase : public Discretization<Dimension> {
+template <bool Forward, size_t Lookback>
+class BDFBase : public IterationNode {
 
 	inline Real difference(Real t1, Real t0) const {
 		const Real dt = Forward ? t1 - t0 : t0 - t1;
@@ -14,6 +14,7 @@ class BDFBase : public Discretization<Dimension> {
 
 protected:
 
+	const DomainBase &domain;
 	LinearSystem &op;
 
 	inline bool _isATheSame1() const {
@@ -470,7 +471,7 @@ public:
 		D &domain,
 		LinearSystem &op
 	) noexcept :
-		Discretization<Dimension>(domain),
+		domain(domain),
 		op(op)
 	{
 	}
@@ -479,25 +480,22 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <Index Dimension, bool Forward>
-class BDFOne : public BDFBase<Dimension, Forward, 1> {
+template <bool Forward>
+class BDFOne : public BDFBase<Forward, 1> {
 
-	virtual Matrix Ad(Real t) {
+	virtual Matrix A(Real t) {
 		return this->_A1(t);
 	}
 
-	virtual Vector bd(Real t) {
+	virtual Vector b(Real t) {
 		return this->_b1(t);
 	}
 
 public:
 
 	template <typename D>
-	BDFOne(
-		D &domain,
-		LinearSystem &op
-	) noexcept :
-		BDFBase<Dimension, Forward, 1>(
+	BDFOne(D &domain, LinearSystem &op) noexcept :
+		BDFBase<Forward, 1>(
 			domain,
 			op
 		)
@@ -510,39 +508,23 @@ public:
 
 };
 
-template <Index Dimension>
-using ReverseBDFOne = BDFOne<Dimension, false>;
-
-template <Index Dimension>
-using ForwardBDFOne = BDFOne<Dimension, true>;
-
-typedef ReverseBDFOne<1> ReverseBDFOne1;
-typedef ReverseBDFOne<2> ReverseBDFOne2;
-typedef ReverseBDFOne<3> ReverseBDFOne3;
-
-typedef ForwardBDFOne<1> ForwardBDFOne1;
-typedef ForwardBDFOne<2> ForwardBDFOne2;
-typedef ForwardBDFOne<3> ForwardBDFOne3;
+typedef BDFOne<false> ReverseBDFOne;
+typedef BDFOne<true>  ForwardBDFOne;
 
 // More commonly referred to as the implicit Euler method
 
-typedef ReverseBDFOne1 ReverseImplicitEuler1;
-typedef ReverseBDFOne2 ReverseImplicitEuler2;
-typedef ReverseBDFOne3 ReverseImplicitEuler3;
-
-typedef ForwardBDFOne1 ForwardImplicitEuler1;
-typedef ForwardBDFOne2 ForwardImplicitEuler2;
-typedef ForwardBDFOne3 ForwardImplicitEuler3;
+typedef ReverseBDFOne ReverseImplicitEuler;
+typedef ForwardBDFOne ForwardImplicitEuler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <Index Dimension, bool Forward>
-class BDFTwo : public BDFBase<Dimension, Forward, 2> {
+template <bool Forward>
+class BDFTwo : public BDFBase<Forward, 2> {
 
-	bool   (BDFTwo<Dimension, Forward>::*_isATheSame)() const;
-	Matrix (BDFTwo<Dimension, Forward>::*_A)(Real);
-	Vector (BDFTwo<Dimension, Forward>::*_b)(Real);
-	void   (BDFTwo<Dimension, Forward>::*_onIterationEnd)();
+	bool   (BDFTwo<Forward>::*_isATheSame)() const;
+	Matrix (BDFTwo<Forward>::*_A)(Real);
+	Vector (BDFTwo<Forward>::*_b)(Real);
+	void   (BDFTwo<Forward>::*_onIterationEnd)();
 
 	////////////////////////////////////////////////////////////////////////
 
@@ -571,11 +553,11 @@ class BDFTwo : public BDFBase<Dimension, Forward, 2> {
 		(this->*_onIterationEnd)();
 	}
 
-	virtual Matrix Ad(Real t) {
+	virtual Matrix A(Real t) {
 		return (this->*_A)(t);
 	}
 
-	virtual Vector bd(Real t) {
+	virtual Vector b(Real t) {
 		return (this->*_b)(t);
 	}
 
@@ -586,11 +568,8 @@ class BDFTwo : public BDFBase<Dimension, Forward, 2> {
 public:
 
 	template <typename D>
-	BDFTwo(
-		D &domain,
-		LinearSystem &op
-	) noexcept :
-		BDFBase<Dimension, Forward, 2>(
+	BDFTwo(D &domain, LinearSystem &op) noexcept :
+		BDFBase<Forward, 2>(
 			domain,
 			op
 		),
@@ -607,29 +586,18 @@ public:
 
 };
 
-template <Index Dimension>
-using ReverseBDFTwo = BDFTwo<Dimension, false>;
-
-template <Index Dimension>
-using ForwardBDFTwo = BDFTwo<Dimension, true>;
-
-typedef ReverseBDFTwo<1> ReverseBDFTwo1;
-typedef ReverseBDFTwo<2> ReverseBDFTwo2;
-typedef ReverseBDFTwo<3> ReverseBDFTwo3;
-
-typedef ForwardBDFTwo<1> ForwardBDFTwo1;
-typedef ForwardBDFTwo<2> ForwardBDFTwo2;
-typedef ForwardBDFTwo<3> ForwardBDFTwo3;
+typedef BDFTwo<false> ReverseBDFTwo;
+typedef BDFTwo<true>  ForwardBDFTwo;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <Index Dimension, bool Forward>
-class BDFThree : public BDFBase<Dimension, Forward, 3> {
+template <bool Forward>
+class BDFThree : public BDFBase<Forward, 3> {
 
-	bool   (BDFThree<Dimension, Forward>::*_isATheSame)() const;
-	Matrix (BDFThree<Dimension, Forward>::*_A)(Real);
-	Vector (BDFThree<Dimension, Forward>::*_b)(Real);
-	void   (BDFThree<Dimension, Forward>::*_onIterationEnd)();
+	bool   (BDFThree<Forward>::*_isATheSame)() const;
+	Matrix (BDFThree<Forward>::*_A)(Real);
+	Vector (BDFThree<Forward>::*_b)(Real);
+	void   (BDFThree<Forward>::*_onIterationEnd)();
 
 	////////////////////////////////////////////////////////////////////////
 
@@ -664,11 +632,11 @@ class BDFThree : public BDFBase<Dimension, Forward, 3> {
 		(this->*_onIterationEnd)();
 	}
 
-	virtual Matrix Ad(Real t) {
+	virtual Matrix A(Real t) {
 		return (this->*_A)(t);
 	}
 
-	virtual Vector bd(Real t) {
+	virtual Vector b(Real t) {
 		return (this->*_b)(t);
 	}
 
@@ -679,11 +647,8 @@ class BDFThree : public BDFBase<Dimension, Forward, 3> {
 public:
 
 	template <typename D>
-	BDFThree(
-		D &domain,
-		LinearSystem &op
-	) noexcept :
-		BDFBase<Dimension, Forward, 3>(
+	BDFThree(D &domain, LinearSystem &op) noexcept :
+		BDFBase<Forward, 3>(
 			domain,
 			op
 		),
@@ -700,29 +665,18 @@ public:
 
 };
 
-template <Index Dimension>
-using ReverseBDFThree = BDFThree<Dimension, false>;
-
-template <Index Dimension>
-using ForwardBDFThree = BDFThree<Dimension, true>;
-
-typedef ReverseBDFThree<1> ReverseBDFThree1;
-typedef ReverseBDFThree<2> ReverseBDFThree2;
-typedef ReverseBDFThree<3> ReverseBDFThree3;
-
-typedef ForwardBDFThree<1> ForwardBDFThree1;
-typedef ForwardBDFThree<2> ForwardBDFThree2;
-typedef ForwardBDFThree<3> ForwardBDFThree3;
+typedef BDFThree<false> ReverseBDFThree;
+typedef BDFThree<true>  ForwardBDFThree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <Index Dimension, bool Forward>
-class BDFFour : public BDFBase<Dimension, Forward, 4> {
+template <bool Forward>
+class BDFFour : public BDFBase<Forward, 4> {
 
-	bool   (BDFFour<Dimension, Forward>::*_isATheSame)() const;
-	Matrix (BDFFour<Dimension, Forward>::*_A)(Real);
-	Vector (BDFFour<Dimension, Forward>::*_b)(Real);
-	void   (BDFFour<Dimension, Forward>::*_onIterationEnd)();
+	bool   (BDFFour<Forward>::*_isATheSame)() const;
+	Matrix (BDFFour<Forward>::*_A)(Real);
+	Vector (BDFFour<Forward>::*_b)(Real);
+	void   (BDFFour<Forward>::*_onIterationEnd)();
 
 	////////////////////////////////////////////////////////////////////////
 
@@ -763,11 +717,11 @@ class BDFFour : public BDFBase<Dimension, Forward, 4> {
 		(this->*_onIterationEnd)();
 	}
 
-	virtual Matrix Ad(Real t) {
+	virtual Matrix A(Real t) {
 		return (this->*_A)(t);
 	}
 
-	virtual Vector bd(Real t) {
+	virtual Vector b(Real t) {
 		return (this->*_b)(t);
 	}
 
@@ -778,11 +732,8 @@ class BDFFour : public BDFBase<Dimension, Forward, 4> {
 public:
 
 	template <typename D>
-	BDFFour(
-		D &domain,
-		LinearSystem &op
-	) noexcept :
-		BDFBase<Dimension, Forward, 4>(
+	BDFFour(D &domain, LinearSystem &op) noexcept :
+		BDFBase<Forward, 4>(
 			domain,
 			op
 		),
@@ -799,29 +750,18 @@ public:
 
 };
 
-template <Index Dimension>
-using ReverseBDFFour = BDFFour<Dimension, false>;
-
-template <Index Dimension>
-using ForwardBDFFour = BDFFour<Dimension, true>;
-
-typedef ReverseBDFFour<1> ReverseBDFFour1;
-typedef ReverseBDFFour<2> ReverseBDFFour2;
-typedef ReverseBDFFour<3> ReverseBDFFour3;
-
-typedef ForwardBDFFour<1> ForwardBDFFour1;
-typedef ForwardBDFFour<2> ForwardBDFFour2;
-typedef ForwardBDFFour<3> ForwardBDFFour3;
+typedef BDFFour<false> ReverseBDFFour;
+typedef BDFFour<true>  ForwardBDFFour;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <Index Dimension, bool Forward>
-class BDFFive : public BDFBase<Dimension, Forward, 5> {
+template <bool Forward>
+class BDFFive : public BDFBase<Forward, 5> {
 
-	bool   (BDFFive<Dimension, Forward>::*_isATheSame)() const;
-	Matrix (BDFFive<Dimension, Forward>::*_A)(Real);
-	Vector (BDFFive<Dimension, Forward>::*_b)(Real);
-	void   (BDFFive<Dimension, Forward>::*_onIterationEnd)();
+	bool   (BDFFive<Forward>::*_isATheSame)() const;
+	Matrix (BDFFive<Forward>::*_A)(Real);
+	Vector (BDFFive<Forward>::*_b)(Real);
+	void   (BDFFive<Forward>::*_onIterationEnd)();
 
 	////////////////////////////////////////////////////////////////////////
 
@@ -868,11 +808,11 @@ class BDFFive : public BDFBase<Dimension, Forward, 5> {
 		(this->*_onIterationEnd)();
 	}
 
-	virtual Matrix Ad(Real t) {
+	virtual Matrix A(Real t) {
 		return (this->*_A)(t);
 	}
 
-	virtual Vector bd(Real t) {
+	virtual Vector b(Real t) {
 		return (this->*_b)(t);
 	}
 
@@ -883,11 +823,8 @@ class BDFFive : public BDFBase<Dimension, Forward, 5> {
 public:
 
 	template <typename D>
-	BDFFive(
-		D &domain,
-		LinearSystem &op
-	) noexcept :
-		BDFBase<Dimension, Forward, 5>(
+	BDFFive(D &domain, LinearSystem &op) noexcept :
+		BDFBase<Forward, 5>(
 			domain,
 			op
 		),
@@ -904,29 +841,18 @@ public:
 
 };
 
-template <Index Dimension>
-using ReverseBDFFive = BDFFive<Dimension, false>;
-
-template <Index Dimension>
-using ForwardBDFFive = BDFFive<Dimension, true>;
-
-typedef ReverseBDFFive<1> ReverseBDFFive1;
-typedef ReverseBDFFive<2> ReverseBDFFive2;
-typedef ReverseBDFFive<3> ReverseBDFFive3;
-
-typedef ForwardBDFFive<1> ForwardBDFFive1;
-typedef ForwardBDFFive<2> ForwardBDFFive2;
-typedef ForwardBDFFive<3> ForwardBDFFive3;
+typedef BDFFive<false> ReverseBDFFive;
+typedef BDFFive<true>  ForwardBDFFive;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <Index Dimension, bool Forward>
-class BDFSix : public BDFBase<Dimension, Forward, 6> {
+template <bool Forward>
+class BDFSix : public BDFBase<Forward, 6> {
 
-	bool   (BDFSix<Dimension, Forward>::*_isATheSame)() const;
-	Matrix (BDFSix<Dimension, Forward>::*_A)(Real);
-	Vector (BDFSix<Dimension, Forward>::*_b)(Real);
-	void   (BDFSix<Dimension, Forward>::*_onIterationEnd)();
+	bool   (BDFSix<Forward>::*_isATheSame)() const;
+	Matrix (BDFSix<Forward>::*_A)(Real);
+	Vector (BDFSix<Forward>::*_b)(Real);
+	void   (BDFSix<Forward>::*_onIterationEnd)();
 
 	////////////////////////////////////////////////////////////////////////
 
@@ -979,11 +905,11 @@ class BDFSix : public BDFBase<Dimension, Forward, 6> {
 		(this->*_onIterationEnd)();
 	}
 
-	virtual Matrix Ad(Real t) {
+	virtual Matrix A(Real t) {
 		return (this->*_A)(t);
 	}
 
-	virtual Vector bd(Real t) {
+	virtual Vector b(Real t) {
 		return (this->*_b)(t);
 	}
 
@@ -994,11 +920,8 @@ class BDFSix : public BDFBase<Dimension, Forward, 6> {
 public:
 
 	template <typename D>
-	BDFSix(
-		D &domain,
-		LinearSystem &op
-	) noexcept :
-		BDFBase<Dimension, Forward, 6>(
+	BDFSix(D &domain, LinearSystem &op) noexcept :
+		BDFBase<Forward, 6>(
 			domain,
 			op
 		),
@@ -1015,19 +938,8 @@ public:
 
 };
 
-template <Index Dimension>
-using ReverseBDFSix = BDFSix<Dimension, false>;
-
-template <Index Dimension>
-using ForwardBDFSix = BDFSix<Dimension, true>;
-
-typedef ReverseBDFSix<1> ReverseBDFSix1;
-typedef ReverseBDFSix<2> ReverseBDFSix2;
-typedef ReverseBDFSix<3> ReverseBDFSix3;
-
-typedef ForwardBDFSix<1> ForwardBDFSix1;
-typedef ForwardBDFSix<2> ForwardBDFSix2;
-typedef ForwardBDFSix<3> ForwardBDFSix3;
+typedef BDFSix<false> ReverseBDFSix;
+typedef BDFSix<true>  ForwardBDFSix;
 
 } // QuantPDE
 

@@ -132,7 +132,7 @@ const Real q = 0.;
 BlackScholes1 bs(grid, r, v, q);
 
 // Backward-differentiation formula of order two
-ReverseBDFTwo1 bdf2(grid, bs);
+ReverseBDFTwo bdf2(grid, bs);
 bdf2.setIteration(stepper);
 
 // Linear system solver

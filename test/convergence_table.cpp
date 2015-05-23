@@ -248,7 +248,7 @@ int main(int argc, char **argv) {
 			);
 
 			// Time discretization method
-			ReverseRannacher1 discretization(grid, bs);
+			ReverseRannacher discretization(grid, bs);
 			discretization.setIteration(*stepper);
 
 			// American-specific components; penalty method or not?

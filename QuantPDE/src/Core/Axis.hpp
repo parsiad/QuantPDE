@@ -100,6 +100,14 @@ public:
 	}
 
 	/**
+	 * Vector constructor.
+	 * @param ticks The ticks.
+	 */
+	Axis(const std::vector<Real> &ticks) noexcept {
+		initialize(ticks);
+	}
+
+	/**
 	 * Array constructor.
 	 * @param ticks The ticks.
 	 * @param length The number of ticks.

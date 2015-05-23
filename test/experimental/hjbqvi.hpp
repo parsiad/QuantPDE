@@ -8,60 +8,28 @@
 
 #include <QuantPDE/Core>
 
-using namespace QuantPDE;
+////////////////////////////////////////////////////////////////////////////////
+
+#include <array>            // std::array
+#include <chrono>           // std::chrono
+#include <cmath>            // std::nan
+#include <functional>       // std::function
+#include <iostream>         // std::ostream, std::cout
+#include <iomanip>          // std::setw
+#include <initializer_list> // std::initializer_list
+#include <limits>           // std::numeric_limits
+#include <memory>           // std::unique_ptr
+#include <numeric>          // std::accumulate
+#include <string>           // std::string
+#include <vector>           // std::vector
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#include <array>      // array
-#include <chrono>     // chrono::duration
-#include <cmath>      // nan
-#include <functional> // function
-#include <getopt.h>   // getopt_long
-#include <iostream>   // cerr, cout
-#include <limits>     // numeric_limits
-#include <memory>     // unique_ptr
-#include <vector>     // vector
-
-using namespace std;
-
-////////////////////////////////////////////////////////////////////////////////
+namespace QuantPDE {
+namespace HJBQVI {
 
 template <unsigned N, unsigned M>
-using ArrayFunction = function<
-	NaryFunctionSignature<
-		array<Real, M>,
-		N,
-		Real
-	>
->;
-
-template <Index Dimension>
-struct Result {
-
-	const InterpolantWrapper<Dimension> solution; // u(t,x)
-
-	const InterpolantWrapper<Dimension> stochastic_control;
-	const InterpolantWrapper<Dimension> impulse_control;
-
-	const double execution_time_seconds;
-
-	Result(
-		const InterpolantWrapper<Dimension> &solution,
-
-		const InterpolantWrapper<Dimension> &stochastic_control,
-		const InterpolantWrapper<Dimension> &impulse_control,
-
-		double execution_time_seconds
-	) noexcept :
-		solution(solution),
-
-		stochastic_control(stochastic_control),
-		impulse_control(impulse_control),
-
-		execution_time_seconds(execution_time_seconds)
-	{}
-
-};
+using ArrayFunction = std::array< Function<N>, M >;
 
 struct ControlMethod {
 	static constexpr char FULLY_IMPLICIT = 0;
@@ -71,11 +39,63 @@ struct ControlMethod {
 };
 
 template <Index Dimension>
-struct HJBQVI {
+struct Result {
+
+	const InterpolantWrapper<Dimension> solution; // u(t,x)
+
+	const InterpolantWrapper<Dimension> stochastic_control;
+	const InterpolantWrapper<Dimension> impulse_control;
+
+	const Real mean_iterations;
+
+	const Real execution_time_seconds;
+
+	Result(
+		const InterpolantWrapper<Dimension> &solution,
+
+		const InterpolantWrapper<Dimension> &stochastic_control,
+		const InterpolantWrapper<Dimension> &impulse_control,
+
+		Real mean_iterations,
+
+		Real execution_time_seconds
+	) noexcept :
+		solution(solution),
+
+		stochastic_control(stochastic_control),
+		impulse_control(impulse_control),
+
+		mean_iterations(mean_iterations),
+
+		execution_time_seconds(execution_time_seconds)
+	{}
+
+};
+
+template <Index Dimension>
+struct Options {
+
+	const std::array<Real, Dimension> test_point;
+	const int max_refinement;
+	const int print_refinement;
+
+	Options(
+		std::array<Real, Dimension> test_point,
+		int max_refinement = 0,
+		int print_refinement = 0
+	) noexcept:
+		test_point(test_point),
+		max_refinement(max_refinement),
+		print_refinement(print_refinement)
+	{}
+
+};
+
+template <Index Dimension>
+struct Description {
 
 	const RectilinearGrid<Dimension> spatial_grid;
 
-	// TODO: Extend this to arbitrary dimensions
 	const RectilinearGrid1 stochastic_control_grid;
 	const RectilinearGrid1 impulse_control_grid;
 
@@ -94,6 +114,9 @@ struct HJBQVI {
 	const char handling;
 	const int timesteps;
 
+	const bool refine_stochastic_control_grid;
+	const bool refine_impulse_control_grid;
+
 	const bool coefficients_time_independent;
 
 	inline bool fully_implicit() const
@@ -108,12 +131,11 @@ struct HJBQVI {
 	inline bool fully_explicit() const
 	{ return handling == ControlMethod::FULLY_EXPLICIT; }
 
-	HJBQVI(
-		const RectilinearGrid<Dimension> spatial_grid,
+	Description(
+		const std::array<Axis, Dimension> spatial_axes,
 
-		// TODO: Extend this to arbitrary dimensions
-		const RectilinearGrid1 stochastic_control_grid,
-		const RectilinearGrid1 impulse_control_grid,
+		const std::array<Axis, 1> stochastic_control_axes,
+		const std::array<Axis, 1> impulse_control_axes,
 
 		Real expiry,
 		Real discount,
@@ -123,19 +145,22 @@ struct HJBQVI {
 		const ArrayFunction<Dimension+1, Dimension> uncontrolled_drift,
 		const Function<Dimension+2> controlled_continuous_flow,
 		const Function<Dimension+1> uncontrolled_continuous_flow,
-		const ArrayFunction<Dimension+2, Dimension> transition,
+		const std::array<Function<Dimension+2>, Dimension> transition,
 		const Function<Dimension+2> impulse_flow,
 		const Function<Dimension+1> exit_function,
 
 		int handling,
 		int timesteps,
 
+		bool refine_stochastic_control_grid = true,
+		bool refine_impulse_control_grid = true,
+
 		bool coefficients_time_independent = false
 	) noexcept :
-		spatial_grid(spatial_grid),
+		spatial_grid(spatial_axes),
 
-		stochastic_control_grid(stochastic_control_grid),
-		impulse_control_grid(impulse_control_grid),
+		stochastic_control_grid(stochastic_control_axes),
+		impulse_control_grid(impulse_control_axes),
 
 		expiry(expiry),
 		discount(discount),
@@ -152,10 +177,13 @@ struct HJBQVI {
 		handling(handling),
 		timesteps(timesteps),
 
+		refine_stochastic_control_grid(refine_stochastic_control_grid),
+		refine_impulse_control_grid(refine_impulse_control_grid),
+
 		coefficients_time_independent(coefficients_time_independent)
 	{
 		if(
-			expiry >= numeric_limits<Real>::infinity()
+			expiry >= std::numeric_limits<Real>::infinity()
 			&& !fully_implicit()
 		) {
 			throw "error: only an implicit method can be used for"
@@ -169,7 +197,7 @@ template <int Dimension>
 struct ControlledOperator final : public
 		RawControlledLinearSystem<Dimension, 1> {
 
-	const HJBQVI<Dimension> hjbqvi;
+	const Description<Dimension> hjbqvi;
 	RectilinearGrid<Dimension> refined_spatial_grid;
 	int offsets[Dimension];
 
@@ -204,11 +232,11 @@ struct ControlledOperator final : public
 
 		// Iterate through points on grid
 		int i[Dimension];
+		Real args[Dimension+2];
 		for(int row = 0; row < refined_spatial_grid.size(); ++row) {
 			Real total = 0.;
 
 			// Get coordinates of point
-			Real args[Dimension+2];
 			args[0] = time; // Time
 			for(int d = 0; d < Dimension; ++d) {
 				i[d] = (row / offsets[d]) %
@@ -216,22 +244,6 @@ struct ControlledOperator final : public
 				args[1+d] = refined_spatial_grid[d][i[d]];
 			}
 			args[1+Dimension] = q(row); // Control
-
-			// Get volatility
-			auto volatility = packAndCall<Dimension+1>(
-				hjbqvi.volatility,
-				args
-			);
-
-			// Get drifts
-			auto controlled = packAndCall<Dimension+2>(
-				hjbqvi.controlled_drift,
-				args
-			);
-			auto uncontrolled = packAndCall<Dimension+1>(
-				hjbqvi.uncontrolled_drift,
-				args
-			);
 
 			for(int d = 0; d < Dimension; ++d) {
 				// Skip boundary points
@@ -247,13 +259,23 @@ struct ControlledOperator final : public
 					dxf = x[ i[d] + 1 ] - x[ i[d]     ]
 				;
 
-				// Local volatility
-				const Real v = volatility[d];
+				// Get volatility
+				const Real v = packAndCall<Dimension+1>(
+					hjbqvi.volatility[d],
+					args
+				);
 
-				// Local drift
-				const Real mu = (hjbqvi.semi_lagrangian() ? 0.
-						: controlled[d])
-						+ uncontrolled[d];
+				// Get drifts
+				Real mu = packAndCall<Dimension+1>(
+					hjbqvi.uncontrolled_drift[d],
+					args
+				);
+				if(!hjbqvi.semi_lagrangian()) {
+					mu += packAndCall<Dimension+2>(
+						hjbqvi.controlled_drift[d],
+						args
+					);
+				}
 
 				const Real vv = v * v;
 
@@ -293,10 +315,10 @@ struct ControlledOperator final : public
 
 		// Iterate through points on grid
 		int i[Dimension];
+		Real args[Dimension+2];
 		for(int row = 0; row < refined_spatial_grid.size(); ++row) {
 
 			// Get coordinates of point
-			Real args[Dimension+2];
 			args[0] = time; // Time
 			for(int d = 0; d < Dimension; ++d) {
 				i[d] = (row / offsets[d]) %
@@ -328,275 +350,205 @@ struct ControlledOperator final : public
 
 };
 
-// 1D
 template <Index Dimension>
-unique_ptr<ControlledLinearSystemBase> make_impulse(
-	const HJBQVI<Dimension> &hjbqvi,
-	const RectilinearGrid<Dimension> &refined_spatial_grid,
-	int refinement
-) {
+class ExplicitEvent : public EventBase {
 
-	static_assert(Dimension == 1, "Dimension mismatch");
+	const Description<Dimension> &hjbqvi;
+	const RectilinearGrid<Dimension> &refined_spatial_grid;
+	const RectilinearGrid1 &refined_stochastic_control_grid;
+	const RectilinearGrid1 &refined_impulse_control_grid;
+	Vector &stochastic_control_vector;
+	Vector &impulse_control_vector;
+	Real time;
+	const ReverseTimeIteration &stepper;
+	std::vector<bool> &mask;
 
-	return unique_ptr<ControlledLinearSystemBase>(
-		(ControlledLinearSystemBase*)
-		new Impulse1_1(
-			refined_spatial_grid,
-			[&hjbqvi] (Real t, Real x, Real zeta) {
-				Real args[3];
-				args[0] = hjbqvi.expiry;
-				args[1] = x;
-				args[2] = zeta;
-				return packAndCall<1+2>(
+	int offsets[Dimension];
+
+	template <typename V>
+	Vector _doEvent(V &&vector) const {
+
+		mask.clear();
+
+		Vector best = refined_spatial_grid.vector();
+
+		const Real dt = stepper.timestep();
+
+		auto factory = refined_spatial_grid.defaultInterpolantFactory();
+		auto u = factory.make(vector);
+
+		Real args[Dimension+2];
+		int i[Dimension];
+		for(int row = 0; row < refined_spatial_grid.size(); ++row) {
+
+		////////////////////////////////////////////////////////////////
+		// begin row loop
+		////////////////////////////////////////////////////////////////
+
+		// Get coordinates of point
+		args[0] = time; // Time
+		for(int d = 0; d < Dimension; ++d) {
+			i[d] = (row / offsets[d]) %
+					refined_spatial_grid[d].size();
+			args[1+d] = refined_spatial_grid[d][i[d]];
+		}
+
+		Real a = -std::numeric_limits<Real>::infinity();
+		if(hjbqvi.semi_lagrangian()) {
+
+			// Find optimal control
+			for(
+				int k = 0;
+				k < refined_stochastic_control_grid.size();
+				++k
+			) {
+
+				args[1+Dimension] =
+					refined_stochastic_control_grid
+					[0][k];
+
+				std::array<Real, Dimension> new_state;
+				for(int d = 0; d < Dimension; ++d) {
+					const Real m = packAndCall<Dimension+2>(
+						hjbqvi.controlled_drift[d],
+						args
+					);
+					new_state[d] = args[1+d] + m * dt;
+				}
+
+				const Real flow = packAndCall<Dimension+2>(
+					hjbqvi.controlled_continuous_flow,
+					args
+				);
+
+				const Real new_value =
+					u.interpolate(new_state)
+					+ flow * dt
+				;
+
+				if(new_value > a) {
+					a = new_value;
+					stochastic_control_vector(row) =
+							args[1+Dimension];
+				}
+			}
+
+		} else {
+			a = vector(row);
+		}
+
+
+		Real b = -std::numeric_limits<Real>::infinity();
+		if(hjbqvi.explicit_impulse()) {
+
+			// Find optimal control
+			for(
+				int k = 0;
+				k < refined_impulse_control_grid.size();
+				++k
+			) {
+
+				args[1+Dimension] =
+						refined_impulse_control_grid
+						[0][k];
+
+				std::array<Real, Dimension> new_state;
+				for(int d = 0; d < Dimension; ++d) {
+					new_state[d] = packAndCall<Dimension+2>(
+						hjbqvi.transition[d],
+						args
+					);
+				}
+
+				const Real flow = packAndCall<Dimension+2>(
 					hjbqvi.impulse_flow,
 					args
 				);
-			},
-			[&hjbqvi] (Real t, Real x, Real zeta) {
-				Real args[3];
-				args[0] = t;
-				args[1] = x;
-				args[2] = zeta;
-				auto res = packAndCall<1+2>(
-					hjbqvi.transition,
-					args
-				);
-				return res[0];
+
+				const Real new_value =
+					u.interpolate(new_state)
+					+ flow
+				;
+
+				if(new_value > b) {
+					b = new_value;
+					impulse_control_vector(row) =
+							args[1+Dimension];
+				}
 			}
-		)
-	);
 
-}
-
-// 2D
-template <>
-unique_ptr<ControlledLinearSystemBase> make_impulse<2>(
-	const HJBQVI<2> &hjbqvi,
-	const RectilinearGrid2 &refined_spatial_grid,
-	int refinement
-) {
-
-	return unique_ptr<ControlledLinearSystemBase>(
-		(ControlledLinearSystemBase*)
-		new Impulse2_1(
-			refined_spatial_grid,
-			[&hjbqvi] (Real t, Real x, Real y, Real zeta) {
-				Real args[4];
-				args[0] = hjbqvi.expiry;
-				args[1] = x;
-				args[2] = y;
-				args[3] = zeta;
-				return packAndCall<2+2>(
-					hjbqvi.impulse_flow,
-					args
-				);
-			},
-			[&hjbqvi] (Real t, Real x, Real y, Real zeta) {
-				Real args[4];
-				args[0] = t;
-				args[1] = x;
-				args[2] = y;
-				args[3] = zeta;
-				auto res = packAndCall<2+2>(
-					hjbqvi.transition,
-					args
-				);
-				return res[0];
-			},
-			[&hjbqvi] (Real t, Real x, Real y, Real zeta) {
-				Real args[4];
-				args[0] = t;
-				args[1] = x;
-				args[2] = y;
-				args[3] = zeta;
-				auto res = packAndCall<2+2>(
-					hjbqvi.transition,
-					args
-				);
-				return res[1];
-			}
-		)
-	);
-
-}
-
-// 1D
-template <Index Dimension>
-InterpolantWrapper<Dimension> make_solution(
-	const HJBQVI<Dimension> &hjbqvi,
-	const RectilinearGrid<Dimension> &refined_spatial_grid,
-	Iteration *iteration,
-	IterationNode *root
-) {
-
-	static_assert(Dimension == 1, "Dimension mismatch");
-
-	BiCGSTABSolver solver;
-
-	return iteration->solve(
-		refined_spatial_grid,
-		[=] (Real x) {
-			Real args[2];
-			args[0] = hjbqvi.expiry;
-			args[1] = x;
-			return packAndCall<1+1>(
-				hjbqvi.exit_function,
-				args
-			);
-		},
-		*root,
-		solver
-	);
-
-}
-
-// 2D
-template <>
-InterpolantWrapper<2> make_solution<2>(
-	const HJBQVI<2> &hjbqvi,
-	const RectilinearGrid2 &refined_spatial_grid,
-	Iteration *iteration,
-	IterationNode *root) {
-
-	BiCGSTABSolver solver;
-
-	return iteration->solve(
-		refined_spatial_grid,
-		[=] (Real x, Real y) {
-			Real args[2];
-			args[0] = hjbqvi.expiry;
-			args[1] = x;
-			args[2] = x;
-			return packAndCall<2+1>(
-				hjbqvi.exit_function,
-				args
-			);
-		},
-		*root,
-		solver
-	);
-
-}
-
-// 1D
-template <Index Dimension>
-Transform<Dimension> make_event(
-	const HJBQVI<Dimension> &hjbqvi,
-	const RectilinearGrid1 &refined_stochastic_control_grid,
-	const RectilinearGrid1 &refined_impulse_control_grid,
-	Real t, Real dt,
-	Vector &stochastic_control_vector,
-	Vector &impulse_control_vector,
-	std::vector<bool> &mask
-) {
-
-	static_assert(Dimension == 1, "Dimension mismatch");
-
-	const Axis &Q = refined_stochastic_control_grid[0];
-
-	auto semi_lagrangian = [=, &hjbqvi, &Q, &stochastic_control_vector]
-			(const Interpolant1 &u, Real x) {
-		static int k;
-		if(x == hjbqvi.spatial_grid[0][0]) { k = 0; }
-
-		Real best = -numeric_limits<Real>::infinity();
-
-		for(int i = 0; i < Q.size(); ++i) {
-			const Real q = Q[i];
-			const Real new_value =
-				u(x + hjbqvi.controlled_drift(t, x, q)[0] * dt)
-				+ hjbqvi.controlled_continuous_flow(t, x, q)*dt
-			;
-			if(new_value > best) {
-				best = new_value;
-				stochastic_control_vector(k) = q;
-			}
 		}
 
-		++k;
-
-		return best;
-	};
-
-	const Axis &Z = refined_impulse_control_grid[0];
-
-	auto explicit_impulse = [=, &hjbqvi, &Z, &impulse_control_vector]
-			(const Interpolant1 &u, Real x) {
-		static int k;
-		if(x == hjbqvi.spatial_grid[0][0]) { k = 0; }
-
-		Real best = -numeric_limits<Real>::infinity();
-
-		for(int i = 0; i < Z.size(); ++i) {
-			const Real zeta = Z[i];
-			const Real new_value =
-				u(hjbqvi.transition(t, x, zeta)[0])
-				+ hjbqvi.impulse_flow(t, x, zeta)
-			;
-			if(new_value > best) {
-				best = new_value;
-				impulse_control_vector(k) = zeta;
-			}
+		if(a >= b) {
+			mask.push_back(false);
+			best(row) = a;
+		} else {
+			mask.push_back(true);
+			best(row) = b;
 		}
 
-		++k;
+		////////////////////////////////////////////////////////////////
+		// end row loop
+		////////////////////////////////////////////////////////////////
+
+		}
 
 		return best;
-	};
 
-
-	if(hjbqvi.fully_explicit()) {
-		return [=, &hjbqvi, &mask] (const Interpolant1 &u, Real x) {
-			// Clear mask
-			if(x == hjbqvi.spatial_grid[0][0]) {
-				mask.clear();
-			}
-
-			Real a = semi_lagrangian(u, x);
-			Real b = explicit_impulse(u, x);
-			if(a >= b) {
-				mask.push_back(false);
-				return a;
-			}
-			mask.push_back(true);
-			return b;
-		};
 	}
 
-	if(hjbqvi.semi_lagrangian()) {
-		return semi_lagrangian;
+	virtual Vector doEvent(const Vector &vector) const {
+		return _doEvent(vector);
 	}
 
-	if(hjbqvi.explicit_impulse()) {
-		return [=, &hjbqvi, &mask] (const Interpolant1 &u, Real x) {
-			// Clear mask
-			if(x == hjbqvi.spatial_grid[0][0]) {
-				mask.clear();
-			}
-
-			Real a = u(x);
-			Real b = explicit_impulse(u, x);
-			if(a >= b) {
-				mask.push_back(false);
-				return a;
-			}
-			mask.push_back(true);
-			return b;
-		};
+	virtual Vector doEvent(Vector &&vector) const {
+		return _doEvent(std::move(vector));
 	}
 
-	throw "error: unexpected error";
+public:
 
-}
+	template <typename H, typename R, typename S, typename I, typename T>
+	ExplicitEvent(
+		H &hjbqvi,
+		R &refined_spatial_grid,
+		S &refined_stochastic_control_grid,
+		I &refined_impulse_control_grid,
+		Vector &stochastic_control_vector,
+		Vector &impulse_control_vector,
+		Real time,
+		T &stepper,
+		std::vector<bool> &mask
+	) noexcept :
+		hjbqvi(hjbqvi),
+		refined_spatial_grid(refined_spatial_grid),
+		refined_stochastic_control_grid(
+				refined_stochastic_control_grid),
+		refined_impulse_control_grid(refined_impulse_control_grid),
+		stochastic_control_vector(stochastic_control_vector),
+		impulse_control_vector(impulse_control_vector),
+		time(time),
+		stepper(stepper),
+		mask(mask)
+	{
+		// Space between ticks
+		offsets[0] = 1;
+		for(int d = 1; d < Dimension; ++d) {
+			offsets[d] = offsets[d-1]
+					* refined_spatial_grid[d].size();
+		}
+	}
+
+};
 
 template <Index Dimension>
-Result<Dimension> solve(const HJBQVI<Dimension> &hjbqvi, int refinement = 0) {
+Result<Dimension> solve(const Description<Dimension> &hjbqvi,
+		int refinement = 0) {
 
 	static_assert(Dimension <= 2 && Dimension >= 1,
 			"Only dimensions 1 and 2 are currently supported.");
 
 	const bool finite_horizon =
-			hjbqvi.expiry < numeric_limits<Real>::infinity();
+			hjbqvi.expiry < std::numeric_limits<Real>::infinity();
 
 	// Refine grid
 	auto refined_spatial_grid = hjbqvi.spatial_grid.refined(refinement);
@@ -628,22 +580,24 @@ Result<Dimension> solve(const HJBQVI<Dimension> &hjbqvi, int refinement = 0) {
 		controlled_operator
 	);
 
-	unique_ptr<ControlledLinearSystemBase> impulse =
-			make_impulse<Dimension>(hjbqvi, refined_spatial_grid,
-			refinement);
+	Impulse<Dimension, 1> impulse(
+		refined_spatial_grid,
+		hjbqvi.impulse_flow,
+		hjbqvi.transition
+	);
 
 	MinPolicyIteration<Dimension, 1> impulse_policy(
 		refined_spatial_grid,
 		refined_impulse_control_grid,
-		*impulse
+		impulse
 	);
 
 	stochastic_policy.setIteration(tolerance_iteration);
 	impulse_policy.setIteration(tolerance_iteration);
 
-	unique_ptr<ReverseTimeIteration> stepper;
+	std::unique_ptr<ReverseTimeIteration> stepper;
 	if(finite_horizon) {
-		stepper = unique_ptr<ReverseTimeIteration>(
+		stepper = std::unique_ptr<ReverseTimeIteration>(
 			(ReverseTimeIteration*)
 			new ReverseConstantStepper(
 				0.,
@@ -665,7 +619,7 @@ Result<Dimension> solve(const HJBQVI<Dimension> &hjbqvi, int refinement = 0) {
 		discretize = &stochastic_policy;
 	}
 
-	ReverseBDFOne<Dimension> discretization(
+	ReverseBDFOne discretization(
 		refined_spatial_grid,
 		*discretize
 	);
@@ -702,36 +656,53 @@ Result<Dimension> solve(const HJBQVI<Dimension> &hjbqvi, int refinement = 0) {
 	}
 
 	// Add events
-	if(!hjbqvi.fully_implicit()) {
-		const Real dt = hjbqvi.expiry / timesteps;
-		for(int e = 0; e < timesteps; ++e) {
-			const Real t = e * dt;
-			stepper->add(
-				t,
-				make_event(
+	const Real dt = hjbqvi.expiry / timesteps;
+	for(int e = 0; e < timesteps; ++e) {
+		const Real time = e * dt;
+
+		stepper->add(
+			time,
+			std::unique_ptr<EventBase>(
+				new ExplicitEvent<Dimension>(
 					hjbqvi,
+					refined_spatial_grid,
 					refined_stochastic_control_grid,
 					refined_impulse_control_grid,
-					t, dt,
 					stochastic_control_vector,
 					impulse_control_vector,
+					time,
+					*stepper,
 					mask
-				),
-				refined_spatial_grid
-			);
-		}
+				)
+			)
+		);
 	}
 
+	// Linear system solver
+	BiCGSTABSolver solver;
+
+	// Bind exit function to expiry time to get payoff
+	auto cauchy_data = curry<Dimension+1>(
+		hjbqvi.exit_function,
+		hjbqvi.expiry
+	);
+
 	// Timing
-	auto start = chrono::steady_clock::now();
 	Real seconds;
+	auto start = std::chrono::steady_clock::now();
 
-	auto u = make_solution(hjbqvi, refined_spatial_grid, iteration, root);
+	// Solve
+	auto u = iteration->solve(
+		refined_spatial_grid,
+		cauchy_data,
+		*root,
+		solver
+	);
 
 	// Timing
-	auto end = chrono::steady_clock::now();
+	auto end = std::chrono::steady_clock::now();
 	auto diff = end - start;
-	seconds = chrono::duration<Real>(diff).count();
+	seconds = std::chrono::duration<Real>(diff).count();
 
 	// Implicit stochastic control
 	if(!hjbqvi.semi_lagrangian()) {
@@ -740,20 +711,25 @@ Result<Dimension> solve(const HJBQVI<Dimension> &hjbqvi, int refinement = 0) {
 
 	// Implicit impulse control
 	if(!hjbqvi.explicit_impulse()) {
-		if(Dimension == 1) {
-			impulse_control_vector = ((Impulse1_1 *)impulse.get())
-					->control(0);
-		} // TODO: Other dimensions
+		impulse_control_vector = impulse.control(0);
 		mask = penalty.constraintMask();
+	}
+
+	// Mean iterations
+	Real mean_iterations = std::nan("");
+	if(!hjbqvi.fully_explicit()) {
+		auto its = tolerance_iteration.iterations();
+		mean_iterations = std::accumulate(its.begin(), its.end(), 0.)
+				/ its.size();
 	}
 
 	// Apply mask
 	for(int i = 0; i < refined_spatial_grid.size(); ++i) {
 		if(mask[i]) {
-			stochastic_control_vector(i) = nan("");
+			stochastic_control_vector(i) = std::nan("");
 		} else {
 			// Impulse control is not active here
-			impulse_control_vector(i) = nan("");
+			impulse_control_vector(i) = std::nan("");
 		}
 	}
 
@@ -764,42 +740,120 @@ Result<Dimension> solve(const HJBQVI<Dimension> &hjbqvi, int refinement = 0) {
 		u,
 		factory.make(stochastic_control_vector),
 		factory.make(impulse_control_vector),
+		mean_iterations,
 		seconds
 	);
 
 }
 
 template <Index Dimension>
-int hjbqvi_main(const HJBQVI<Dimension> &hjbqvi) {
+void run(
+	const Description<Dimension> &hjbqvi,
+	const Options<Dimension> &opts,
+	std::ostream &out = std::cout
+) {
 
-	try {
+	out.precision(12);
 
-		auto result = solve<Dimension>(hjbqvi, 0);
+	const int spacing = 23;
+	auto space = [=] () { return std::setw(spacing); };
 
-		cout
-			<< accessor(
-				hjbqvi.spatial_grid,
-				result.stochastic_control
-			)
-			<< endl
-			<< accessor(
-				hjbqvi.spatial_grid,
-				result.impulse_control
-			)
-			<< endl
-			<< accessor(
-				hjbqvi.spatial_grid,
-				result.solution
-			)
-			<< endl
+	// Headers
+	out
+		<< space() << "Spatial Nodes"
+		<< space() << "Stochastic Ctrl Nodes"
+		<< space() << "Impulse Ctrl Nodes"
+		<< space() << "Timesteps"
+		<< space() << "Mean Iterations"
+		<< space() << "Value"
+		<< space() << "Change"
+		<< space() << "Ratio"
+		<< space() << "Execution Time (sec)"
+		<< std::endl
+	;
+
+	Real
+		previousValue = nan(""),
+		previousChange = nan(""),
+		value,
+		change,
+		ratio
+	;
+
+	for(
+		int
+			refinement = 0,
+			timesteps = hjbqvi.timesteps,
+			spatial_nodes = hjbqvi.spatial_grid.size(),
+			q_nodes = hjbqvi.stochastic_control_grid.size(),
+			zeta_nodes = hjbqvi.impulse_control_grid.size()
+		;
+			refinement <= opts.max_refinement
+		;
+			++refinement,
+			timesteps *= 2,
+			spatial_nodes = spatial_nodes * 2 - 1,
+			q_nodes = q_nodes * 2 - 1,
+			zeta_nodes = zeta_nodes * 2 - 1
+	) {
+		auto result = solve<Dimension>(hjbqvi, refinement);
+
+		// Get value of function at the test point
+		value = result.solution.interpolate(opts.test_point);
+		change = value - previousValue;
+		ratio = previousChange / change;
+		previousValue = value;
+		previousChange = change;
+
+		// Print
+		out
+			<< space() << spatial_nodes
+			<< space() << q_nodes
+			<< space() << zeta_nodes
+			<< space() << timesteps
+			<< space() << result.mean_iterations
+			<< space() << value
+			<< space() << change
+			<< space() << ratio
+			<< space() << result.execution_time_seconds
+			<< std::endl
 		;
 
-	} catch(...) {
-		// TODO: Error reporting
-		return 1;
+		if(refinement == opts.max_refinement) {
+			// Print header
+			out << std::endl; // Extra spacing
+			for(int d = 0; d < Dimension; ++d) {
+				out << space() << ("x_" + std::to_string(d+1));
+			}
+			out
+				<< space() << "Value u(t=0, x)"
+				<< space() << "Stochastic Control"
+				<< space() << "Impulse Control"
+				<< std::endl
+			;
+
+			auto print_grid = hjbqvi.spatial_grid.refined(
+					opts.print_refinement);
+			for(auto node : print_grid) {
+				for(int d = 0; d < Dimension; ++d) {
+					out << space() << node[d];
+				}
+				out
+					<< space() << result.solution
+							.interpolate(node)
+					<< space() << result.stochastic_control
+							.interpolate(node)
+					<< space() << result.impulse_control
+							.interpolate(node)
+					<< std::endl
+				;
+			}
+		}
 	}
-
-	return 0;
-
 }
+
+} // namespace HJBQVI
+} // namespace QuantPDE
+
+// TODO: Make Axis.hpp safe
 

@@ -15,7 +15,7 @@ class ConstantStepper final : public TimeIteration<Forward> {
 
 public:
 
-	virtual Real timestep() {
+	virtual Real timestep() const {
 		return dt;
 	}
 
@@ -94,7 +94,7 @@ class VariableStepper final : public TimeIteration<Forward> {
 
 public:
 
-	virtual Real timestep() {
+	virtual Real timestep() const {
 		return (this->*_step)();
 	}
 

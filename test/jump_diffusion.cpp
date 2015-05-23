@@ -211,7 +211,7 @@ int main(int argc, char **argv) {
 
 	bs.setIteration(stepper);
 
-	ReverseBDFTwo1 bdf2(grid, bs);
+	ReverseBDFTwo bdf2(grid, bs);
 	bdf2.setIteration(stepper);
 
 	////////////////////////////////////////////////////////////////////////

@@ -3,9 +3,10 @@
 
 namespace QuantPDE {
 
-template <Index Dimension, bool Forward>
-class Rannacher : public Discretization<Dimension> {
+template <bool Forward>
+class Rannacher : public IterationNode {
 
+	const DomainBase &domain;
 	LinearSystem &op;
 
 	bool   (Rannacher::*_isATheSame)() const;
@@ -87,11 +88,11 @@ class Rannacher : public Discretization<Dimension> {
 	void _onIterationEnd4() {
 	}
 
-	virtual Matrix Ad(Real t) {
+	virtual Matrix A(Real t) {
 		return (this->*_A)(t);
 	}
 
-	virtual Vector bd(Real t) {
+	virtual Vector b(Real t) {
 		return (this->*_b)(t);
 	}
 
@@ -121,7 +122,7 @@ public:
 		D &domain,
 		LinearSystem &op
 	) noexcept :
-		Discretization<Dimension>(domain),
+		domain(domain),
 		op(op),
 		_isATheSame(nullptr),
 		_A(nullptr),
@@ -132,19 +133,8 @@ public:
 
 };
 
-template <Index Dimension>
-using ReverseRannacher = Rannacher<Dimension, false>;
-
-template <Index Dimension>
-using ForwardRannacher = Rannacher<Dimension, true>;
-
-typedef ReverseRannacher<1> ReverseRannacher1;
-typedef ReverseRannacher<2> ReverseRannacher2;
-typedef ReverseRannacher<3> ReverseRannacher3;
-
-typedef ForwardRannacher<1> ForwardRannacher1;
-typedef ForwardRannacher<2> ForwardRannacher2;
-typedef ForwardRannacher<3> ForwardRannacher3;
+typedef Rannacher<false> ReverseRannacher;
+typedef Rannacher<true>  ForwardRannacher;
 
 } // QuantPDE
 

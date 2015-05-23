@@ -1,61 +1,69 @@
-#include <QuantPDE/Core>
+////////////////////////////////////////////////////////////////////////////////
 
+#include <QuantPDE/Core>
 #include "hjbqvi.hpp"
 
+using namespace QuantPDE;
+using namespace QuantPDE::HJBQVI;
+
+////////////////////////////////////////////////////////////////////////////////
+
+#include <array> // array
 #include <cmath> // fabs
+
+using namespace std;
+
+////////////////////////////////////////////////////////////////////////////////
 
 int main() {
 
-	const RectilinearGrid1 spatial_grid = RectilinearGrid1(
-		Axis::cluster(
-			-6., // Left-hand boundary
-			0.,  // Feature to cluster around
-			+6., // Right-hand boundary
-			32,  // Number of points
-			10.  // Clustering intensity
-		)
+	constexpr int Dimension = 1; // Spatial dimension
+
+	const Axis X = Axis::cluster(
+		-6., // Left-hand boundary
+		0.,  // Feature to cluster around
+		+6., // Right-hand boundary
+		32,  // Number of points
+		10.  // Clustering intensity
 	);
 
-	constexpr int dimension = 1; // Spatial dimension
-	HJBQVI< dimension > hjbqvi(
-		// Spatial grid
-		spatial_grid,
+	// Problem description
+	Description<Dimension> hjbqvi(
+		// Initial spatial grid
+		{ X },
 
-		// Stochastic control grid
-		RectilinearGrid1(
-			Axis::uniform(
-				0.,   // Left-hand boundary
-				0.05, // Right-hand boundary
-				32    // Number of points
-			)
-		),
+		// Initial stochastic control grid
+		{ Axis::uniform( 0., 0.05, 32 ) },
 
-		// Impulse control grid
-		spatial_grid,
+		// Initial impulse control grid
+		{ X },
 
 		// Expiry
-		10., //numeric_limits<double>::infinity(),
+		10. /* numeric_limits<double>::infinity() */ ,
 
 		// Discount
 		0.02,
 
 		// Volatility
-		[] (Real t, Real x) {
-			const array<Real, 1> res { 0.3 };
-			return res;
+		{
+			[] (Real t, Real x) {
+				return 0.3;
+			}
 		},
 
 		// Controlled drift
-		[] (Real t, Real x, Real q) {
-			const Real a = 0.25;
-			const array<Real, 1> res { -a * q };
-			return res;
+		{
+			[] (Real t, Real x, Real q) {
+				const Real a = 0.25;
+				return -a * q;
+			}
 		},
 
 		// Uncontrolled drift
-		[] (Real t, Real x) {
-			const array<Real, 1> res { 0. };
-			return res;
+		{
+			[] (Real t, Real x) {
+				return 0.;
+			}
 		},
 
 		// Controlled continuous flow
@@ -72,9 +80,10 @@ int main() {
 		},
 
 		// Transition
-		[] (Real t, Real x, Real x_new) {
-			const array<Real, 1> res { x_new };
-			return res;
+		{
+			[] (Real t, Real x, Real x_new) {
+				return x_new;
+			}
 		},
 
 		// Impulse flow
@@ -85,17 +94,29 @@ int main() {
 		},
 
 		// Exit function
-		[] (Real t, Real x) { return 0.; },
+		[] (Real t, Real x) {
+			return 0.;
+		},
 
 		// How to handle the control
-		ControlMethod::FULLY_IMPLICIT,
+		ControlMethod::SEMI_LAGRANGIAN,
 
-		// Number of timesteps
+		// Initial number of timesteps
 		32
 	);
 
+	Options<Dimension> opts(
+		// Convergence test point
+		{ 0. },
+
+		// Max refinement
+		6
+	);
+
 	// Use common routine
-	return hjbqvi_main(hjbqvi);
+	run(hjbqvi, opts);
+
+	return 0;
 
 }
 

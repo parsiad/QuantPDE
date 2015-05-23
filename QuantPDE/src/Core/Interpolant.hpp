@@ -17,15 +17,6 @@ class Interpolant {
 
 	static_assert(Dimension > 0, "Dimension must be positive");
 
-	/**
-	 * Performs interpolation to query the value at the specified
-	 * coordinates.
-	 * @param coordinates The coordinates.
-	 * @return Interpolated value.
-	 */
-	virtual Real interpolate(const std::array<Real, Dimension> &coordinates)
-			const = 0;
-
 	typedef std::unique_ptr<Interpolant> P;
 
 public:
@@ -35,6 +26,15 @@ public:
 	 */
 	virtual ~Interpolant() {
 	}
+
+	/**
+	 * Performs interpolation to query the value at the specified
+	 * coordinates.
+	 * @param coordinates The coordinates.
+	 * @return Interpolated value.
+	 */
+	virtual Real interpolate(const std::array<Real, Dimension> &coordinates)
+			const = 0;
 
 	/**
 	 * Performs interpolation to query the value at the specified
@@ -62,13 +62,13 @@ class InterpolantWrapper : public Interpolant<Dimension> {
 	typedef typename Interpolant<Dimension>::P P;
 	P p;
 
+public:
+
 	virtual Real interpolate(
 			const std::array<Real, Dimension> &coordinates)
 			const {
 		return p->interpolate(coordinates);
 	}
-
-public:
 
 	template <typename ...Ts>
 	Real operator()(Ts ...coordinates) const {
@@ -250,6 +250,8 @@ class PiecewiseLinear : public Interpolant<Dimension> {
 	}
 	*/
 
+public:
+
 	virtual Real interpolate(const std::array<Real, Dimension> &coordinates)
 			const {
 
@@ -371,8 +373,6 @@ class PiecewiseLinear : public Interpolant<Dimension> {
 
 		return interpolated;
 	}
-
-public:
 
 	class Factory : public InterpolantFactory<Dimension> {
 
