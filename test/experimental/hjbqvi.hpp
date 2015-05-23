@@ -544,9 +544,6 @@ template <Index Dimension>
 Result<Dimension> solve(const Description<Dimension> &hjbqvi,
 		int refinement = 0) {
 
-	static_assert(Dimension <= 2 && Dimension >= 1,
-			"Only dimensions 1 and 2 are currently supported.");
-
 	const bool finite_horizon =
 			hjbqvi.expiry < std::numeric_limits<Real>::infinity();
 
@@ -656,26 +653,28 @@ Result<Dimension> solve(const Description<Dimension> &hjbqvi,
 	}
 
 	// Add events
-	const Real dt = hjbqvi.expiry / timesteps;
-	for(int e = 0; e < timesteps; ++e) {
-		const Real time = e * dt;
+	if(!hjbqvi.fully_implicit()) {
+		const Real dt = hjbqvi.expiry / timesteps;
+		for(int e = 0; e < timesteps; ++e) {
+			const Real time = e * dt;
 
-		stepper->add(
-			time,
-			std::unique_ptr<EventBase>(
-				new ExplicitEvent<Dimension>(
-					hjbqvi,
-					refined_spatial_grid,
-					refined_stochastic_control_grid,
-					refined_impulse_control_grid,
-					stochastic_control_vector,
-					impulse_control_vector,
-					time,
-					*stepper,
-					mask
+			stepper->add(
+				time,
+				std::unique_ptr<EventBase>(
+					new ExplicitEvent<Dimension>(
+						hjbqvi,
+						refined_spatial_grid,
+						refined_stochastic_control_grid,
+						refined_impulse_control_grid,
+						stochastic_control_vector,
+						impulse_control_vector,
+						time,
+						*stepper,
+						mask
+					)
 				)
-			)
-		);
+			);
+		}
 	}
 
 	// Linear system solver

@@ -1,4 +1,13 @@
 ////////////////////////////////////////////////////////////////////////////////
+//
+// Optimal combined control of the exchange rate, as formulated in [1].
+//
+// [1] Mundaca, Gabriela, and Bernt Øksendal. "Optimal stochastic intervention
+// control with application to the exchange rate." Journal of Mathematical
+// Economics 29.2 (1998): 225-243.
+//
+// Author: Parsiad Azimzadeh
+////////////////////////////////////////////////////////////////////////////////
 
 #include <QuantPDE/Core>
 #include "hjbqvi.hpp"
@@ -39,7 +48,7 @@ int main() {
 		{ X },
 
 		// Expiry
-		10. /* numeric_limits<double>::infinity() */ ,
+		/* 10. */ numeric_limits<double>::infinity(),
 
 		// Discount
 		0.02,
@@ -99,7 +108,7 @@ int main() {
 		},
 
 		// How to handle the control
-		ControlMethod::SEMI_LAGRANGIAN,
+		ControlMethod::FULLY_IMPLICIT,
 
 		// Initial number of timesteps
 		32
