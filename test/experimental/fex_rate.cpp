@@ -12,10 +12,10 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <QuantPDE/Core>
-#include "hjbqvi.hpp"
+#include <QuantPDE/Modules/HJBQVI>
 
 using namespace QuantPDE;
-using namespace QuantPDE::HJBQVI;
+using namespace QuantPDE::Modules;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,8 +70,8 @@ int main() {
 	const int timesteps = 32;
 
 	// How to handle the control
-	auto method = ControlMethod::FULLY_IMPLICIT;
-	//auto method = ControlMethod::FULLY_EXPLICIT;
+	auto method = HJBQVIControlMethod::FULLY_IMPLICIT;
+	//auto method = HJBQVIControlMethod::FULLY_EXPLICIT;
 
 	// Maximum level of refinement
 	// Solution and control data are printed at this level of refinement
@@ -87,7 +87,7 @@ int main() {
 	);
 
 	// Problem description
-	Description<
+	HJBQVI<
 		Dimension,
 		StochasticControlDimension,
 		ImpulseControlDimension
@@ -166,16 +166,12 @@ int main() {
 		method
 	);
 
-	Options<Dimension> opts(
-		// Convergence test point
-		{ m }, // Optimal parity
-
-		// Max refinement
+	// Run
+	HJBQVI_main(
+		hjbqvi,
+		{ m }, // Convergence test at optimal parity
 		max_refinement
 	);
-
-	// Run
-	run(hjbqvi, opts);
 
 	return 0;
 

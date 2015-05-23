@@ -1,14 +1,5 @@
-////////////////////////////////////////////////////////////////////////////////
-//
-// Code to solve HJBQVI problems.
-//
-// Author: Parsiad Azimzadeh
-//
-////////////////////////////////////////////////////////////////////////////////
-
-#include <QuantPDE/Core>
-
-////////////////////////////////////////////////////////////////////////////////
+#ifndef QUANT_PDE_MODULES_HJBQVI_HPP
+#define QUANT_PDE_MODULES_HJBQVI_HPP
 
 #include <array>            // std::array
 #include <chrono>           // std::chrono
@@ -25,13 +16,13 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: Change names to camelCase to match the rest of the Core code
+
 namespace QuantPDE {
-namespace HJBQVI {
 
-template <unsigned N, unsigned M>
-using ArrayFunction = std::array< Function<N>, M >;
+namespace Modules {
 
-struct ControlMethod {
+struct HJBQVIControlMethod {
 	static constexpr char FULLY_IMPLICIT = 0;
 	static constexpr char SEMI_LAGRANGIAN  = 1;
 	static constexpr char EXPLICIT_IMPULSE = 2;
@@ -43,6 +34,14 @@ template <
 	Index StochasticControlDimension,
 	Index ImpulseControlDimension
 >
+class HJBQVI {
+
+////////////////////////////////////////////////////////////////////////////////
+// Member structs
+////////////////////////////////////////////////////////////////////////////////
+
+public:
+
 struct Result {
 
 	const RectilinearGrid<Dimension> spatial_grid;
@@ -77,161 +76,12 @@ struct Result {
 
 };
 
-template <Index Dimension>
-struct Options {
+private:
 
-	const std::array<Real, Dimension> test_point;
-	const int max_refinement;
-
-	Options(
-		const std::array<Real, Dimension> &test_point,
-		int max_refinement = 0
-	) noexcept:
-		test_point(test_point),
-		max_refinement(max_refinement)
-	{}
-
-};
-
-template <
-	Index Dimension,
-	Index StochasticControlDimension,
-	Index ImpulseControlDimension
->
-struct Description {
-
-	const RectilinearGrid<Dimension> spatial_grid;
-
-	const RectilinearGrid<StochasticControlDimension>
-			stochastic_control_grid;
-	const RectilinearGrid<ImpulseControlDimension> impulse_control_grid;
-
-	const Real expiry;
-
-	const Function<1+Dimension> discount;
-	const ArrayFunction<1+Dimension, Dimension> volatility;
-	const ArrayFunction<1+Dimension+StochasticControlDimension, Dimension>
-			controlled_drift;
-	const ArrayFunction<1+Dimension, Dimension> uncontrolled_drift;
-	const Function<1+Dimension+StochasticControlDimension>
-			controlled_continuous_flow;
-	const Function<1+Dimension> uncontrolled_continuous_flow;
-	const ArrayFunction<1+Dimension+ImpulseControlDimension, Dimension>
-			transition;
-	const Function<1+Dimension+ImpulseControlDimension> impulse_flow;
-	const Function<1+Dimension> exit_function;
-
-	const int timesteps;
-	const char handling;
-
-	const bool refine_stochastic_control_grid;
-	const bool refine_impulse_control_grid;
-
-	const bool time_independent_coefficients;
-
-	inline bool fully_implicit() const
-	{ return handling == 0; }
-
-	inline bool semi_lagrangian() const
-	{ return handling & ControlMethod::SEMI_LAGRANGIAN; }
-
-	inline bool explicit_impulse() const
-	{ return handling & ControlMethod::EXPLICIT_IMPULSE; }
-
-	inline bool fully_explicit() const
-	{ return handling == ControlMethod::FULLY_EXPLICIT; }
-
-	Description(
-		const std::array<Axis, Dimension> &spatial_axes,
-
-		const std::array<Axis, StochasticControlDimension>
-				&stochastic_control_axes,
-		const std::array<Axis, ImpulseControlDimension>
-				&impulse_control_axes,
-
-		Real expiry,
-
-		const Function<1+Dimension> &discount,
-		const ArrayFunction<1+Dimension, Dimension> &volatility,
-		const ArrayFunction<1+Dimension+StochasticControlDimension,
-				Dimension> &controlled_drift,
-		const ArrayFunction<1+Dimension, Dimension> &uncontrolled_drift,
-		const Function<1+Dimension+StochasticControlDimension>
-				&controlled_continuous_flow,
-		const Function<1+Dimension> &uncontrolled_continuous_flow,
-		const std::array<Function<1+Dimension+ImpulseControlDimension>,
-				Dimension> &transition,
-		const Function<1+Dimension+ImpulseControlDimension>
-				&impulse_flow,
-		const Function<1+Dimension> &exit_function,
-
-		int timesteps,
-		int handling,
-
-		bool refine_stochastic_control_grid = true,
-		bool refine_impulse_control_grid = true,
-
-		bool time_independent_coefficients = false
-	) :
-		spatial_grid(spatial_axes),
-
-		stochastic_control_grid(stochastic_control_axes),
-		impulse_control_grid(impulse_control_axes),
-
-		expiry(expiry),
-
-		discount(discount),
-		volatility(volatility),
-		controlled_drift(controlled_drift),
-		uncontrolled_drift(uncontrolled_drift),
-		controlled_continuous_flow(controlled_continuous_flow),
-		uncontrolled_continuous_flow(uncontrolled_continuous_flow),
-		transition(transition),
-		impulse_flow(impulse_flow),
-		exit_function(exit_function),
-
-		timesteps(timesteps),
-		handling(handling),
-
-		refine_stochastic_control_grid(refine_stochastic_control_grid),
-		refine_impulse_control_grid(refine_impulse_control_grid),
-
-		time_independent_coefficients(time_independent_coefficients)
-	{
-		// TODO: Proper exceptions
-
-		const bool finite_horizon =
-			expiry < std::numeric_limits<Real>::infinity();
-
-		if(expiry <= 0.) {
-			throw "error: expiry must be positive";
-		}
-
-		if(!finite_horizon && !fully_implicit()) {
-			throw "error: only an implicit method can be used for"
-					" infinite-horizon problems";
-		}
-
-		if(finite_horizon && timesteps <= 0) {
-			throw "error: number of timesteps must be positive";
-		}
-	}
-
-};
-
-template <
-	Index Dimension,
-	Index StochasticControlDimension,
-	Index ImpulseControlDimension
->
 struct ControlledOperator final : public RawControlledLinearSystem<Dimension,
 		StochasticControlDimension> {
 
-	const Description<
-		Dimension,
-		StochasticControlDimension,
-		ImpulseControlDimension
-	> hjbqvi;
+	const HJBQVI hjbqvi;
 	RectilinearGrid<Dimension> refined_spatial_grid;
 
 	int offsets[Dimension];
@@ -412,18 +262,9 @@ struct ControlledOperator final : public RawControlledLinearSystem<Dimension,
 
 };
 
-template <
-	Index Dimension,
-	Index StochasticControlDimension,
-	Index ImpulseControlDimension
->
 class ExplicitEvent : public EventBase {
 
-	const Description<
-		Dimension,
-		StochasticControlDimension,
-		ImpulseControlDimension
-	> &hjbqvi;
+	const HJBQVI &hjbqvi;
 	const RectilinearGrid<Dimension> &refined_spatial_grid;
 	const RectilinearGrid<StochasticControlDimension>
 			&refined_stochastic_control_grid;
@@ -651,29 +492,23 @@ public:
 
 };
 
-template <
-	Index Dimension,
-	Index StochasticControlDimension,
-	Index ImpulseControlDimension
->
-Result<Dimension, StochasticControlDimension, ImpulseControlDimension> solve(
-	const Description<
-		Dimension,
-		StochasticControlDimension,
-		ImpulseControlDimension
-	> &hjbqvi,
-	int refinement = 0
-) {
+////////////////////////////////////////////////////////////////////////////////
+// Methods
+////////////////////////////////////////////////////////////////////////////////
+
+public:
+
+Result solve(int refinement = 0) const {
 
 	const bool finite_horizon =
-			hjbqvi.expiry < std::numeric_limits<Real>::infinity();
+			this->expiry < std::numeric_limits<Real>::infinity();
 
 	// Refine grid
-	auto refined_spatial_grid = hjbqvi.spatial_grid.refined(refinement);
+	auto refined_spatial_grid = this->spatial_grid.refined(refinement);
 	auto refined_stochastic_control_grid =
-			hjbqvi.stochastic_control_grid.refined(refinement);
+			this->stochastic_control_grid.refined(refinement);
 	auto refined_impulse_control_grid =
-			hjbqvi.impulse_control_grid.refined(refinement);
+			this->impulse_control_grid.refined(refinement);
 
 	Vector stochastic_control_vector[StochasticControlDimension];
 	Vector impulse_control_vector[ImpulseControlDimension];
@@ -690,17 +525,13 @@ Result<Dimension, StochasticControlDimension, ImpulseControlDimension> solve(
 	mask.reserve(refined_spatial_grid.size());
 
 	// Refine timesteps
-	int timesteps = hjbqvi.timesteps;
+	int timesteps = this->timesteps;
 	for(int i = 0; i < refinement; ++i) { timesteps *= 2; }
 
 	ToleranceIteration tolerance_iteration;
 
-	ControlledOperator<
-		Dimension,
-		StochasticControlDimension,
-		ImpulseControlDimension
-	> controlled_operator(
-		hjbqvi,
+	ControlledOperator controlled_operator(
+		*this,
 		refined_spatial_grid
 	);
 
@@ -718,8 +549,8 @@ Result<Dimension, StochasticControlDimension, ImpulseControlDimension> solve(
 		ImpulseControlDimension
 	> impulse(
 		refined_spatial_grid,
-		hjbqvi.impulse_flow,
-		hjbqvi.transition
+		this->impulse_flow,
+		this->transition
 	);
 
 	MinPolicyIteration<
@@ -740,18 +571,18 @@ Result<Dimension, StochasticControlDimension, ImpulseControlDimension> solve(
 			(ReverseTimeIteration*)
 			new ReverseConstantStepper(
 				0.,
-				hjbqvi.expiry,
-				hjbqvi.expiry / timesteps
+				this->expiry,
+				this->expiry / timesteps
 			)
 		);
 
-		if(!hjbqvi.fully_explicit()) {
+		if(!this->fully_explicit()) {
 			stepper->setInnerIteration(tolerance_iteration);
 		}
 	}
 
 	LinearSystem *discretize;
-	if(hjbqvi.semi_lagrangian()) {
+	if(this->semi_lagrangian()) {
 		// Semi-Lagrangian
 		discretize = &controlled_operator;
 	} else {
@@ -786,7 +617,7 @@ Result<Dimension, StochasticControlDimension, ImpulseControlDimension> solve(
 
 	// Pick root
 	IterationNode *root;
-	if(hjbqvi.explicit_impulse()) {
+	if(this->explicit_impulse()) {
 		// Explicit impulse
 		root = penalized;
 	} else {
@@ -795,20 +626,16 @@ Result<Dimension, StochasticControlDimension, ImpulseControlDimension> solve(
 	}
 
 	// Add events
-	if(!hjbqvi.fully_implicit()) {
-		const Real dt = hjbqvi.expiry / timesteps;
+	if(!this->fully_implicit()) {
+		const Real dt = this->expiry / timesteps;
 		for(int e = 0; e < timesteps; ++e) {
 			const Real time = e * dt;
 
 			stepper->add(
 				time,
 				std::unique_ptr<EventBase>(
-					new ExplicitEvent<
-						Dimension,
-						StochasticControlDimension,
-						ImpulseControlDimension
-					>(
-						hjbqvi,
+					new ExplicitEvent(
+						*this,
 						refined_spatial_grid,
 						refined_stochastic_control_grid,
 						refined_impulse_control_grid,
@@ -828,8 +655,8 @@ Result<Dimension, StochasticControlDimension, ImpulseControlDimension> solve(
 
 	// Bind exit function to expiry time to get payoff
 	auto cauchy_data = curry<Dimension+1>(
-		hjbqvi.exit_function,
-		hjbqvi.expiry
+		this->exit_function,
+		this->expiry
 	);
 
 	// Timing
@@ -850,7 +677,7 @@ Result<Dimension, StochasticControlDimension, ImpulseControlDimension> solve(
 	seconds = std::chrono::duration<Real>(diff).count();
 
 	// Implicit stochastic control
-	if(!hjbqvi.semi_lagrangian()) {
+	if(!this->semi_lagrangian()) {
 		for(int d = 0; d < StochasticControlDimension; ++d) {
 			stochastic_control_vector[d] =
 					controlled_operator.control(d);
@@ -858,7 +685,7 @@ Result<Dimension, StochasticControlDimension, ImpulseControlDimension> solve(
 	}
 
 	// Implicit impulse control
-	if(!hjbqvi.explicit_impulse()) {
+	if(!this->explicit_impulse()) {
 		for(int d = 0; d < ImpulseControlDimension; ++d) {
 			impulse_control_vector[d] =
 					impulse.control(d);
@@ -868,7 +695,7 @@ Result<Dimension, StochasticControlDimension, ImpulseControlDimension> solve(
 
 	// Mean iterations
 	Real mean_iterations = std::nan("");
-	if(!hjbqvi.fully_explicit()) {
+	if(!this->fully_explicit()) {
 		auto its = tolerance_iteration.iterations();
 		mean_iterations = std::accumulate(its.begin(), its.end(), 0.)
 				/ its.size();
@@ -890,11 +717,7 @@ Result<Dimension, StochasticControlDimension, ImpulseControlDimension> solve(
 	}
 
 	// Return
-	return Result<
-		Dimension,
-		StochasticControlDimension,
-		ImpulseControlDimension
-	>(
+	return Result(
 		refined_spatial_grid,
 		refined_spatial_grid.image(u),
 		stochastic_control_vector,
@@ -905,18 +728,145 @@ Result<Dimension, StochasticControlDimension, ImpulseControlDimension> solve(
 
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Members
+////////////////////////////////////////////////////////////////////////////////
+
+	template <unsigned N, unsigned M>
+	using ArrayFunction = std::array< Function<N>, M >;
+
+	const RectilinearGrid<Dimension> spatial_grid;
+
+	const RectilinearGrid<StochasticControlDimension>
+			stochastic_control_grid;
+	const RectilinearGrid<ImpulseControlDimension> impulse_control_grid;
+
+	const Real expiry;
+
+	const Function<1+Dimension> discount;
+	const ArrayFunction<1+Dimension, Dimension> volatility;
+	const ArrayFunction<1+Dimension+StochasticControlDimension, Dimension>
+			controlled_drift;
+	const ArrayFunction<1+Dimension, Dimension> uncontrolled_drift;
+	const Function<1+Dimension+StochasticControlDimension>
+			controlled_continuous_flow;
+	const Function<1+Dimension> uncontrolled_continuous_flow;
+	const ArrayFunction<1+Dimension+ImpulseControlDimension, Dimension>
+			transition;
+	const Function<1+Dimension+ImpulseControlDimension> impulse_flow;
+	const Function<1+Dimension> exit_function;
+
+	const int timesteps;
+	const char handling;
+
+	const bool refine_stochastic_control_grid;
+	const bool refine_impulse_control_grid;
+
+	const bool time_independent_coefficients;
+
+	inline bool fully_implicit() const
+	{ return handling == 0; }
+
+	inline bool semi_lagrangian() const
+	{ return handling & HJBQVIControlMethod::SEMI_LAGRANGIAN; }
+
+	inline bool explicit_impulse() const
+	{ return handling & HJBQVIControlMethod::EXPLICIT_IMPULSE; }
+
+	inline bool fully_explicit() const
+	{ return handling == HJBQVIControlMethod::FULLY_EXPLICIT; }
+
+	HJBQVI(
+		const std::array<Axis, Dimension> &spatial_axes,
+
+		const std::array<Axis, StochasticControlDimension>
+				&stochastic_control_axes,
+		const std::array<Axis, ImpulseControlDimension>
+				&impulse_control_axes,
+
+		Real expiry,
+
+		const Function<1+Dimension> &discount,
+		const ArrayFunction<1+Dimension, Dimension> &volatility,
+		const ArrayFunction<1+Dimension+StochasticControlDimension,
+				Dimension> &controlled_drift,
+		const ArrayFunction<1+Dimension, Dimension> &uncontrolled_drift,
+		const Function<1+Dimension+StochasticControlDimension>
+				&controlled_continuous_flow,
+		const Function<1+Dimension> &uncontrolled_continuous_flow,
+		const std::array<Function<1+Dimension+ImpulseControlDimension>,
+				Dimension> &transition,
+		const Function<1+Dimension+ImpulseControlDimension>
+				&impulse_flow,
+		const Function<1+Dimension> &exit_function,
+
+		int timesteps,
+		int handling,
+
+		bool refine_stochastic_control_grid = true,
+		bool refine_impulse_control_grid = true,
+
+		bool time_independent_coefficients = false
+	) :
+		spatial_grid(spatial_axes),
+
+		stochastic_control_grid(stochastic_control_axes),
+		impulse_control_grid(impulse_control_axes),
+
+		expiry(expiry),
+
+		discount(discount),
+		volatility(volatility),
+		controlled_drift(controlled_drift),
+		uncontrolled_drift(uncontrolled_drift),
+		controlled_continuous_flow(controlled_continuous_flow),
+		uncontrolled_continuous_flow(uncontrolled_continuous_flow),
+		transition(transition),
+		impulse_flow(impulse_flow),
+		exit_function(exit_function),
+
+		timesteps(timesteps),
+		handling(handling),
+
+		refine_stochastic_control_grid(refine_stochastic_control_grid),
+		refine_impulse_control_grid(refine_impulse_control_grid),
+
+		time_independent_coefficients(time_independent_coefficients)
+	{
+		// TODO: Proper exceptions
+
+		const bool finite_horizon =
+			expiry < std::numeric_limits<Real>::infinity();
+
+		if(expiry <= 0.) {
+			throw "error: expiry must be positive";
+		}
+
+		if(!finite_horizon && !fully_implicit()) {
+			throw "error: only an implicit method can be used for"
+					" infinite-horizon problems";
+		}
+
+		if(finite_horizon && timesteps <= 0) {
+			throw "error: number of timesteps must be positive";
+		}
+	}
+
+};
+
 template <
 	Index Dimension,
 	Index StochasticControlDimension,
 	Index ImpulseControlDimension
 >
-void run(
-	const Description<
+void HJBQVI_main(
+	const HJBQVI<
 		Dimension,
 		StochasticControlDimension,
 		ImpulseControlDimension
 	> &hjbqvi,
-	const Options<Dimension> &opts,
+	const std::array<Real, Dimension> &testPoint,
+	int maxRefinement = 0,
 	std::ostream &out = std::cout
 ) {
 
@@ -955,7 +905,7 @@ void run(
 			q_nodes = hjbqvi.stochastic_control_grid.size(),
 			zeta_nodes = hjbqvi.impulse_control_grid.size()
 		;
-			refinement <= opts.max_refinement
+			refinement <= maxRefinement
 		;
 			++refinement,
 			timesteps *= 2,
@@ -963,13 +913,13 @@ void run(
 			q_nodes = q_nodes * 2 - 1,
 			zeta_nodes = zeta_nodes * 2 - 1
 	) {
-		auto result = solve<Dimension>(hjbqvi, refinement);
+		auto result = hjbqvi.solve(refinement);
 
 		auto factory = result.spatial_grid.defaultInterpolantFactory();
 		auto u = factory.make(result.solution_vector);
 
 		// Get value of function at the test point
-		value = u.interpolate(opts.test_point);
+		value = u.interpolate(testPoint);
 		change = value - previousValue;
 		ratio = previousChange / change;
 		previousValue = value;
@@ -989,7 +939,7 @@ void run(
 			<< std::endl
 		;
 
-		if(refinement == opts.max_refinement) {
+		if(refinement == maxRefinement) {
 			// Print header
 			out << std::endl; // Extra spacing
 			for(int d = 0; d < Dimension; ++d) {
@@ -1039,8 +989,9 @@ void run(
 	}
 }
 
-} // namespace HJBQVI
+} // namespace Modules
+
 } // namespace QuantPDE
 
-// TODO: Make Axis.hpp safe
+#endif
 
