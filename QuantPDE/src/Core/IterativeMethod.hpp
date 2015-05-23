@@ -1392,7 +1392,7 @@ public:
 	 * Returns the size of the timestep to take.
 	 * @return Size of timestep.
 	 */
-	virtual Real timestep() const = 0;
+	virtual Real timestep() = 0;
 
 	/**
 	 * Constructor.

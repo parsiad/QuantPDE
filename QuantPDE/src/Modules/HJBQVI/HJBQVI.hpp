@@ -45,30 +45,46 @@ public:
 struct Result {
 
 	const RectilinearGrid<Dimension> spatial_grid;
+	const RectilinearGrid<StochasticControlDimension>
+			stochastic_control_grid;
+	const RectilinearGrid<ImpulseControlDimension>
+			impulse_control_grid;
+
 	const Vector solution_vector;
 	const Vector stochastic_control_vector[StochasticControlDimension];
 	const Vector impulse_control_vector[ImpulseControlDimension];
 
+	const int timesteps;
 	const Real mean_iterations;
 
 	const Real execution_time_seconds;
 
 	Result(
 		const RectilinearGrid<Dimension> &spatial_grid,
+		const RectilinearGrid<StochasticControlDimension>
+				&stochastic_control_grid,
+		const RectilinearGrid<ImpulseControlDimension>
+				&impulse_control_grid,
+
 		const Vector &solution_vector,
 		const Vector (&stochastic_control_vector)[
 				StochasticControlDimension],
 		const Vector (&impulse_control_vector)[ImpulseControlDimension],
 
+		int timesteps,
 		Real mean_iterations,
 
 		Real execution_time_seconds
 	) noexcept :
 		spatial_grid(spatial_grid),
+		stochastic_control_grid(stochastic_control_grid),
+		impulse_control_grid(impulse_control_grid),
+
 		solution_vector(solution_vector),
 		stochastic_control_vector(stochastic_control_vector),
 		impulse_control_vector(impulse_control_vector),
 
+		timesteps(timesteps),
 		mean_iterations(mean_iterations),
 
 		execution_time_seconds(execution_time_seconds)
@@ -78,8 +94,10 @@ struct Result {
 
 private:
 
-struct ControlledOperator final : public RawControlledLinearSystem<Dimension,
-		StochasticControlDimension> {
+struct ControlledOperator final : public RawControlledLinearSystem<
+	Dimension,
+	StochasticControlDimension
+> {
 
 	const HJBQVI hjbqvi;
 	RectilinearGrid<Dimension> refined_spatial_grid;
@@ -98,18 +116,21 @@ struct ControlledOperator final : public RawControlledLinearSystem<Dimension,
 		offsets[0] = 1;
 		for(int d = 1; d < Dimension; ++d) {
 			offsets[d] = offsets[d-1]
-					* refined_spatial_grid[d].size();
+					* refined_spatial_grid[d-1].size();
 		}
 	}
 
 	virtual Matrix A(Real time) {
 		Matrix A = refined_spatial_grid.matrix();
+
+		// Reserve nonzero entries per row
+		// Each dimension requires at most 2 cells (i.e. i-1 and i+1)
 		A.reserve(
 			IntegerVector::Constant(
 				refined_spatial_grid.size(),
 				1 + 2 * Dimension
 			)
-		); // Reserve nonzero entries per row
+		);
 
 		// Control as a vector
 		Vector q[StochasticControlDimension];
@@ -272,8 +293,7 @@ class ExplicitEvent : public EventBase {
 			&refined_impulse_control_grid;
 	Vector (&stochastic_control_vector)[StochasticControlDimension];
 	Vector (&impulse_control_vector)[ImpulseControlDimension];
-	Real time;
-	const ReverseTimeIteration &stepper;
+	Real time, dt;
 	std::vector<bool> &mask;
 
 	int offsets[Dimension];
@@ -284,8 +304,6 @@ class ExplicitEvent : public EventBase {
 		mask.clear();
 
 		Vector best = refined_spatial_grid.vector();
-
-		const Real dt = stepper.timestep();
 
 		auto factory = refined_spatial_grid.defaultInterpolantFactory();
 		auto u = factory.make(vector);
@@ -459,7 +477,7 @@ class ExplicitEvent : public EventBase {
 
 public:
 
-	template <typename H, typename R, typename S, typename I, typename T>
+	template <typename H, typename R, typename S, typename I>
 	ExplicitEvent(
 		H &hjbqvi,
 		R &refined_spatial_grid,
@@ -468,7 +486,7 @@ public:
 		Vector (&stochastic_control_vector)[StochasticControlDimension],
 		Vector (&impulse_control_vector)[ImpulseControlDimension],
 		Real time,
-		T &stepper,
+		Real dt,
 		std::vector<bool> &mask
 	) noexcept :
 		hjbqvi(hjbqvi),
@@ -479,14 +497,14 @@ public:
 		stochastic_control_vector(stochastic_control_vector),
 		impulse_control_vector(impulse_control_vector),
 		time(time),
-		stepper(stepper),
+		dt(dt),
 		mask(mask)
 	{
 		// Space between ticks
 		offsets[0] = 1;
 		for(int d = 1; d < Dimension; ++d) {
 			offsets[d] = offsets[d-1]
-					* refined_spatial_grid[d].size();
+					* refined_spatial_grid[d-1].size();
 		}
 	}
 
@@ -642,7 +660,7 @@ Result solve(int refinement = 0) const {
 						stochastic_control_vector,
 						impulse_control_vector,
 						time,
-						*stepper,
+						dt,
 						mask
 					)
 				)
@@ -719,10 +737,17 @@ Result solve(int refinement = 0) const {
 	// Return
 	return Result(
 		refined_spatial_grid,
+		refined_stochastic_control_grid,
+		refined_impulse_control_grid,
+
 		refined_spatial_grid.image(u),
 		stochastic_control_vector,
 		impulse_control_vector,
+
+
+		timesteps,
 		mean_iterations,
+
 		seconds
 	);
 
@@ -758,6 +783,8 @@ Result solve(int refinement = 0) const {
 
 	const int timesteps;
 	const char handling;
+
+	const bool bounded_domain;
 
 	const bool refine_stochastic_control_grid;
 	const bool refine_impulse_control_grid;
@@ -803,6 +830,8 @@ Result solve(int refinement = 0) const {
 		int timesteps,
 		int handling,
 
+		bool bounded_domain = false,
+
 		bool refine_stochastic_control_grid = true,
 		bool refine_impulse_control_grid = true,
 
@@ -828,6 +857,8 @@ Result solve(int refinement = 0) const {
 		timesteps(timesteps),
 		handling(handling),
 
+		bounded_domain(bounded_domain),
+
 		refine_stochastic_control_grid(refine_stochastic_control_grid),
 		refine_impulse_control_grid(refine_impulse_control_grid),
 
@@ -837,6 +868,11 @@ Result solve(int refinement = 0) const {
 
 		const bool finite_horizon =
 			expiry < std::numeric_limits<Real>::infinity();
+
+		if(bounded_domain) {
+			// TODO: Implement
+			throw "error: bounded domain not yet implemented";
+		}
 
 		if(expiry <= 0.) {
 			throw "error: expiry must be positive";
@@ -898,20 +934,9 @@ void HJBQVI_main(
 	;
 
 	for(
-		int
-			refinement = 0,
-			timesteps = hjbqvi.timesteps,
-			spatial_nodes = hjbqvi.spatial_grid.size(),
-			q_nodes = hjbqvi.stochastic_control_grid.size(),
-			zeta_nodes = hjbqvi.impulse_control_grid.size()
-		;
-			refinement <= maxRefinement
-		;
-			++refinement,
-			timesteps *= 2,
-			spatial_nodes = spatial_nodes * 2 - 1,
-			q_nodes = q_nodes * 2 - 1,
-			zeta_nodes = zeta_nodes * 2 - 1
+		int refinement = 0;
+		refinement <= maxRefinement;
+		++refinement
 	) {
 		auto result = hjbqvi.solve(refinement);
 
@@ -927,10 +952,10 @@ void HJBQVI_main(
 
 		// Print
 		out
-			<< space() << spatial_nodes
-			<< space() << q_nodes
-			<< space() << zeta_nodes
-			<< space() << timesteps
+			<< space() << result.spatial_grid.size()
+			<< space() << result.stochastic_control_grid.size()
+			<< space() << result.impulse_control_grid.size()
+			<< space() << result.timesteps
 			<< space() << result.mean_iterations
 			<< space() << value
 			<< space() << change

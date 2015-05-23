@@ -1102,6 +1102,12 @@ public:
 				tmp *= 2;
 			}
 
+			// If the axis is too small to be refined, copy it
+			if(n.size() < 2) {
+				m = n;
+				continue;
+			}
+
 			// Create axis; size 2^t * |n| - 2^(t-1)
 			const int size = tmp * (n.size() - 1) + 1;
 			m = Axis(size);
