@@ -191,10 +191,15 @@ int main(int argc, char **argv) {
 
 			// Spatial grid to interpolate on
 			grid
-
-			// Exercise times without lambda functions:
-			//std::unique_ptr<EventBase>(new PutEvent(grid, K))
 		);
+
+		// Exercise times without lambda functions:
+		/*
+		stepper.add(
+			T / e * m,
+			std::unique_ptr<EventBase>(new PutEvent(grid, K))
+		);
+		*/
 	}
 
 	////////////////////////////////////////////////////////////////////////
