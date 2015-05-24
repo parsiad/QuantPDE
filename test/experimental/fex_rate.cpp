@@ -163,7 +163,19 @@ int main() {
 		timesteps,
 
 		// How to handle the control
-		method
+		method,
+
+		// Bounded domain?
+		false,
+
+		// Refine stochastic control?
+		true,
+
+		// Refine impulse control?
+		true,
+
+		// Are the coefficients time independent?
+		true
 	);
 
 	// Run

@@ -66,8 +66,8 @@ int main() {
 	const int timesteps = 32;
 
 	// How to handle the control
-	auto method = HJBQVIControlMethod::FULLY_IMPLICIT;
-	//auto method = HJBQVIControlMethod::FULLY_EXPLICIT;
+	//auto method = HJBQVIControlMethod::FULLY_IMPLICIT;
+	auto method = HJBQVIControlMethod::FULLY_EXPLICIT;
 
 	// Maximum level of refinement
 	// Solution and control data are printed at this level of refinement
@@ -100,13 +100,6 @@ int main() {
 			// 51 points evenly spaced on [0, w_0]
 			Axis::uniform(0., w_0, 51)
 		},
-
-		#if 0
-		{
-			Axis { 0., 50., 100. },
-			Axis { 0., 50., 100. }
-		},
-		#endif
 
 		// Initial stochastic control grid
 		{ Axis { 0., G } }, // Does not get refined
@@ -180,11 +173,17 @@ int main() {
 		// How to handle the control
 		method,
 
-		// Bounded domain
+		// Bounded domain?
 		false,
 
-		// Do not refine stochastic control grid
-		false
+		// Refine stochastic control?
+		false,
+
+		// Refine impulse control?
+		true,
+
+		// Are the coefficients time independent?
+		true
 	);
 
 	// Run
