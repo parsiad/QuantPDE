@@ -25,6 +25,7 @@ using namespace QuantPDE::Modules;
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <algorithm> // max
+#include <limits>    // numeric_limits
 
 using namespace std;
 
@@ -66,8 +67,8 @@ int main() {
 	const int timesteps = 32;
 
 	// How to handle the control
-	//auto method = HJBQVIControlMethod::FULLY_IMPLICIT;
-	auto method = HJBQVIControlMethod::FULLY_EXPLICIT;
+	auto method = HJBQVIControlMethod::FULLY_IMPLICIT;
+	//auto method = HJBQVIControlMethod::FULLY_EXPLICIT;
 
 	// Maximum level of refinement
 	// Solution and control data are printed at this level of refinement
@@ -81,7 +82,8 @@ int main() {
 	> hjbqvi(
 		// Initial spatial grid
 		{
-			// Hand-picked axis, 65 points; used in [2]
+			// Hand-picked axis, 65 points; [2] uses the same axis
+			// with the far boundary point 1,000 instead of 10,000
 			(w_0 / 100.) * Axis {
 				0., 5., 10., 15., 20., 25.,
 				30., 35., 40., 45.,
@@ -94,7 +96,7 @@ int main() {
 				116., 118., 120., 123., 126.,
 				130., 135., 140., 145., 150., 160., 175., 200.,
 						225.,
-				250., 300., 500., 750., 1000.
+				250., 300., 500., 750., /*1000.,*/ 10000.
 			},
 
 			// 51 points evenly spaced on [0, w_0]
@@ -102,10 +104,10 @@ int main() {
 		},
 
 		// Initial stochastic control grid
-		{ Axis { 0., G } }, // Does not get refined
+		{ Axis { 0., G } }, // DOES NOT get refined
 
 		// Initial impulse control grid
-		{ Axis { 0., 1. } }, // Does get refined
+		{ Axis { 0., 1. } }, // DOES get refined
 
 		// Expiry
 		T,
@@ -121,14 +123,8 @@ int main() {
 
 		// Controlled drift
 		{
-			[=] (Real t, Real w, Real a, Real q) {
-				// No continuous withdrawal at a == 0
-				return a > QuantPDE::epsilon ? -q : 0.;
-			},
-			[=] (Real t, Real w, Real a, Real q) {
-				// No continuous withdrawal at a == 0
-				return a > QuantPDE::epsilon ? -q : 0.;
-			}
+			[=] (Real t, Real w, Real a, Real q) { return -q; },
+			[=] (Real t, Real w, Real a, Real q) { return -q; }
 		},
 
 		// Uncontrolled drift
@@ -139,8 +135,8 @@ int main() {
 
 		// Controlled continuous flow
 		[=] (Real t, Real w, Real a, Real q) {
-			// No continuous withdrawal at a == 0
-			return a > QuantPDE::epsilon ? q : 0.;
+			// No continuous withdrawal at boundaries
+			return (0. < a && a < w_0) ? -q :  0.;
 		},
 
 		// Uncontrolled continuous flow
