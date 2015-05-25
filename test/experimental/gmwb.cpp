@@ -25,7 +25,6 @@ using namespace QuantPDE::Modules;
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <algorithm> // max
-#include <limits>    // numeric_limits
 
 using namespace std;
 
@@ -40,7 +39,6 @@ int main() {
 
 	// Expiry time (infinity for corresponding elliptic problem)
 	const Real T = 10.;
-	//const Real T = numeric_limits<double>::infinity();
 
 	// Interest rate
 	const Real r = 0.05;
