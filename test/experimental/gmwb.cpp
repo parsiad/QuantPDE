@@ -65,8 +65,8 @@ int main() {
 	const int timesteps = 32;
 
 	// How to handle the control
-	auto method = HJBQVIControlMethod::FULLY_IMPLICIT;
-	//auto method = HJBQVIControlMethod::FULLY_EXPLICIT;
+	//auto method = HJBQVIControlMethod::FULLY_IMPLICIT;
+	auto method = HJBQVIControlMethod::FULLY_EXPLICIT;
 
 	// Maximum level of refinement
 	// Solution and control data are printed at this level of refinement
@@ -121,8 +121,14 @@ int main() {
 
 		// Controlled drift
 		{
-			[=] (Real t, Real w, Real a, Real q) { return -q; },
-			[=] (Real t, Real w, Real a, Real q) { return -q; }
+			[=] (Real t, Real w, Real a, Real q) {
+				// No continuous withdrawal at boundaries
+				return (0. < a && a < w_0) ? -q : 0.;
+			},
+			[=] (Real t, Real w, Real a, Real q) {
+				// No continuous withdrawal at boundaries
+				return (0. < a && a < w_0) ? -q : 0.;
+			}
 		},
 
 		// Uncontrolled drift
@@ -134,7 +140,7 @@ int main() {
 		// Controlled continuous flow
 		[=] (Real t, Real w, Real a, Real q) {
 			// No continuous withdrawal at boundaries
-			return (0. < a && a < w_0) ? -q :  0.;
+			return (0. < a && a < w_0) ? q : 0.;
 		},
 
 		// Uncontrolled continuous flow
