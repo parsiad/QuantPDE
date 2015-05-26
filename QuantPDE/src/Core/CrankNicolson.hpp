@@ -68,9 +68,12 @@ class CrankNicolson : public IterationNode {
 
 		// TODO: Optimize for explicit method
 
+		// Make sure this is called first
+		auto A = system.A(t0);
+
 		return (
 			this->domain.identity()
-			- system.A(t0) * (1-theta) * dt()
+			- A * (1-theta) * dt()
 		) * v0 + ( theta * system.b(t1) + (1-theta) * system.b(t0) );
 	}
 

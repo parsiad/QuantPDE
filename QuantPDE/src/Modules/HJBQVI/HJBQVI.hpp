@@ -652,7 +652,9 @@ Result solve(int refinement = 0) const {
 		discretize = &stochastic_policy;
 	}
 
-	ReverseBDFOne discretization(
+	typedef ReverseBDFOne Discretization;
+
+	Discretization discretization(
 		refined_spatial_grid,
 		*discretize
 	);

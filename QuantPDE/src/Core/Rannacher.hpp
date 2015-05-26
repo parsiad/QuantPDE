@@ -63,9 +63,12 @@ class Rannacher : public IterationNode {
 
 		const Vector &v0 = this->iterand(0);
 
+		// Make sure this gets called first
+		auto A = op.A(t0);
+
 		return (
 			this->domain.identity()
-			- op.A(t0) * h0 / 2.
+			- A * h0 / 2.
 		) * v0 + ( op.b(t1) + op.b(t0) ) / 2.;
 	}
 
