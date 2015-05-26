@@ -1,6 +1,7 @@
 #ifndef QUANT_PDE_MODULES_HJBQVI_HPP
 #define QUANT_PDE_MODULES_HJBQVI_HPP
 
+#include <algorithm>        // std::max
 #include <array>            // std::array
 #include <chrono>           // std::chrono
 #include <cmath>            // std::nan
@@ -9,7 +10,7 @@
 #include <iomanip>          // std::setw
 #include <initializer_list> // std::initializer_list
 #include <limits>           // std::numeric_limits
-#include <memory>           // std::unique_ptr
+#include <memory>           // std::forward, std::unique_ptr
 #include <numeric>          // std::accumulate
 #include <string>           // std::string
 #include <vector>           // std::vector
@@ -17,6 +18,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO: Change names to camelCase to match the rest of the Core code
+// TODO: Delete assignment operator
 
 namespace QuantPDE {
 
@@ -55,6 +57,8 @@ struct Result {
 	const Vector impulse_control_vector[ImpulseControlDimension];
 
 	const int timesteps;
+	const Real penalty_tolerance;
+	const Real iteration_tolerance;
 	const Real mean_iterations;
 
 	const Real execution_time_seconds;
@@ -72,6 +76,8 @@ struct Result {
 		const Vector (&impulse_control_vector)[ImpulseControlDimension],
 
 		int timesteps,
+		Real penalty_tolerance,
+		Real iteration_tolerance,
 		Real mean_iterations,
 
 		Real execution_time_seconds
@@ -85,6 +91,8 @@ struct Result {
 		impulse_control_vector(impulse_control_vector),
 
 		timesteps(timesteps),
+		penalty_tolerance(penalty_tolerance),
+		iteration_tolerance(iteration_tolerance),
 		mean_iterations(mean_iterations),
 
 		execution_time_seconds(execution_time_seconds)
@@ -158,10 +166,33 @@ struct ControlledOperator final : public RawControlledLinearSystem<
 			}
 
 			for(int d = 0; d < Dimension; ++d) {
-				// Skip boundary points
-				if(i[d] == 0 || i[d] ==
-						refined_spatial_grid[d].size()
-						- 1) { continue; }
+				// Left boundary
+				if(i[d] == 0) {
+					if(hjbqvi.lboundary[d] != nullptr) {
+						total += hjbqvi.lboundary[d](
+							hjbqvi,
+							refined_spatial_grid,
+							d, // index
+							args, i, offsets,
+							A, row
+						);
+					}
+					continue;
+				}
+
+				// Right boundary
+				if(i[d] == refined_spatial_grid[d].size() - 1) {
+					if(hjbqvi.rboundary[d] != nullptr) {
+						total += hjbqvi.rboundary[d](
+							hjbqvi,
+							refined_spatial_grid,
+							d, // index
+							args, i, offsets,
+							A, row
+						);
+					}
+					continue;
+				}
 
 				const Axis &x = refined_spatial_grid[d];
 
@@ -305,8 +336,7 @@ class ExplicitEvent : public EventBase {
 
 		Vector best = refined_spatial_grid.vector();
 
-		auto factory = refined_spatial_grid.defaultInterpolantFactory();
-		auto u = factory.make(vector);
+		PiecewiseLinear<Dimension> u(refined_spatial_grid, vector);
 
 		Real args[
 			1
@@ -521,12 +551,15 @@ Result solve(int refinement = 0) const {
 	const bool finite_horizon =
 			this->expiry < std::numeric_limits<Real>::infinity();
 
-	// Refine grid
+	// Refine grids
 	auto refined_spatial_grid = this->spatial_grid.refined(refinement);
+
 	auto refined_stochastic_control_grid =
-			this->stochastic_control_grid.refined(refinement);
-	auto refined_impulse_control_grid =
-			this->impulse_control_grid.refined(refinement);
+			this->stochastic_control_grid.refined(
+			refine_stochastic_control_grid ? refinement : 0);
+
+	auto refined_impulse_control_grid = this->impulse_control_grid.refined(
+			refine_impulse_control_grid ? refinement : 0);
 
 	Vector stochastic_control_vector[StochasticControlDimension];
 	Vector impulse_control_vector[ImpulseControlDimension];
@@ -542,11 +575,23 @@ Result solve(int refinement = 0) const {
 	std::vector<bool> mask;
 	mask.reserve(refined_spatial_grid.size());
 
-	// Refine timesteps
+	// Refine parameters
 	int timesteps = this->timesteps;
-	for(int i = 0; i < refinement; ++i) { timesteps *= 2; }
+	Real penalty_tolerance = this->penalty_tolerance;
+	Real iteration_tolerance = this->iteration_tolerance;
+	for(int i = 0; i < refinement; ++i) {
+		timesteps *= 2;
+		penalty_tolerance = std::max(
+			penalty_tolerance / 2.,
+			QuantPDE::tolerance
+		);
+		iteration_tolerance = std::max(
+			iteration_tolerance / 2.,
+			QuantPDE::tolerance
+		);
+	}
 
-	ToleranceIteration tolerance_iteration;
+	ToleranceIteration tolerance_iteration(iteration_tolerance);
 
 	ControlledOperator controlled_operator(
 		*this,
@@ -629,7 +674,8 @@ Result solve(int refinement = 0) const {
 	PenaltyMethod penalty(
 		refined_spatial_grid,
 		*penalized,
-		impulse_policy
+		impulse_policy,
+		penalty_tolerance
 	);
 	penalty.setIteration(tolerance_iteration);
 
@@ -734,6 +780,11 @@ Result solve(int refinement = 0) const {
 		}
 	}
 
+	if(this->fully_explicit()) {
+		penalty_tolerance = std::nan("");
+		iteration_tolerance = std::nan("");
+	}
+
 	// Return
 	return Result(
 		refined_spatial_grid,
@@ -744,8 +795,9 @@ Result solve(int refinement = 0) const {
 		stochastic_control_vector,
 		impulse_control_vector,
 
-
-		timesteps,
+		finite_horizon ? timesteps : 0,
+		penalty_tolerance,
+		iteration_tolerance,
 		mean_iterations,
 
 		seconds
@@ -791,16 +843,46 @@ Result solve(int refinement = 0) const {
 
 	const bool time_independent_coefficients;
 
-	inline bool fully_implicit() const
+	const Real penalty_tolerance;
+	const Real iteration_tolerance;
+
+	typedef std::function< Real (
+		const HJBQVI &,
+		const RectilinearGrid<Dimension> &,
+		Index,
+		const Real (&)[1+Dimension+StochasticControlDimension],
+		const Index (&)[Dimension],
+		const Index (&)[Dimension],
+		Matrix &, Index
+	) > boundary_routine;
+
+private:
+
+	boundary_routine lboundary[Dimension];
+	boundary_routine rboundary[Dimension];
+
+public:
+
+	template <typename R>
+	void left_boundary(int index, R &&routine) {
+		lboundary[index] = std::forward<R>(routine);
+	}
+
+	template <typename R>
+	void right_boundary(int index, R &&routine) {
+		rboundary[index] = std::forward<R>(routine);
+	}
+
+	bool fully_implicit() const
 	{ return handling == 0; }
 
-	inline bool semi_lagrangian() const
+	bool semi_lagrangian() const
 	{ return handling & HJBQVIControlMethod::SEMI_LAGRANGIAN; }
 
-	inline bool explicit_impulse() const
+	bool explicit_impulse() const
 	{ return handling & HJBQVIControlMethod::EXPLICIT_IMPULSE; }
 
-	inline bool fully_explicit() const
+	bool fully_explicit() const
 	{ return handling == HJBQVIControlMethod::FULLY_EXPLICIT; }
 
 	HJBQVI(
@@ -835,7 +917,10 @@ Result solve(int refinement = 0) const {
 		bool refine_stochastic_control_grid = true,
 		bool refine_impulse_control_grid = true,
 
-		bool time_independent_coefficients = false
+		bool time_independent_coefficients = false,
+
+		Real penalty_tolerance = 1e-2,
+		Real iteration_tolerance = 1e-2
 	) :
 		spatial_grid(spatial_axes),
 
@@ -862,7 +947,10 @@ Result solve(int refinement = 0) const {
 		refine_stochastic_control_grid(refine_stochastic_control_grid),
 		refine_impulse_control_grid(refine_impulse_control_grid),
 
-		time_independent_coefficients(time_independent_coefficients)
+		time_independent_coefficients(time_independent_coefficients),
+
+		penalty_tolerance(penalty_tolerance),
+		iteration_tolerance(iteration_tolerance)
 	{
 		// TODO: Proper exceptions
 
@@ -890,19 +978,96 @@ Result solve(int refinement = 0) const {
 
 };
 
+#define QUANT_PDE_HJBQVI_BOUNDARY_SIGNATURE \
+	const HJBQVI<Dimension, StochasticControlDimension, \
+			ImpulseControlDimension> &hjbqvi, \
+	const RectilinearGrid<Dimension> &refined_spatial_grid, \
+	Index d, \
+	const Real (&args)[1+Dimension+StochasticControlDimension], \
+	const int (&i)[Dimension], \
+	const Index (&offsets)[Dimension], \
+	Matrix &A, Index row
+
 template <
 	Index Dimension,
 	Index StochasticControlDimension,
 	Index ImpulseControlDimension
 >
-void HJBQVI_main(
+Real HJBQVILinearBoundary(QUANT_PDE_HJBQVI_BOUNDARY_SIGNATURE) {
+
+	// Get drifts
+	Real mu = packAndCall<1+Dimension>(
+		hjbqvi.uncontrolled_drift[d],
+		args
+	);
+	if(!hjbqvi.semi_lagrangian()) {
+		mu += packAndCall<
+			1
+			+Dimension
+			+StochasticControlDimension
+		>(
+			hjbqvi.controlled_drift[d],
+			args
+		);
+	}
+
+	return - mu / args[1+d];
+
+}
+
+template <
+	Index Dimension,
+	Index StochasticControlDimension,
+	Index ImpulseControlDimension
+>
+Real HJBQVIZeroDiffusionRightBoundary (QUANT_PDE_HJBQVI_BOUNDARY_SIGNATURE) {
+
+	const Axis &x = refined_spatial_grid[d];
+	const Real dxb = x[ i[d] ] - x[ i[d] - 1 ];
+
+	// Get drifts
+	Real mu = packAndCall<1+Dimension>(
+		hjbqvi.uncontrolled_drift[d],
+		args
+	);
+	if(!hjbqvi.semi_lagrangian()) {
+		mu += packAndCall<
+			1
+			+Dimension
+			+StochasticControlDimension
+		>(
+			hjbqvi.controlled_drift[d],
+			args
+		);
+	}
+
+	const Real alpha = - mu / dxb;
+	A.insert(row, row - offsets[d]) = -alpha;
+	return alpha;
+
+}
+
+#undef QUANT_PDE_HJBQVI_BOUNDARY_SIGNATURE
+
+template <
+	Index Dimension,
+	Index StochasticControlDimension,
+	Index ImpulseControlDimension
+>
+typename HJBQVI<
+	Dimension,
+	StochasticControlDimension,
+	ImpulseControlDimension
+>::Result HJBQVI_main(
 	const HJBQVI<
 		Dimension,
 		StochasticControlDimension,
 		ImpulseControlDimension
 	> &hjbqvi,
-	const std::array<Real, Dimension> &testPoint,
-	int maxRefinement = 0,
+	const std::array<Real, Dimension> &test_point,
+	int max_refinement = 0,
+	int min_refinement = 0,
+	bool verbose = true,
 	std::ostream &out = std::cout
 ) {
 
@@ -917,6 +1082,8 @@ void HJBQVI_main(
 		<< space() << "Stochastic Ctrl Nodes"
 		<< space() << "Impulse Ctrl Nodes"
 		<< space() << "Timesteps"
+		<< space() << "Penalty Tolerance"
+		<< space() << "Iteration Tolerance"
 		<< space() << "Mean Iterations"
 		<< space() << "Value"
 		<< space() << "Change"
@@ -933,18 +1100,17 @@ void HJBQVI_main(
 		ratio
 	;
 
-	for(
-		int refinement = 0;
-		refinement <= maxRefinement;
-		++refinement
-	) {
+	int refinement = min_refinement;
+	while(1) {
 		auto result = hjbqvi.solve(refinement);
 
-		auto factory = result.spatial_grid.defaultInterpolantFactory();
-		auto u = factory.make(result.solution_vector);
+		PiecewiseLinear<Dimension> u(
+			result.spatial_grid,
+			result.solution_vector
+		);
 
 		// Get value of function at the test point
-		value = u.interpolate(testPoint);
+		value = u.interpolate(test_point);
 		change = value - previousValue;
 		ratio = previousChange / change;
 		previousValue = value;
@@ -956,6 +1122,8 @@ void HJBQVI_main(
 			<< space() << result.stochastic_control_grid.size()
 			<< space() << result.impulse_control_grid.size()
 			<< space() << result.timesteps
+			<< space() << result.penalty_tolerance
+			<< space() << result.iteration_tolerance
 			<< space() << result.mean_iterations
 			<< space() << value
 			<< space() << change
@@ -964,7 +1132,7 @@ void HJBQVI_main(
 			<< std::endl
 		;
 
-		if(refinement == maxRefinement) {
+		if(refinement++ == max_refinement) { if(verbose) {
 			// Print header
 			out << std::endl; // Extra spacing
 			for(int d = 0; d < Dimension; ++d) {
@@ -1010,7 +1178,7 @@ void HJBQVI_main(
 				out << std::endl;
 				++k;
 			}
-		}
+		} return result; }
 	}
 }
 

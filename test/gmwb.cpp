@@ -44,7 +44,8 @@ int main() {
 	const Real r = 0.05;
 
 	// Premium
-	const Real eta = 0.;
+	//Real eta = 0.;
+	Real eta = 0.01389;
 
 	// Volatility
 	const Real sigma = 0.2;
@@ -64,13 +65,19 @@ int main() {
 	// Number of timesteps
 	const int timesteps = 32;
 
+	// Initial number of impulse control points
+	const int control_points = 5;
+
 	// How to handle the control
-	//auto method = HJBQVIControlMethod::FULLY_IMPLICIT;
-	auto method = HJBQVIControlMethod::FULLY_EXPLICIT;
+	auto method = HJBQVIControlMethod::FULLY_IMPLICIT;
+	//auto method = HJBQVIControlMethod::FULLY_EXPLICIT;
 
 	// Maximum level of refinement
 	// Solution and control data are printed at this level of refinement
 	const int max_refinement = 6;
+
+	// Use Newton's method to determine fair fee
+	const bool newton = false;
 
 	// Problem description
 	HJBQVI<
@@ -80,8 +87,7 @@ int main() {
 	> hjbqvi(
 		// Initial spatial grid
 		{
-			// Hand-picked axis, 65 points; [2] uses the same axis
-			// with the far boundary point 1,000 instead of 10,000
+			// Hand-picked axis, 65 points used in [2]
 			(w_0 / 100.) * Axis {
 				0., 5., 10., 15., 20., 25.,
 				30., 35., 40., 45.,
@@ -94,7 +100,7 @@ int main() {
 				116., 118., 120., 123., 126.,
 				130., 135., 140., 145., 150., 160., 175., 200.,
 						225.,
-				250., 300., 500., 750., /*1000.,*/ 10000.
+				250., 300., 500., 750., 1000.
 			},
 
 			// 51 points evenly spaced on [0, w_0]
@@ -105,7 +111,7 @@ int main() {
 		{ Axis { 0., G } }, // DOES NOT get refined
 
 		// Initial impulse control grid
-		{ Axis { 0., 1. } }, // DOES get refined
+		{ Axis::uniform(0., 1., control_points) }, // DOES get refined
 
 		// Expiry
 		T,
@@ -123,24 +129,24 @@ int main() {
 		{
 			[=] (Real t, Real w, Real a, Real q) {
 				// No continuous withdrawal at boundaries
-				return (0. < a && a < w_0) ? -q : 0.;
+				return (0. < a) ? -q : 0.;
 			},
 			[=] (Real t, Real w, Real a, Real q) {
 				// No continuous withdrawal at boundaries
-				return (0. < a && a < w_0) ? -q : 0.;
+				return (0. < a) ? -q : 0.;
 			}
 		},
 
 		// Uncontrolled drift
 		{
-			[=] (Real t, Real w, Real a) { return (r-eta)*w; },
+			[=,&eta] (Real t, Real w, Real a) { return (r-eta)*w; },
 			[=] (Real t, Real w, Real a) { return 0.; }
 		},
 
 		// Controlled continuous flow
 		[=] (Real t, Real w, Real a, Real q) {
 			// No continuous withdrawal at boundaries
-			return (0. < a && a < w_0) ? q : 0.;
+			return (0. < a) ? q : 0.;
 		},
 
 		// Uncontrolled continuous flow
@@ -186,14 +192,76 @@ int main() {
 		true
 	);
 
-	// Run
-	HJBQVI_main(
-		hjbqvi,
-		{ w_0, w_0 }, // Convergence test at (w=w_0, a=w_0)
-		max_refinement
+	// Linear boundary condition as w -> infinity
+	hjbqvi.right_boundary(
+		0,
+		HJBQVILinearBoundary<
+			Dimension,
+			StochasticControlDimension,
+			ImpulseControlDimension
+		>
 	);
 
-	return 0;
+	// No boundary condition at a = a_max since characteristics point
+	// inwards
+	hjbqvi.right_boundary(
+		1,
+		HJBQVIZeroDiffusionRightBoundary<
+			Dimension,
+			StochasticControlDimension,
+			ImpulseControlDimension
+		>
+	);
+
+	if(!newton) {
+		// Run
+		HJBQVI_main(
+			hjbqvi,
+			{ w_0, w_0 },  // Convergence test at (w=w_0, a=w_0)
+			max_refinement
+		);
+
+		return 0;
+	}
+
+	// Newton
+	for(
+		int refinement = 0;
+		refinement <= max_refinement;
+		++refinement
+	) {
+		while(1) {
+			Real f[2];
+			const Real old_eta = eta;
+			for(int k = 0; k < 2; ++k) {
+				auto result = HJBQVI_main(
+					hjbqvi,
+					{ w_0, w_0 },
+					refinement,
+					refinement,
+					false         // Not verbose
+				);
+
+				PiecewiseLinear2 u(
+					result.spatial_grid,
+					result.solution_vector
+				);
+
+				f[k] = u(w_0, w_0);
+
+				eta += QuantPDE::epsilon;
+			}
+
+			if(abs(f[0] - w_0) < QuantPDE::tolerance) {
+				break;
+			}
+
+			eta = old_eta - (f[0] - w_0)/(f[1] - f[0])
+					* QuantPDE::epsilon;
+
+			cout << eta << endl;
+		}
+	}
 
 }
 

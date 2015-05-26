@@ -2,10 +2,15 @@
 
 #define QUANT_PDE_BOUND
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 #include <Eigen/SparseCore>
 #include <Eigen/IterativeLinearSolvers>
 
 #include <unsupported/Eigen/FFT>
+
+#pragma GCC diagnostic pop
 
 #if defined(VIENNACL_WITH_OPENMP) || defined(VIENNACL_WITH_OPENCL) \
 		|| defined(VIENNACL_WITH_CUDA)
