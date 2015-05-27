@@ -823,13 +823,6 @@ protected:
 	inline const Vector &iterand(int index) const;
 
 	/**
-	 * @param index See CircularBuffer for indexing information.
-	 * @return Previously encountered time iterand.
-	 * @see QuantPDE::CircularBuffer
-	 */
-	inline const Vector &timeIterand(int index) const;
-
-	/**
 	 * @return The time with which the next solution is associated with.
 	 */
 	inline Real nextTime() const;
@@ -853,12 +846,6 @@ public:
 	 * @param iteration The iterative method.
 	 */
 	virtual void setIteration(Iteration &iteration);
-
-	/**
-	 * Associates with this linear system a time iteration.
-	 * @param timeIteration The time iteration.
-	 */
-	virtual void setTimeIteration(Iteration &timeIteration);
 
 	friend Iteration;
 
@@ -1108,10 +1095,6 @@ void IterationNode::setIteration(Iteration &iteration) {
 	iteration.nodes.push_back(this);
 }
 
-void IterationNode::setTimeIteration(Iteration &timeIteration) {
-	this->timeIteration = &timeIteration;
-}
-
 Real IterationNode::time(int index) const {
 	assert(iteration);
 	return iteration->time(index);
@@ -1120,11 +1103,6 @@ Real IterationNode::time(int index) const {
 const Vector &IterationNode::iterand(int index) const {
 	assert(iteration);
 	return iteration->iterand(index);
-}
-
-const Vector &IterationNode::timeIterand(int index) const {
-	assert(timeIteration);
-	return timeIteration->iterand(index);
 }
 
 Real IterationNode::nextTime() const {
