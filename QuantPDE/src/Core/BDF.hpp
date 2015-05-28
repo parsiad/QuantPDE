@@ -8,7 +8,7 @@ class BDFBase : public IterationNode {
 
 	inline Real difference(Real t1, Real t0) const {
 		const Real dt = Forward ? t1 - t0 : t0 - t1;
-		assert(dt > epsilon);
+		assert(dt > QuantPDE::epsilon);
 		return dt;
 	}
 

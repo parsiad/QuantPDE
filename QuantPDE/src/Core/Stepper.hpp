@@ -1,8 +1,6 @@
 #ifndef QUANT_PDE_CORE_STEPPER_HPP
 #define QUANT_PDE_CORE_STEPPER_HPP
 
-#include <limits> // std::numeric_limits
-
 namespace QuantPDE {
 
 /**
@@ -62,10 +60,7 @@ typedef ConstantStepper<true > ForwardConstantStepper;
 template <bool Forward>
 class VariableStepper final : public TimeIteration<Forward> {
 
-	static_assert(std::numeric_limits<Real>::is_iec559,
-			"IEEE 754 required");
-
-	Real dt, target, epsilon, scale;
+	Real dt, target, scale;
 	Real (VariableStepper::*_step)();
 
 	Real _step0() {
@@ -79,7 +74,10 @@ class VariableStepper final : public TimeIteration<Forward> {
 			&v0 = this->iterand(1)
 		;
 
-		dt *= target / (relativeError( v1, v0, scale ) + epsilon);
+		dt *= target / (
+			relativeError( v1, v0, scale )
+			+ QuantPDE::epsilon
+		);
 
 		return dt;
 	}
@@ -112,19 +110,16 @@ public:
 		Real endTime,
 		Real dt,
 		Real target,
-		Real epsilon = QuantPDE::epsilon,
 		Real scale = QuantPDE::scale
 	) noexcept :
 		TimeIteration<Forward>(startTime, endTime),
 		dt(dt),
 		target(target),
-		epsilon(epsilon),
 		scale(scale),
 		_step(nullptr)
 	{
 		assert(dt > 0);
 		assert(target > 0);
-		assert(epsilon > 0);
 		assert(scale > 0);
 	}
 

@@ -551,6 +551,8 @@ Result solve(int refinement = 0) const {
 	const bool finite_horizon =
 			this->expiry < std::numeric_limits<Real>::infinity();
 
+	const bool variable_timesteps = target_timestep_relative_error > 0.;
+
 	// Refine grids
 	auto refined_spatial_grid = this->spatial_grid.refined(refinement);
 
@@ -579,17 +581,12 @@ Result solve(int refinement = 0) const {
 	int timesteps = this->timesteps;
 	Real penalty_tolerance = this->penalty_tolerance;
 	Real iteration_tolerance = this->iteration_tolerance;
+	Real target = this->target_timestep_relative_error;
 	for(int i = 0; i < refinement; ++i) {
 		timesteps *= 2;
-		penalty_tolerance = std::max(
-			penalty_tolerance / 2.,
-			QuantPDE::tolerance
-		);
-		iteration_tolerance = std::max(
-			iteration_tolerance / 2.,
-			QuantPDE::tolerance
-		);
+		target /= 2;
 	}
+
 
 	ToleranceIteration tolerance_iteration(iteration_tolerance);
 
@@ -630,14 +627,26 @@ Result solve(int refinement = 0) const {
 
 	std::unique_ptr<ReverseTimeIteration> stepper;
 	if(finite_horizon) {
-		stepper = std::unique_ptr<ReverseTimeIteration>(
-			(ReverseTimeIteration*)
-			new ReverseConstantStepper(
-				0.,
-				this->expiry,
-				this->expiry / timesteps
-			)
-		);
+		if(variable_timesteps) {
+			stepper = std::unique_ptr<ReverseTimeIteration>(
+				(ReverseTimeIteration*)
+				new ReverseVariableStepper(
+					0.,
+					this->expiry,
+					this->expiry / timesteps,
+					target
+				)
+			);
+		} else {
+			stepper = std::unique_ptr<ReverseTimeIteration>(
+				(ReverseTimeIteration*)
+				new ReverseConstantStepper(
+					0.,
+					this->expiry,
+					this->expiry / timesteps
+				)
+			);
+		}
 
 		if(!this->fully_explicit()) {
 			stepper->setInnerIteration(tolerance_iteration);
@@ -845,6 +854,8 @@ Result solve(int refinement = 0) const {
 
 	const bool time_independent_coefficients;
 
+	const Real target_timestep_relative_error;
+
 	const Real penalty_tolerance;
 	const Real iteration_tolerance;
 
@@ -921,8 +932,10 @@ public:
 
 		bool time_independent_coefficients = false,
 
-		Real penalty_tolerance = 1e-2,
-		Real iteration_tolerance = 1e-2
+		Real target_timestep_relative_error = -1.,
+
+		Real penalty_tolerance = QuantPDE::tolerance,
+		Real iteration_tolerance = QuantPDE::tolerance
 	) :
 		spatial_grid(spatial_axes),
 
@@ -951,6 +964,8 @@ public:
 
 		time_independent_coefficients(time_independent_coefficients),
 
+		target_timestep_relative_error(target_timestep_relative_error),
+
 		penalty_tolerance(penalty_tolerance),
 		iteration_tolerance(iteration_tolerance)
 	{
@@ -958,6 +973,9 @@ public:
 
 		const bool finite_horizon =
 			expiry < std::numeric_limits<Real>::infinity();
+
+		const bool variable_timesteps =
+				target_timestep_relative_error > 0.;
 
 		if(bounded_domain) {
 			// TODO: Implement
@@ -975,6 +993,15 @@ public:
 
 		if(finite_horizon && timesteps <= 0) {
 			throw "error: number of timesteps must be positive";
+		}
+
+		if(
+			variable_timesteps
+			&& (!finite_horizon || !fully_implicit())
+		) {
+			throw "error: variable timestepping can only be used on"
+					" finite horizon problems with"
+					" fully implicit discretizations";
 		}
 	}
 

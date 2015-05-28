@@ -224,6 +224,8 @@ int main() {
 		return 0;
 	}
 
+	const Real delta = 1e-5;
+
 	// Newton
 	for(
 		int refinement = 0;
@@ -249,15 +251,14 @@ int main() {
 
 				f[k] = u(w_0, w_0);
 
-				eta += QuantPDE::epsilon;
+				eta += delta;
 			}
 
 			if(abs(f[0] - w_0) < QuantPDE::tolerance) {
 				break;
 			}
 
-			eta = old_eta - (f[0] - w_0)/(f[1] - f[0])
-					* QuantPDE::epsilon;
+			eta = old_eta - (f[0] - w_0)/(f[1] - f[0]) * delta;
 
 			cout << eta << endl;
 		}

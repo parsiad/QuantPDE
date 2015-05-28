@@ -44,7 +44,7 @@ class CrankNicolson : public IterationNode {
 		;
 
 		const Real dt = Forward ? t1 - t0 : t0 - t1;
-		assert(dt > epsilon);
+		assert(dt > QuantPDE::epsilon);
 
 		return dt;
 	}

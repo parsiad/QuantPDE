@@ -1302,7 +1302,7 @@ public:
 		dt = timestep(); \
 		assert(dt > 0.); \
 		Real tmp = this->implicitTime + direction * dt; \
-		if( std::abs(tmp - nextEventTime) < epsilon ) { \
+		if( std::abs(tmp - nextEventTime) < QuantPDE::epsilon ) { \
 			tmp = nextEventTime; \
 		} else if( Order()(tmp, nextEventTime) ) { \
 			tmp = nextEventTime; \
@@ -1313,7 +1313,8 @@ public:
 
 #undef QUANT_PDE_TMP_NOT_DONE
 #define QUANT_PDE_TMP_NOT_DONE \
-	( Order()(nextEventTime, this->implicitTime + direction * epsilon) )
+	( Order()(nextEventTime, this->implicitTime \
+	+ direction * QuantPDE::epsilon) )
 
 /**
  * An iterative method that terminates when a specified terminal time is
@@ -1413,7 +1414,7 @@ public:
 	 */
 	void add(Real time, std::unique_ptr<EventBase> event) {
 		assert(time >= startTime);
-		assert(time < endTime - epsilon);
+		assert(time < endTime - QuantPDE::epsilon);
 		assert(time != initialTime());
 
 		events.emplace( id++, time, std::move(event) );
@@ -1428,7 +1429,7 @@ public:
 	template <Index Dimension, typename ...Ts>
 	void add(Real time, Ts &&...args) {
 		assert(time >= startTime);
-		assert(time < endTime - epsilon);
+		assert(time < endTime - QuantPDE::epsilon);
 		assert(time != initialTime());
 
 		events.emplace(
@@ -1451,7 +1452,7 @@ public:
 	template <typename ...Ts> \
 	void add(Real time, Transform##DIMENSION &&transform, Ts &&...args) { \
 		assert(time >= startTime); \
-		assert(time < endTime - epsilon); \
+		assert(time < endTime - QuantPDE::epsilon); \
 		assert(time != initialTime()); \
 		events.emplace( \
 			id++, \
@@ -1468,7 +1469,7 @@ public:
 	void add(Real time, const Transform##DIMENSION &transform, \
 			Ts &&...args) { \
 		assert(time >= startTime); \
-		assert(time < endTime - epsilon); \
+		assert(time < endTime - QuantPDE::epsilon); \
 		assert(time != initialTime()); \
 		events.emplace( \
 			id++, \

@@ -332,6 +332,8 @@ int main(int argc, char **argv) {
 			// Hybrid Newton's method
 			Real s_0 = (hi + lo) / 2., s_new;
 			while(1) {
+				const Real delta = 1e-5;
+
 				auto U_0 = solve(grid, s_0);
 				const Real f_0 = U_0(S_0, L_0);
 
@@ -342,8 +344,7 @@ int main(int argc, char **argv) {
 					lo = s_0;
 				}
 
-				auto U_1 = solve(grid, s_0
-						+ QuantPDE::epsilon);
+				auto U_1 = solve(grid, s_0 + delta);
 				const Real f_1 = U_1(S_0, L_0);
 
 				cout
@@ -357,8 +358,7 @@ int main(int argc, char **argv) {
 					s_new = (lo + hi) / 2;
 				} else {
 					// Newton iteration
-					s_new = s_0 - QuantPDE::epsilon
-							* (f_0 - L_0)
+					s_new = s_0 - delta * (f_0 - L_0)
 							/ (f_1 - f_0);
 				}
 
@@ -651,7 +651,7 @@ Function2 solve(RectilinearGrid1 &grid, Real s) {
 	}
 
 	// Discretization method
-	typedef ReverseBDFTwo1 Discretization;
+	typedef ReverseBDFOne Discretization;
 	Discretization discretization(grid, *bs);
 	discretization.setIteration(stepper);
 

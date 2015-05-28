@@ -1,7 +1,8 @@
 #ifndef QUANT_PDE_CORE_MACROS_HPP
 #define QUANT_PDE_CORE_MACROS_HPP
 
-#include <cmath> // M_PI
+#include <cmath>  // M_PI
+#include <limits> // std::numeric_limits
 
 // Some standard library implementations (VS) do not have M_PI
 #ifndef M_PI
@@ -57,7 +58,7 @@ namespace QuantPDE {
 		static constexpr float value = 1e-3;
 	};
 
-	constexpr Real epsilon = 1e-12;
+	constexpr Real epsilon = std::numeric_limits<Real>::epsilon(); //1e-12;
 	constexpr Real tolerance = ToleranceScalar<Real>::value;
 	constexpr Real scale = 1.;
 	constexpr Real droptol = 1e-3;

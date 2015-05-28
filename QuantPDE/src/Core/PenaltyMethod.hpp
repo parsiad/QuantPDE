@@ -31,7 +31,7 @@ class PenaltyMethod : public IterationNode {
 		P.setZero();
 		P.reserve( IntegerVector::Constant( domain->size(), 1 ) );
 		for(Index i = 0; i < domain->size(); ++i) {
-			if( predicate(i) < -epsilon ) {
+			if( predicate(i) < 0. /* -QuantPDE::epsilon */ ) {
 				P.insert(i, i) = large;
 			}
 		}

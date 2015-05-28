@@ -286,7 +286,7 @@ class BlackScholesJumpDiffusion final : public IterationNode,
 
 		assert(S[0] >= 0.); // Can we take its log?
 
-		const Real x0_0 = std::log( S[0] + epsilon );
+		const Real x0_0 = std::log( S[0] + QuantPDE::epsilon );
 
 		// Min:Step:Max
 		x0 = S[1] < x0_0 ? S[1] : x0_0;

@@ -352,13 +352,15 @@ class L2ProjectOnLagrangeBases1 final : public Map1 {
 					  4. / 6. * std::forward<F1>(f)(
 					  		(S[i - 1] + S[i]) / 2.)
 					+ 1. / 3. * std::forward<F1>(f)(
-							S[i] - epsilon)
+							S[i]
+							- QuantPDE::epsilon)
 				)
 				+ (S[i + 1] - S[i]) / 2. * (
 					  4. / 6. * std::forward<F1>(f)(
 					  		(S[i] + S[i + 1]) / 2.)
 					+ 1. / 3. * std::forward<F1>(f)(
-							S[i] + epsilon)
+							S[i]
+							+ QuantPDE::epsilon)
 				)
 			;
 		}
