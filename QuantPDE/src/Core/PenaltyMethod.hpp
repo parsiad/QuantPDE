@@ -46,7 +46,7 @@ class PenaltyMethod : public IterationNode {
 
 		// Build penalty matrix
 		for(Index i = 0; i < domain->size(); ++i) {
-			const bool c = (scale * predicate(i)) < -compare(i);
+			const bool c = (scale * predicate(i)) < compare(i);
 			if(c) { P.insert(i, i) = scale; }
 			if(!direct || !c) { Q.insert(i, i) = 1.; }
 		}
@@ -247,11 +247,23 @@ public:
 	template <typename D, typename F>
 	PenaltyMethodDifference(
 		D &domain,
-		LinearSystem &constraint, F &&function,
-		Real tolerance = QuantPDE::tolerance
+		LinearSystem &constraint,
+		F &&function,
+		Real tolerance = QuantPDE::tolerance,
+		bool direct = false
 	) noexcept :
-		PenaltyMethod( domain, constraint, penalty, tolerance ),
-		penalty( domain, std::forward<F>(function) ) {
+		PenaltyMethod(
+			domain,
+			constraint,
+			penalty,
+			tolerance,
+			direct
+		),
+		penalty(
+			domain,
+			std::forward<F>(function)
+		)
+	{
 	}
 
 };
