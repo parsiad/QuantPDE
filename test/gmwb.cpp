@@ -66,7 +66,7 @@ int main() {
 	const int timesteps = 32;
 
 	// Initial number of impulse control points
-	const int control_points = 5;
+	const int control_points = 3;
 
 	// How to handle the control
 	auto method = HJBQVIControlMethod::FULLY_IMPLICIT;

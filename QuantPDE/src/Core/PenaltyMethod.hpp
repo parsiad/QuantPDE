@@ -13,27 +13,42 @@ class PenaltyMethod : public IterationNode {
 
 	const DomainBase *domain;
 	LinearSystem *left, *right;
-	Real large;
-	Matrix P;
+	Real scale;
+	Real direct;
 
-	Matrix rA;
-	Vector rb;
+	Matrix P, Q;
+
+	Matrix rA, lA;
+	Vector rb, lb;
 
 	virtual void onIterationStart() {
 		// Only need to do this once
 		rA = right->A( nextTime() );
 		rb = right->b( nextTime() );
+		lA =  left->A( nextTime() );
+		lb =  left->b( nextTime() );
 
 		// Evaluate the predicate using the previous iterand
 		Vector predicate = rA * iterand(0) - rb;
 
-		// Build penalty matrix
+		Vector compare = domain->zero();
+		if(direct) {
+			compare = lA * iterand(0) - lb;
+		}
+
+		// Initialize penalty matrix
 		P.setZero();
 		P.reserve( IntegerVector::Constant( domain->size(), 1 ) );
+
+		// Initialize other matrix
+		Q.setZero();
+		Q.reserve( IntegerVector::Constant( domain->size(), 1 ) );
+
+		// Build penalty matrix
 		for(Index i = 0; i < domain->size(); ++i) {
-			if( predicate(i) < 0. /* -QuantPDE::epsilon */ ) {
-				P.insert(i, i) = large;
-			}
+			const bool c = (scale * predicate(i)) < -compare(i);
+			if(c) { P.insert(i, i) = scale; }
+			if(!direct || !c) { Q.insert(i, i) = 1.; }
 		}
 	}
 
@@ -43,28 +58,32 @@ public:
 	PenaltyMethod(
 		D &domain,
 		LinearSystem &constraint, LinearSystem &penalizedConstraint,
-		Real tolerance = QuantPDE::tolerance
+		Real tolerance = QuantPDE::tolerance,
+		bool direct = false
 	) noexcept :
 		domain(&domain),
 		left(&constraint), right(&penalizedConstraint),
-		large( 1. / tolerance ),
-		P( domain.size(), domain.size() ) {
+		scale( 1. / tolerance ),
+		direct(direct),
+		P( domain.size(), domain.size() ),
+		Q( domain.size(), domain.size() )
+	{
 		assert(tolerance > 0);
 	}
 
 	virtual Matrix A(Real t) {
 		if(t == nextTime()) {
-			return left->A(t) + P * rA;
+			return Q * lA + P * rA;
 		} else {
-			return left->A(t);
+			return lA;
 		}
 	}
 
 	virtual Vector b(Real t) {
 		if(t == nextTime()) {
-			return left->b(t) + P * rb;
+			return Q * lb + P * rb;
 		} else {
-			return left->b(t);
+			return lb;
 		}
 	}
 
