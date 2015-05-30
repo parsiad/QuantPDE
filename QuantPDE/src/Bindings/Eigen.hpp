@@ -25,6 +25,8 @@
 
 #endif
 
+#include <vector> // std::vector
+
 namespace QuantPDE {
 
 typedef Eigen::SparseMatrix<Real>::Index Index;
@@ -64,6 +66,7 @@ class LinearSolver {
 protected:
 
 	Matrix A;
+	std::vector<size_t> its;
 
 	virtual void initialize() = 0;
 
@@ -105,7 +108,14 @@ public:
 	 * @return The solution.
 	 * @see QuantPDE::LinearSolver::initialize
 	 */
-	virtual Vector solve(const Vector &b, const Vector &guess) const = 0;
+	virtual Vector solve(const Vector &b, const Vector &guess) = 0;
+
+	/**
+	 * @return Vector with number of iterations.
+	 */
+	const std::vector<size_t> &iterations() const {
+		return its;
+	}
 
 };
 
@@ -139,11 +149,12 @@ public:
 		solver.preconditioner().setDroptol(droptol);
 	}
 
-	virtual Vector solve(const Vector &b, const Vector &guess) const {
+	virtual Vector solve(const Vector &b, const Vector &guess) {
 		#ifndef VIENNACL_WITH_EIGEN
 
 			Vector v = solver.solveWithGuess(b, guess);
 			assert( solver.info() == Eigen::Success );
+			its.push_back( solver.iterations() );
 
 		#else
 
@@ -195,6 +206,8 @@ public:
 			Vector v;
 			viennacl::copy(vcl_result, v);
 			v += guess; // Adjust for initial guess
+
+			// TODO: Count number of iterations
 
 		#endif
 

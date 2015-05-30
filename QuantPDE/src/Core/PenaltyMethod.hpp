@@ -72,19 +72,13 @@ public:
 	}
 
 	virtual Matrix A(Real t) {
-		if(t == nextTime()) {
-			return Q * lA + P * rA;
-		} else {
-			return lA;
-		}
+		assert(t == nextTime());
+		return Q * lA + P * rA;
 	}
 
 	virtual Vector b(Real t) {
-		if(t == nextTime()) {
-			return Q * lb + P * rb;
-		} else {
-			return lb;
-		}
+		assert(t == nextTime());
+		return Q * lb + P * rb;
 	}
 
 	// Note: std::vector<bool> optimizes for space like std::bitset

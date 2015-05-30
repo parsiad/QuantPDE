@@ -59,7 +59,8 @@ struct Result {
 	const int timesteps;
 	const Real penalty_tolerance;
 	const Real iteration_tolerance;
-	const Real mean_iterations;
+	const Real mean_inner_iterations;
+	const Real mean_solver_iterations;
 
 	const Real execution_time_seconds;
 
@@ -78,7 +79,8 @@ struct Result {
 		int timesteps,
 		Real penalty_tolerance,
 		Real iteration_tolerance,
-		Real mean_iterations,
+		Real mean_inner_iterations,
+		Real mean_solver_iterations,
 
 		Real execution_time_seconds
 	) noexcept :
@@ -93,7 +95,8 @@ struct Result {
 		timesteps(timesteps),
 		penalty_tolerance(penalty_tolerance),
 		iteration_tolerance(iteration_tolerance),
-		mean_iterations(mean_iterations),
+		mean_inner_iterations(mean_inner_iterations),
+		mean_solver_iterations(mean_solver_iterations),
 
 		execution_time_seconds(execution_time_seconds)
 	{}
@@ -769,12 +772,16 @@ Result solve(int refinement = 0) const {
 	}
 
 	// Mean iterations
-	Real mean_iterations = std::nan("");
+	Real mean_inner_iterations = std::nan("");
 	if(!this->fully_explicit()) {
 		auto its = tolerance_iteration.iterations();
-		mean_iterations = std::accumulate(its.begin(), its.end(), 0.)
-				/ its.size();
+		mean_inner_iterations = std::accumulate(its.begin(), its.end(),
+				0.) / its.size();
 	}
+
+	auto its = solver.iterations();
+	Real mean_solver_iterations = std::accumulate(its.begin(), its.end(),
+			0.) / its.size();
 
 	// Apply mask
 	for(int i = 0; i < refined_spatial_grid.size(); ++i) {
@@ -809,7 +816,8 @@ Result solve(int refinement = 0) const {
 		finite_horizon ? timesteps : 0,
 		penalty_tolerance,
 		iteration_tolerance,
-		mean_iterations,
+		mean_inner_iterations,
+		mean_solver_iterations,
 
 		seconds
 	);
@@ -1113,7 +1121,8 @@ typename HJBQVI<
 		<< space() << "Timesteps"
 		<< space() << "Penalty Tolerance"
 		<< space() << "Iteration Tolerance"
-		<< space() << "Mean Iterations"
+		<< space() << "Mean Inner Iterations"
+		<< space() << "Mean Solver Iterations"
 		<< space() << "Value"
 		<< space() << "Change"
 		<< space() << "Ratio"
@@ -1153,7 +1162,8 @@ typename HJBQVI<
 			<< space() << result.timesteps
 			<< space() << result.penalty_tolerance
 			<< space() << result.iteration_tolerance
-			<< space() << result.mean_iterations
+			<< space() << result.mean_inner_iterations
+			<< space() << result.mean_solver_iterations
 			<< space() << value
 			<< space() << change
 			<< space() << ratio
