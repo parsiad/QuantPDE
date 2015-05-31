@@ -60,6 +60,8 @@ public:
 template <Index Dimension>
 class Event : public EventBase {
 
+private:
+
 	typedef InterpolantFactoryWrapper<Dimension> In;
 	typedef MapWrapper<Dimension> Out;
 
@@ -108,10 +110,6 @@ class Event : public EventBase {
 			out
 		);
 	}
-
-#ifdef QUANT_PDE_DO_EVENT_PUBLIC
-public:
-#endif
 
 	virtual Vector doEvent(const Vector &vector) const {
 		return _doEvent(vector);

@@ -63,7 +63,11 @@ public:
  */
 class LinearSolver {
 
+#ifdef QUANT_PDE_PERMISSIVE
+public:
+#else
 protected:
+#endif
 
 	Matrix A;
 	std::vector<size_t> its;
@@ -125,6 +129,12 @@ public:
  * Solves \f$Ax=b\f$ with BiCGSTAB.
  */
 class BiCGSTABSolver : public LinearSolver {
+
+#ifdef QUANT_PDE_PERMISSIVE
+public:
+#else
+private:
+#endif
 
 	BiCGSTAB solver;
 

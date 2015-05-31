@@ -13,6 +13,7 @@
 #include <memory>           // std::forward, std::unique_ptr
 #include <numeric>          // std::accumulate
 #include <string>           // std::string
+#include <tuple>            // std::make_tuple
 #include <vector>           // std::vector
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,10 +26,12 @@ namespace QuantPDE {
 namespace Modules {
 
 struct HJBQVIControlMethod {
-	static constexpr char FULLY_IMPLICIT = 0;
 	static constexpr char SEMI_LAGRANGIAN  = 1;
-	static constexpr char EXPLICIT_IMPULSE = 2;
-	static constexpr char FULLY_EXPLICIT = 1 | 2;
+	static constexpr char EXPLICIT_IMPULSE = 1 << 1;
+	static constexpr char FULLY_EXPLICIT = SEMI_LAGRANGIAN|EXPLICIT_IMPULSE;
+	static constexpr char FULLY_IMPLICIT = 1 << 2;
+	static constexpr char ITERATED_OPTIMAL_STOPPING =
+			FULLY_IMPLICIT|(1 << 3);
 };
 
 template <
@@ -689,7 +692,11 @@ Result solve(int refinement = 0) const {
 		refined_spatial_grid,
 		*penalized,
 		impulse_policy,
-		penalty_tolerance
+		this->iterated_optimal_stopping() ? 1. : penalty_tolerance,
+		this->iterated_optimal_stopping() ? true : false // Direct
+		#ifdef QUANT_PDE_MODULES_HJBQVI_ITERATED_OPTIMAL_STOPPING
+		, this->iterated_optimal_stopping() ? true : false  // Obstacle
+		#endif
 	);
 	penalty.setIteration(tolerance_iteration);
 
@@ -737,17 +744,157 @@ Result solve(int refinement = 0) const {
 		this->expiry
 	);
 
+	// Solution
+	Vector solution_vector;
+
 	// Timing
 	Real seconds;
 	auto start = std::chrono::steady_clock::now();
 
 	// Solve
-	auto u = iteration->solve(
-		refined_spatial_grid,
-		cauchy_data,
-		*root,
-		solver
-	);
+	#ifdef QUANT_PDE_MODULES_HJBQVI_ITERATED_OPTIMAL_STOPPING
+	if(!this->iterated_optimal_stopping()) {
+	#endif
+
+		auto u = iteration->solve(
+			refined_spatial_grid,
+			cauchy_data,
+			*root,
+			solver
+		);
+		solution_vector = refined_spatial_grid.image(u);
+
+	#ifdef QUANT_PDE_MODULES_HJBQVI_ITERATED_OPTIMAL_STOPPING
+	} else {
+
+		// Iterated optimal stopping
+
+		Vector *u_this = new Vector[timesteps+1];
+		Vector *u_last = new Vector[timesteps+1];
+
+		tolerance_iteration.history = new Iteration::CB(1);
+		stepper           ->history = new Iteration::CB(1);
+
+		// k loop
+		bool converged, first = true;
+		tolerance_iteration.its.push_back(0);
+		do {
+			// TODO: Apply impulse
+			// Solution at the expiry
+			u_this[0] = refined_spatial_grid.image(cauchy_data);
+
+			// Timestep (n) loop
+			converged = true;
+			for(int n = 1; n <= timesteps; ++n) {
+				// Explicit and implicit times
+				const Real t_explicit = expiry * (1.
+						- (double) (n-1) / timesteps);
+				const Real t_implicit = expiry * (1.
+						- (double) n / timesteps);
+
+				// What to use as the previous iterand?
+				Vector *previous =
+					first ?
+						  &u_this[n-1]
+						: &u_last[n]
+				;
+
+				// Previous iterand
+				tolerance_iteration.history->clear();
+				tolerance_iteration.history->push(
+					std::make_tuple(
+						t_implicit,
+						*previous
+					)
+				);
+				stepper->history->clear();
+				stepper->history->push(
+					std::make_tuple(
+						t_explicit,
+						u_this[n-1]
+					)
+				);
+
+				tolerance_iteration.implicitTime = t_implicit;
+				stepper           ->implicitTime = t_implicit;
+
+				// Start nodes
+				tolerance_iteration.startNodes();
+				stepper           ->startNodes();
+
+				// If we are on the first iteration, we solve
+				// the simpler nonvariational problem
+				IterationNode *tmp =
+					first ?
+						  &discretization
+						: root
+				;
+
+				// Solve Ax=b
+				((LinearSolver *) &solver)->initialize(
+					tmp->A(t_implicit)
+				);
+				u_this[n] = solver.solve(
+					tmp->b(t_implicit),
+					*previous
+				);
+
+				// End nodes
+				stepper           ->endNodes();
+				tolerance_iteration.endNodes();
+
+				// Compare
+				if(!first && converged) {
+					Vector &a = u_this[n];
+					Vector &b = u_last[n];
+
+					const Real tmp = relativeError(a, b);
+
+					if(tmp > iteration_tolerance) {
+						converged = false;
+					}
+				}
+
+			}
+
+			// For debugging
+			/*
+			PiecewiseLinear<Dimension> V(
+				refined_spatial_grid,
+				u_this[timesteps]
+			);
+			std::cout << V(0.) << std::endl;
+			*/
+
+			// No longer on the first outer iteration
+			if(first) {
+				converged = false;
+				first = false;
+			}
+
+			// Swap solutions
+			Vector *tmp = u_this;
+			u_this = u_last;
+			u_last = tmp;
+
+			// Increment number of iterations
+			++(tolerance_iteration.its.back());
+		} while(!converged);
+
+		// Save solution_vector
+		solution_vector = u_last[timesteps];
+
+		// Housekeeping
+		delete [] u_this;
+		u_this = nullptr;
+		delete [] u_last;
+		u_last = nullptr;
+
+		// The histories will be deleted after tolerance_iteration and
+		// stepper go out of scope
+
+	}
+	#endif
 
 	// Timing
 	auto end = std::chrono::steady_clock::now();
@@ -809,7 +956,7 @@ Result solve(int refinement = 0) const {
 		refined_stochastic_control_grid,
 		refined_impulse_control_grid,
 
-		refined_spatial_grid.image(u),
+		solution_vector,
 		stochastic_control_vector,
 		impulse_control_vector,
 
@@ -894,8 +1041,11 @@ public:
 		rboundary[index] = std::forward<R>(routine);
 	}
 
+	bool iterated_optimal_stopping() const
+	{ return handling == HJBQVIControlMethod::ITERATED_OPTIMAL_STOPPING; }
+
 	bool fully_implicit() const
-	{ return handling == 0; }
+	{ return handling & HJBQVIControlMethod::FULLY_IMPLICIT; }
 
 	bool semi_lagrangian() const
 	{ return handling & HJBQVIControlMethod::SEMI_LAGRANGIAN; }
@@ -904,7 +1054,7 @@ public:
 	{ return handling & HJBQVIControlMethod::EXPLICIT_IMPULSE; }
 
 	bool fully_explicit() const
-	{ return handling == HJBQVIControlMethod::FULLY_EXPLICIT; }
+	{ return handling & HJBQVIControlMethod::FULLY_EXPLICIT; }
 
 	HJBQVI(
 		const std::array<Axis, Dimension> &spatial_axes,
@@ -1011,11 +1161,27 @@ public:
 					" finite horizon problems with"
 					" fully implicit discretizations";
 		}
+
+		#ifdef QUANT_PDE_MODULES_HJBQVI_ITERATED_OPTIMAL_STOPPING
+		if(
+			iterated_optimal_stopping()
+			&& (variable_timesteps || !finite_horizon)
+		) {
+			throw "error: iterated optimal stopping does not yet"
+					" support variable timesteps or"
+					" infinite horizon problems";
+		}
+		#else
+		if(iterated_optimal_stopping()) {
+			throw "error: not compiled with iterated optimal"
+					" stopping support";
+		}
+		#endif
 	}
 
 };
 
-#define QUANT_PDE_HJBQVI_BOUNDARY_SIGNATURE \
+#define QUANT_PDE_MODULES_HJBQVI_BOUNDARY_SIGNATURE \
 	const HJBQVI<Dimension, StochasticControlDimension, \
 			ImpulseControlDimension> &hjbqvi, \
 	const RectilinearGrid<Dimension> &refined_spatial_grid, \
@@ -1030,7 +1196,7 @@ template <
 	Index StochasticControlDimension,
 	Index ImpulseControlDimension
 >
-Real HJBQVILinearBoundary(QUANT_PDE_HJBQVI_BOUNDARY_SIGNATURE) {
+Real HJBQVILinearBoundary(QUANT_PDE_MODULES_HJBQVI_BOUNDARY_SIGNATURE) {
 
 	// Get drifts
 	Real mu = packAndCall<1+Dimension>(
@@ -1057,7 +1223,8 @@ template <
 	Index StochasticControlDimension,
 	Index ImpulseControlDimension
 >
-Real HJBQVIZeroDiffusionRightBoundary (QUANT_PDE_HJBQVI_BOUNDARY_SIGNATURE) {
+Real HJBQVIZeroDiffusionRightBoundary(
+		QUANT_PDE_MODULES_HJBQVI_BOUNDARY_SIGNATURE) {
 
 	const Axis &x = refined_spatial_grid[d];
 	const Real dxb = x[ i[d] ] - x[ i[d] - 1 ];

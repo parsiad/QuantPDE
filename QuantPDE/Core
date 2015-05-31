@@ -8,6 +8,11 @@
 #include "src/Bindings/Eigen.hpp"
 #endif
 
+#ifdef QUANT_PDE_PERMISSIVE
+#define private public
+#define protected public
+#endif
+
 #include "src/Core/Wrapper.hpp"
 #include "src/Core/Metafunctions.hpp"
 
@@ -35,6 +40,11 @@
 #include "src/Core/BDF.hpp"
 #include "src/Core/CrankNicolson.hpp"
 #include "src/Core/Rannacher.hpp"
+
+#ifdef QUANT_PDE_PERMISSIVE
+#undef private
+#undef protected
+#endif
 
 #endif
 

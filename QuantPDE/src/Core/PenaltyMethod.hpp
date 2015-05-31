@@ -21,6 +21,10 @@ class PenaltyMethod : public IterationNode {
 	Matrix rA, lA;
 	Vector rb, lb;
 
+	#ifdef QUANT_PDE_MODULES_HJBQVI_ITERATED_OPTIMAL_STOPPING
+	const bool right_explicit;
+	#endif
+
 	virtual void onIterationStart() {
 		// Only need to do this once
 		rA = right->A( nextTime() );
@@ -60,6 +64,9 @@ public:
 		LinearSystem &constraint, LinearSystem &penalizedConstraint,
 		Real tolerance = QuantPDE::tolerance,
 		bool direct = false
+		#ifdef QUANT_PDE_MODULES_HJBQVI_ITERATED_OPTIMAL_STOPPING
+		, bool right_explicit = false
+		#endif
 	) noexcept :
 		domain(&domain),
 		left(&constraint), right(&penalizedConstraint),
@@ -67,17 +74,35 @@ public:
 		direct(direct),
 		P( domain.size(), domain.size() ),
 		Q( domain.size(), domain.size() )
+		#ifdef QUANT_PDE_MODULES_HJBQVI_ITERATED_OPTIMAL_STOPPING
+		, right_explicit(right_explicit)
+		#endif
 	{
 		assert(tolerance > 0);
 	}
 
 	virtual Matrix A(Real t) {
 		assert(t == nextTime());
+
+		#ifdef QUANT_PDE_MODULES_HJBQVI_ITERATED_OPTIMAL_STOPPING
+		if(right_explicit) {
+			return Q * lA + P;
+		}
+		#endif
+
 		return Q * lA + P * rA;
 	}
 
 	virtual Vector b(Real t) {
 		assert(t == nextTime());
+
+		#ifdef QUANT_PDE_MODULES_HJBQVI_ITERATED_OPTIMAL_STOPPING
+		if(right_explicit) {
+			Matrix M = -(rA - domain->identity());
+			return Q * lb + P * (rb + M * iterand(0));
+		}
+		#endif
+
 		return Q * lb + P * rb;
 	}
 
