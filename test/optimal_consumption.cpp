@@ -157,13 +157,19 @@ int main() {
 				const Real lo = -w;
 				const Real hi = (b-c)/(1+lambda);
 				const Real zeta = zeta_frac * (hi - lo) + lo;
-				return w + zeta;
+				return min(
+					w + zeta,
+					boundary
+				);
 			},
 			[=] (Real t, Real w, Real b, Real zeta_frac) {
 				const Real lo = -w;
 				const Real hi = (b-c)/(1+lambda);
 				const Real zeta = zeta_frac * (hi - lo) + lo;
-				return b - zeta - lambda * fabs(zeta) - c;
+				return min(
+					b - zeta - lambda * fabs(zeta) - c,
+					boundary
+				);
 			}
 		},
 
