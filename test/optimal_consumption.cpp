@@ -35,7 +35,8 @@ int main() {
 	constexpr int ImpulseControlDimension = 1;
 
 	// Expiry time (infinity for corresponding elliptic problem)
-	const Real T = 10.;
+	//const Real T = 10.;
+	const Real T = numeric_limits<double>::infinity();
 
 	// Discount factor
 	const Real rho = 0.1;
@@ -62,15 +63,14 @@ int main() {
 	const Real q_max = 100.;
 
 	// Initial values
-	const Real w_0 = 100.;
-	const Real b_0 = 100.;
-	const Real b_max = 10000.;
+	const Real w_0 = 45.2;
+	const Real b_0 = 45.2;
 
 	// Number of timesteps
 	const int timesteps = 32;
 
 	// Number of control points
-	const int control_points = 6;
+	const int control_points = 16;
 
 	// How to handle the control
 	auto method = HJBQVIControlMethod::FULLY_IMPLICIT;
@@ -78,9 +78,10 @@ int main() {
 
 	// Maximum level of refinement
 	// Solution and control data are printed at this level of refinement
-	const int max_refinement = 6;
+	const int max_refinement = 4;
 
 	// Used for both dimensions
+	const Real boundary = 1000.;
 	const Axis axis {
 		0., 5., 10., 15., 20., 25.,
 		30., 35., 40., 45.,
@@ -93,7 +94,7 @@ int main() {
 		116., 118., 120., 123., 126.,
 		130., 135., 140., 145., 150., 160., 175., 200.,
 				225.,
-		250., 300., 500., 750., /*1000.,*/ b_max
+		250., 300., 500., 750., boundary
 	};
 
 	// Problem description
@@ -131,7 +132,7 @@ int main() {
 			[=] (Real t, Real w, Real b, Real q) { return 0.; },
 			[=] (Real t, Real w, Real b, Real q) {
 				// No consumption at boundaries
-				return (0 < b && b < b_max) ? -q : 0.;
+				return (0 < b && b < boundary) ? -q : 0.;
 			}
 		},
 
@@ -144,7 +145,7 @@ int main() {
 		// Controlled continuous flow
 		[=] (Real t, Real w, Real b, Real q) {
 			// No consumption at boundaries
-			return (0 < b && b < b_max) ? pow(q, gamma)/gamma : 0.;
+			return (0 < b && b < boundary) ? pow(q, gamma)/gamma:0.;
 		},
 
 		// Uncontrolled continuous flow
@@ -182,7 +183,7 @@ int main() {
 		false,
 
 		// Refine stochastic control?
-		false,
+		true,
 
 		// Refine impulse control?
 		true,
@@ -197,6 +198,17 @@ int main() {
 		{ w_0, b_0 }, // Convergence test at (w=w_0, b=b_0)
 		max_refinement
 	);
+
+	// Plots
+	/*
+	const int plot_refinement = 2;
+	hjbqvi.solve(plot_refinement);
+	RectilinearGrid2 printGrid(
+		Axis::uniform( 0., 45.2, 200 ),
+		Axis::uniform( 0., 45.2, 200 )
+	);
+	cout << accessor(printGrid, V);
+	*/
 
 	return 0;
 

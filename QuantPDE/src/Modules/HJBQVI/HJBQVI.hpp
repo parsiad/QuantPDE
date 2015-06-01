@@ -779,7 +779,6 @@ Result solve(int refinement = 0) const {
 		bool converged, first = true;
 		tolerance_iteration.its.push_back(0);
 		do {
-			// TODO: Apply impulse
 			// Solution at the expiry
 			u_this[0] = refined_spatial_grid.image(cauchy_data);
 
