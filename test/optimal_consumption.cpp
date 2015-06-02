@@ -177,7 +177,10 @@ int main() {
 		[=] (Real t, Real w, Real b, Real zeta_frac) { return 0.; },
 
 		// Exit function
-		[=] (Real t, Real w, Real b) { return 0.; },
+		[=] (Real t, Real w, Real b) {
+			const Real liquidate = max(b + (1-lambda) * w - c, 0.);
+			return pow(liquidate, gamma) / gamma;
+		},
 
 		// Initial number of timesteps
 		timesteps,
