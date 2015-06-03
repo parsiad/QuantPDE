@@ -78,24 +78,12 @@ int main() {
 
 	// Maximum level of refinement
 	// Solution and control data are printed at this level of refinement
-	const int max_refinement = 4;
+	const int max_refinement = 6;
 
 	// Used for both dimensions
-	const Real boundary = 1000.;
-	const Axis axis {
-		0., 5., 10., 15., 20., 25.,
-		30., 35., 40., 45.,
-		50., 55., 60., 65., 70., 72.5, 75., 77.5, 80.,
-				82., 84.,
-		86., 88., 90., 91., 92., 93., 94., 95.,
-		96., 97., 98., 99., 100.,
-		101., 102., 103., 104., 105., 106.,
-		107., 108., 109., 110., 112., 114.,
-		116., 118., 120., 123., 126.,
-		130., 135., 140., 145., 150., 160., 175., 200.,
-				225.,
-		250., 300., 500., 750., boundary
-	};
+	const Real boundary = 200.;
+	const int spatial_points = 20;
+	const Axis axis = Axis::uniform(0., boundary, spatial_points);
 
 	// Problem description
 	HJBQVI<
@@ -104,10 +92,7 @@ int main() {
 		ImpulseControlDimension
 	> hjbqvi(
 		// Initial spatial grid
-		{
-			(w_0 / 100.) * axis,
-			(b_0 / 100.) * axis
-		},
+		{ axis, axis },
 
 		// Initial stochastic control grid
 		{ Axis::uniform(0., q_max, control_points) },
@@ -157,19 +142,13 @@ int main() {
 				const Real lo = -w;
 				const Real hi = (b-c)/(1+lambda);
 				const Real zeta = zeta_frac * (hi - lo) + lo;
-				return min(
-					w + zeta,
-					boundary
-				);
+				return w + zeta;
 			},
 			[=] (Real t, Real w, Real b, Real zeta_frac) {
 				const Real lo = -w;
 				const Real hi = (b-c)/(1+lambda);
 				const Real zeta = zeta_frac * (hi - lo) + lo;
-				return min(
-					b - zeta - lambda * fabs(zeta) - c,
-					boundary
-				);
+				return b - zeta - lambda * fabs(zeta) - c;
 			}
 		},
 
