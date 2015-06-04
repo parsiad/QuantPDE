@@ -88,7 +88,7 @@ int main() {
 	const int max_refinement = 6;
 
 	// Use Newton's method to determine fair fee
-	//const bool newton = false;
+	//const bool newton = true;
 	const bool newton = false;
 
 	// Problem description
@@ -286,20 +286,22 @@ newton:
 				eta += delta;
 			}
 
-			if(abs(f[0] - w_0) < QuantPDE::tolerance) {
-				cout << endl;
-				break;
-			}
-
 			const Real residual = f[0] - w_0;
-			eta = old_eta - residual/(f[1] - f[0]) * delta;
 
 			cout
+				<< space() << refinement
 				<< space() << eta
 				<< space() << f[0]
 				<< space() << residual
 				<< endl
 			;
+
+			if(abs(f[0] - w_0) < QuantPDE::tolerance) {
+				cout << endl;
+				break;
+			}
+
+			eta = old_eta - residual/(f[1] - f[0]) * delta;
 		}
 	}
 
