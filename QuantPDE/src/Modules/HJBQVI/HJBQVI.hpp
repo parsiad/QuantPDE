@@ -383,6 +383,7 @@ class ExplicitEvent : public EventBase {
 					args[1+Dimension+d] = node[d];
 				}
 
+				bool skip = false;
 				std::array<Real, Dimension> new_state;
 				for(int d = 0; d < Dimension; ++d) {
 					const Real m = packAndCall<
@@ -394,7 +395,19 @@ class ExplicitEvent : public EventBase {
 						args
 					);
 					new_state[d] = args[1+d] + m * dt;
+
+					const Axis &axis =
+							refined_spatial_grid[d];
+					if( hjbqvi.drop_semi_lagrangian_off_grid
+							&& ( new_state[d]
+							< axis[0] ||
+							new_state[d] > axis[
+							axis.size()-1] ) ) {
+						skip = true;
+						break;
+					}
 				}
+				if(skip) { continue; }
 
 				const Real flow = packAndCall<
 					1
@@ -1008,6 +1021,8 @@ Result solve(int refinement = 0) const {
 
 	const bool time_independent_coefficients;
 
+	const bool drop_semi_lagrangian_off_grid;
+
 	const Real target_timestep_relative_error;
 
 	const Real penalty_tolerance;
@@ -1089,6 +1104,8 @@ public:
 
 		bool time_independent_coefficients = false,
 
+		bool drop_semi_lagrangian_off_grid = false,
+
 		Real target_timestep_relative_error = -1.,
 
 		Real penalty_tolerance = QuantPDE::tolerance,
@@ -1120,6 +1137,8 @@ public:
 		refine_impulse_control_grid(refine_impulse_control_grid),
 
 		time_independent_coefficients(time_independent_coefficients),
+
+		drop_semi_lagrangian_off_grid(drop_semi_lagrangian_off_grid),
 
 		target_timestep_relative_error(target_timestep_relative_error),
 

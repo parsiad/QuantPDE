@@ -35,7 +35,7 @@ int main() {
 	constexpr int ImpulseControlDimension = 1;
 
 	// Expiry time (infinity for corresponding elliptic problem)
-	//const Real T = 10.;
+	//const Real T = 40.;
 	const Real T = numeric_limits<double>::infinity();
 
 	// Discount factor
@@ -177,6 +177,10 @@ int main() {
 		true,
 
 		// Are the coefficients time independent?
+		true,
+
+		// If consuming q takes x_k off the grid, do not assume that x_k
+		// is capped at the nearest grid node. Instead, disregard q.
 		true
 	);
 
