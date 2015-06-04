@@ -1270,8 +1270,8 @@ typename HJBQVI<
 	const std::array<Real, Dimension> &test_point,
 	int max_refinement = 0,
 	int min_refinement = 0,
-	bool verbose = true,
-	std::ostream &out = std::cout
+	std::ostream &out = std::cout,
+	bool verbose = true
 ) {
 
 	out.precision(12);

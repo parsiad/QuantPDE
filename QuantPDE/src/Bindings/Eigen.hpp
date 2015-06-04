@@ -121,6 +121,13 @@ public:
 		return its;
 	}
 
+	/**
+	 * @return The matrix this solver is associated with.
+	 */
+	const Matrix &matrix() const {
+		return A;
+	}
+
 };
 
 

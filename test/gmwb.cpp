@@ -79,8 +79,8 @@ int main() {
 	const int control_points = 3;
 
 	// How to handle the control
-	auto method = HJBQVIControlMethod::FULLY_IMPLICIT;
-	//auto method = HJBQVIControlMethod::FULLY_EXPLICIT;
+	//auto method = HJBQVIControlMethod::FULLY_IMPLICIT;
+	auto method = HJBQVIControlMethod::FULLY_EXPLICIT;
 	//auto method = HJBQVIControlMethod::ITERATED_OPTIMAL_STOPPING;
 
 	// Maximum level of refinement
@@ -88,6 +88,7 @@ int main() {
 	const int max_refinement = 6;
 
 	// Use Newton's method to determine fair fee
+	//const bool newton = false;
 	const bool newton = false;
 
 	// Problem description
@@ -224,20 +225,38 @@ int main() {
 		>
 	);
 
-	if(!newton) {
-		// Run
-		HJBQVI_main(
-			hjbqvi,
-			{ w_0, w_0 },  // Convergence test at (w=w_0, a=w_0)
-			max_refinement
-		);
+	if(newton) { goto newton; }
 
-		return 0;
-	}
+	////////////////////////////////////////////////////////////////////////
 
-	const Real delta = 1e-5;
+	// Run
+	HJBQVI_main(
+		hjbqvi,
+		{ w_0, w_0 },  // Convergence test at (w=w_0, a=w_0)
+		max_refinement
+	);
+
+	return 0;
+
+	////////////////////////////////////////////////////////////////////////
+
+newton:
+
+	// Spacing
+	const int spacing = 23;
+	auto space = [=] () { return std::setw(spacing); };
+
+	// Headings
+	cout
+		<< space() << "Refinement"
+		<< space() << "Fair fee"
+		<< space() << "Value"
+		<< space() << "Residual"
+		<< endl << endl
+	;
 
 	// Newton
+	const Real delta = 1e-5;
 	for(
 		int refinement = 0;
 		refinement <= max_refinement;
@@ -247,13 +266,15 @@ int main() {
 			Real f[2];
 			const Real old_eta = eta;
 			for(int k = 0; k < 2; ++k) {
+
+				// Drop anything to stream using failbit
+				cout.setstate(ios::failbit);
 				auto result = HJBQVI_main(
 					hjbqvi,
 					{ w_0, w_0 },
-					refinement,
-					refinement,
-					false         // Not verbose
+					refinement, refinement
 				);
+				cout.clear();
 
 				PiecewiseLinear2 u(
 					result.spatial_grid,
@@ -266,14 +287,23 @@ int main() {
 			}
 
 			if(abs(f[0] - w_0) < QuantPDE::tolerance) {
+				cout << endl;
 				break;
 			}
 
-			eta = old_eta - (f[0] - w_0)/(f[1] - f[0]) * delta;
+			const Real residual = f[0] - w_0;
+			eta = old_eta - residual/(f[1] - f[0]) * delta;
 
-			cout << eta << endl;
+			cout
+				<< space() << eta
+				<< space() << f[0]
+				<< space() << residual
+				<< endl
+			;
 		}
 	}
+
+	return 0;
 
 }
 
