@@ -35,9 +35,9 @@ struct HJBQVIControlMethod {
 };
 
 template <
-	Index Dimension,
-	Index StochasticControlDimension,
-	Index ImpulseControlDimension
+	Index Dimension = 1,
+	Index StochasticControlDimension = 1,
+	Index ImpulseControlDimension = 1
 >
 class HJBQVI {
 
@@ -1095,7 +1095,7 @@ public:
 		const Function<1+Dimension> &exit_function,
 
 		int timesteps,
-		int handling,
+		int handling = HJBQVIControlMethod::FULLY_IMPLICIT,
 
 		bool bounded_domain = false,
 
