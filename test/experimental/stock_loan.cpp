@@ -15,6 +15,7 @@ using namespace QuantPDE::Modules;
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <algorithm> // max, min
+#include <chrono>    // chrono
 #include <cmath>     // exp
 #include <getopt.h>  // getopt_long
 #include <iomanip>   // setw
@@ -68,7 +69,7 @@ bool bankAll         = true;  // Bank events at all times
 // Initial number of steps
 int N                = lcm(interestPayments, dividendPayments);
 
-int maxRefinement    = 5;     // Maximum number of times to refine
+int maxRefinement    = 10;    // Maximum number of times to refine
 
 bool dividendsToBank = false; // Dividends go to the bank
 bool shareTopUp      = false; // Bank can request for more shares
@@ -90,7 +91,7 @@ ProgramOperation op = ProgramOperation::FIXED_SPREAD;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<Real> interestPaymentDates; // Sorted (ascending) vector of interest
+vector<Real> interestPaymentDates; // Sorted (ascending) vector of interest
                                         // payment dates; initialized in main()
 
 /**
@@ -384,7 +385,8 @@ int main(int argc, char **argv) {
 			<< setw(td) << "Time Steps"      << "\t"
 			<< setw(td) << "Value"           << "\t"
 			<< setw(td) << "Change"          << "\t"
-			<< setw(td) << "Ratio"
+			<< setw(td) << "Ratio"           << "\t"
+			<< setw(td) << "Seconds"
 			<< endl
 		;
 
@@ -393,9 +395,18 @@ int main(int argc, char **argv) {
 			// Refine grid ref times
 			auto grid = initialGrid.refined( ref );
 
+			// Timing
+			Real seconds;
+			auto start = chrono::steady_clock::now();
+
 			// Fixed spread computation
 			auto U = solve(grid, s_0);
 			value = U(S_0, L_0);
+
+			// Timing
+			auto end = chrono::steady_clock::now();
+			auto diff = end - start;
+			seconds = chrono::duration<Real>(diff).count();
 
 			////////////////////////////////////////////////////////
 			// Print table rows
@@ -412,6 +423,7 @@ int main(int argc, char **argv) {
 				<< setw(td) << value       << "\t"
 				<< setw(td) << change      << "\t"
 				<< setw(td) << ratio       << "\t"
+				<< setw(td) << seconds
 				<< endl;
 
 			previousChange = change;
