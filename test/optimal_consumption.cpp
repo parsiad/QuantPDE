@@ -36,7 +36,7 @@ int main() {
 
 	// Expiry time (infinity for corresponding elliptic problem)
 	//const Real T = 40.;
-	const Real T = numeric_limits<double>::infinity();
+	const Real T = numeric_limits<Real>::infinity();
 
 	// Discount factor
 	const Real rho = 0.1;

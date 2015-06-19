@@ -700,13 +700,16 @@ Result solve(int refinement = 0) const {
 		penalized = &stochastic_policy;
 	}
 
+	const bool direct = this->iterated_optimal_stopping();
+	//const bool direct = true;
+
 	// Penalty method
 	PenaltyMethod penalty(
 		refined_spatial_grid,
 		*penalized,
 		impulse_policy,
-		this->iterated_optimal_stopping() ? 1. : penalty_tolerance,
-		this->iterated_optimal_stopping() ? true : false // Direct
+		direct ? 1. : penalty_tolerance,
+		direct ? true : false // Direct
 		#ifdef QUANT_PDE_MODULES_HJBQVI_ITERATED_OPTIMAL_STOPPING
 		, this->iterated_optimal_stopping() ? true : false  // Obstacle
 		#endif
