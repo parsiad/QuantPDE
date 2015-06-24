@@ -35,6 +35,7 @@ using namespace QuantPDE::Modules;
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <algorithm> // max
+#include <limits> // numeric_limits
 
 using namespace std;
 
@@ -79,8 +80,8 @@ int main() {
 	const int control_points = 3;
 
 	// How to handle the control
-	//auto method = HJBQVIControlMethod::FULLY_IMPLICIT;
-	auto method = HJBQVIControlMethod::FULLY_EXPLICIT;
+	auto method = HJBQVIControlMethod::FULLY_IMPLICIT;
+	//auto method = HJBQVIControlMethod::FULLY_EXPLICIT;
 	//auto method = HJBQVIControlMethod::ITERATED_OPTIMAL_STOPPING;
 
 	// Maximum level of refinement
@@ -179,6 +180,17 @@ int main() {
 		// Impulse flow
 		[=] (Real t, Real w, Real a, Real zeta_frac) {
 			const Real zeta = zeta_frac * a;
+
+			// Precludes jumps to same node (otherwise direct
+			// control will not work)
+			/*
+			const Real w_plus = max(w - zeta, 0.);
+			const Real a_plus = a - zeta;
+			if( (w - w_plus) + (a - a_plus) < QuantPDE::epsilon ) {
+				return -numeric_limits<Real>::infinity();
+			}
+			*/
+
 			return (1-k) * zeta - c;
 		},
 
