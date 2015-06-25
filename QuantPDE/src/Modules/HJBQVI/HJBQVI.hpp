@@ -702,13 +702,17 @@ Result solve(int refinement = 0) const {
 
 	const bool direct = this->iterated_optimal_stopping();
 	//const bool direct = true;
+	
+	if(direct) {
+		penalty_tolerance = 1.;
+	}
 
 	// Penalty method
 	PenaltyMethod penalty(
 		refined_spatial_grid,
 		*penalized,
 		impulse_policy,
-		direct ? 1. : penalty_tolerance,
+		penalty_tolerance,
 		direct ? true : false // Direct
 		#ifdef QUANT_PDE_MODULES_HJBQVI_ITERATED_OPTIMAL_STOPPING
 		, this->iterated_optimal_stopping() ? true : false  // Obstacle
