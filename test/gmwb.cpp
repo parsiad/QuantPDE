@@ -183,13 +183,11 @@ int main() {
 
 			// Precludes jumps to same node (otherwise direct
 			// control will not work)
-			/*
 			const Real w_plus = max(w - zeta, 0.);
 			const Real a_plus = a - zeta;
 			if( (w - w_plus) + (a - a_plus) < QuantPDE::epsilon ) {
 				return -numeric_limits<Real>::infinity();
 			}
-			*/
 
 			return (1-k) * zeta - c;
 		},

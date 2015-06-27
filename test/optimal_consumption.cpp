@@ -35,8 +35,8 @@ int main() {
 	constexpr int ImpulseControlDimension = 1;
 
 	// Expiry time (infinity for corresponding elliptic problem)
-	//const Real T = 40.;
-	const Real T = numeric_limits<Real>::infinity();
+	const Real T = 40.;
+	//const Real T = numeric_limits<Real>::infinity();
 
 	// Discount factor
 	const Real rho = 0.1;
@@ -84,6 +84,17 @@ int main() {
 	const Real boundary = 200.;
 	const int spatial_points = 20;
 	const Axis axis = Axis::uniform(0., boundary, spatial_points);
+
+	// Gets the value of an impulse control
+	auto zeta_bounded = [=] (Real t, Real w, Real b, Real zeta_frac) {
+		const Real lo = max( -w, -(boundary-b+c)/(1-lambda) );
+		const Real hi = min( (b-c)/(1+lambda), boundary-w );
+		if(lo > hi) {
+			// No impulse
+			return 0.;
+		}
+		return zeta_frac * (hi - lo) + lo;
+	};
 
 	// Problem description
 	HJBQVI<
@@ -139,21 +150,33 @@ int main() {
 		// Transition
 		{
 			[=] (Real t, Real w, Real b, Real zeta_frac) {
-				const Real lo = -w;
-				const Real hi = (b-c)/(1+lambda);
-				const Real zeta = zeta_frac * (hi - lo) + lo;
+				const Real zeta = zeta_bounded(t,w,b,zeta_frac);
 				return w + zeta;
 			},
 			[=] (Real t, Real w, Real b, Real zeta_frac) {
-				const Real lo = -w;
-				const Real hi = (b-c)/(1+lambda);
-				const Real zeta = zeta_frac * (hi - lo) + lo;
+				const Real zeta = zeta_bounded(t,w,b,zeta_frac);
 				return b - zeta - lambda * fabs(zeta) - c;
 			}
 		},
 
 		// Impulse flow
-		[=] (Real t, Real w, Real b, Real zeta_frac) { return 0.; },
+		[=] (Real t, Real w, Real b, Real zeta_frac) {
+
+			// Precludes jumps to same node (otherwise direct
+			// control will not work)
+			const Real zeta = zeta_bounded(t,w,b,zeta_frac);
+			const Real w_plus = w + zeta;
+			const Real b_plus = b - zeta - lambda * fabs(zeta) - c;
+			if(
+				fabs(w - w_plus) + fabs(b - b_plus)
+						< QuantPDE::epsilon
+				|| zeta == 0.
+			) {
+				return -numeric_limits<Real>::infinity();
+			}
+
+			return 0.;
+		},
 
 		// Exit function
 		[=] (Real t, Real w, Real b) {
