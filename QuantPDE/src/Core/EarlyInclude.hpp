@@ -61,7 +61,6 @@ namespace QuantPDE {
 	constexpr Real epsilon = std::numeric_limits<Real>::epsilon(); //1e-12;
 	constexpr Real tolerance = ToleranceScalar<Real>::value;
 	constexpr Real scale = 1.;
-	constexpr Real droptol = 1e-3;
 }
 
 #endif

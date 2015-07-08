@@ -73,8 +73,8 @@ int main() {
 	const int control_points = 16;
 
 	// How to handle the control
-	auto method = HJBQVIControlMethod::FULLY_IMPLICIT;
-	//auto method = HJBQVIControlMethod::FULLY_EXPLICIT;
+	auto method = HJBQVIControlMethod::PENALTY_METHOD;
+	//auto method = HJBQVIControlMethod::EXPLICIT_CONTROL;
 
 	// Maximum level of refinement
 	// Solution and control data are printed at this level of refinement

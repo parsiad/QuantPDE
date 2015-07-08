@@ -48,7 +48,7 @@ int main() {
 	const Real x_max = +6.;
 
 	// Number of points to use in discretizations
-	const int points = 32;
+	const int points = 17;
 
 	// Parameter that controls the clustering of nodes to the optimal parity
 	const Real intensity = 10.;
@@ -77,11 +77,12 @@ int main() {
 	const Real c = 0.;
 
 	// Number of timesteps
-	const int timesteps = 32;
+	const int timesteps = 16;
 
 	// How to handle the control
-	auto method = HJBQVIControlMethod::FULLY_IMPLICIT;
-	//auto method = HJBQVIControlMethod::FULLY_EXPLICIT;
+	auto method = HJBQVIControlMethod::PENALTY_METHOD;
+	//auto method = HJBQVIControlMethod::DIRECT_CONTROL;
+	//auto method = HJBQVIControlMethod::EXPLICIT_CONTROL;
 	//auto method = HJBQVIControlMethod::ITERATED_OPTIMAL_STOPPING;
 
 	// Maximum level of refinement
@@ -162,6 +163,9 @@ int main() {
 		// Impulse flow
 		[=] (Real t, Real x, Real x_new) {
 			const Real zeta = x_new - x;
+			//if(zeta >= 0.) {
+			//	return -numeric_limits<Real>::infinity();
+			//}
 			return - lambda * fabs(zeta) - c;
 		},
 

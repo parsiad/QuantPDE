@@ -80,8 +80,8 @@ int main() {
 	const int control_points = 3;
 
 	// How to handle the control
-	auto method = HJBQVIControlMethod::FULLY_IMPLICIT;
-	//auto method = HJBQVIControlMethod::FULLY_EXPLICIT;
+	auto method = HJBQVIControlMethod::PENALTY_METHOD;
+	//auto method = HJBQVIControlMethod::EXPLICIT_CONTROL;
 	//auto method = HJBQVIControlMethod::ITERATED_OPTIMAL_STOPPING;
 
 	// Maximum level of refinement

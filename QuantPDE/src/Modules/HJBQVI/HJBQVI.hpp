@@ -28,10 +28,12 @@ namespace Modules {
 struct HJBQVIControlMethod {
 	static constexpr char SEMI_LAGRANGIAN  = 1;
 	static constexpr char EXPLICIT_IMPULSE = 1 << 1;
-	static constexpr char FULLY_EXPLICIT = SEMI_LAGRANGIAN|EXPLICIT_IMPULSE;
-	static constexpr char FULLY_IMPLICIT = 1 << 2;
-	static constexpr char ITERATED_OPTIMAL_STOPPING =
-			FULLY_IMPLICIT|(1 << 3);
+	static constexpr char EXPLICIT_CONTROL = SEMI_LAGRANGIAN
+			| EXPLICIT_IMPULSE;
+	static constexpr char PENALTY_METHOD = 1 << 2;
+	static constexpr char DIRECT_CONTROL = 1 << 3;
+	static constexpr char ITERATED_OPTIMAL_STOPPING = DIRECT_CONTROL
+			| (1 << 4);
 };
 
 template <
@@ -60,7 +62,7 @@ struct Result {
 	const Vector impulse_control_vector[ImpulseControlDimension];
 
 	const int timesteps;
-	const Real penalty_tolerance;
+	const Real scaling_factor;
 	const Real iteration_tolerance;
 	const Real mean_inner_iterations;
 	const Real mean_solver_iterations;
@@ -80,7 +82,7 @@ struct Result {
 		const Vector (&impulse_control_vector)[ImpulseControlDimension],
 
 		int timesteps,
-		Real penalty_tolerance,
+		Real scaling_factor,
 		Real iteration_tolerance,
 		Real mean_inner_iterations,
 		Real mean_solver_iterations,
@@ -96,7 +98,7 @@ struct Result {
 		impulse_control_vector(impulse_control_vector),
 
 		timesteps(timesteps),
-		penalty_tolerance(penalty_tolerance),
+		scaling_factor(scaling_factor),
 		iteration_tolerance(iteration_tolerance),
 		mean_inner_iterations(mean_inner_iterations),
 		mean_solver_iterations(mean_solver_iterations),
@@ -598,7 +600,7 @@ Result solve(int refinement = 0) const {
 
 	// Refine parameters
 	int timesteps = this->timesteps;
-	Real penalty_tolerance = this->penalty_tolerance;
+	Real scaling_factor = this->scaling_factor;
 	Real iteration_tolerance = this->iteration_tolerance;
 	Real target = this->target_timestep_relative_error;
 	for(int i = 0; i < refinement; ++i) {
@@ -667,7 +669,7 @@ Result solve(int refinement = 0) const {
 			);
 		}
 
-		if(!this->fully_explicit()) {
+		if(!this->explicit_control()) {
 			stepper->setInnerIteration(tolerance_iteration);
 		}
 	}
@@ -700,11 +702,11 @@ Result solve(int refinement = 0) const {
 		penalized = &stochastic_policy;
 	}
 
-	const bool direct = this->iterated_optimal_stopping();
-	//const bool direct = true;
-	
+	const bool direct = this->iterated_optimal_stopping()
+			|| this->direct_control();
+
 	if(direct) {
-		penalty_tolerance = 1.;
+		scaling_factor = 1.; // TODO: Scaling
 	}
 
 	// Penalty method
@@ -712,7 +714,7 @@ Result solve(int refinement = 0) const {
 		refined_spatial_grid,
 		*penalized,
 		impulse_policy,
-		penalty_tolerance,
+		scaling_factor,
 		direct ? true : false // Direct
 		#ifdef QUANT_PDE_MODULES_HJBQVI_ITERATED_OPTIMAL_STOPPING
 		, this->iterated_optimal_stopping() ? true : false  // Obstacle
@@ -939,7 +941,7 @@ Result solve(int refinement = 0) const {
 
 	// Mean iterations
 	Real mean_inner_iterations = std::nan("");
-	if(!this->fully_explicit()) {
+	if(!this->explicit_control()) {
 		auto its = tolerance_iteration.iterations();
 		mean_inner_iterations = std::accumulate(its.begin(), its.end(),
 				0.) / its.size();
@@ -964,8 +966,8 @@ Result solve(int refinement = 0) const {
 		}
 	}
 
-	if(this->fully_explicit()) {
-		penalty_tolerance = std::nan("");
+	if(this->explicit_control()) {
+		scaling_factor = std::nan("");
 		iteration_tolerance = std::nan("");
 	}
 
@@ -980,7 +982,7 @@ Result solve(int refinement = 0) const {
 		impulse_control_vector,
 
 		finite_horizon ? timesteps : 0,
-		penalty_tolerance,
+		scaling_factor,
 		iteration_tolerance,
 		mean_inner_iterations,
 		mean_solver_iterations,
@@ -1032,7 +1034,7 @@ Result solve(int refinement = 0) const {
 
 	const Real target_timestep_relative_error;
 
-	const Real penalty_tolerance;
+	const Real scaling_factor;
 	const Real iteration_tolerance;
 
 	typedef std::function< Real (
@@ -1065,8 +1067,15 @@ public:
 	bool iterated_optimal_stopping() const
 	{ return handling == HJBQVIControlMethod::ITERATED_OPTIMAL_STOPPING; }
 
+	bool penalty_method() const
+	{ return handling & HJBQVIControlMethod::PENALTY_METHOD; }
+
+	bool direct_control() const
+	{ return handling & HJBQVIControlMethod::DIRECT_CONTROL; }
+
 	bool fully_implicit() const
-	{ return handling & HJBQVIControlMethod::FULLY_IMPLICIT; }
+	{ return handling & HJBQVIControlMethod::PENALTY_METHOD || handling
+			& HJBQVIControlMethod::DIRECT_CONTROL; }
 
 	bool semi_lagrangian() const
 	{ return handling & HJBQVIControlMethod::SEMI_LAGRANGIAN; }
@@ -1074,8 +1083,8 @@ public:
 	bool explicit_impulse() const
 	{ return handling & HJBQVIControlMethod::EXPLICIT_IMPULSE; }
 
-	bool fully_explicit() const
-	{ return handling & HJBQVIControlMethod::FULLY_EXPLICIT; }
+	bool explicit_control() const
+	{ return handling & HJBQVIControlMethod::EXPLICIT_CONTROL; }
 
 	HJBQVI(
 		const std::array<Axis, Dimension> &spatial_axes,
@@ -1102,7 +1111,7 @@ public:
 		const Function<1+Dimension> &exit_function,
 
 		int timesteps,
-		int handling = HJBQVIControlMethod::FULLY_IMPLICIT,
+		int handling = HJBQVIControlMethod::PENALTY_METHOD,
 
 		bool bounded_domain = false,
 
@@ -1115,7 +1124,7 @@ public:
 
 		Real target_timestep_relative_error = -1.,
 
-		Real penalty_tolerance = QuantPDE::tolerance,
+		Real scaling_factor = QuantPDE::tolerance,
 		Real iteration_tolerance = QuantPDE::tolerance
 	) :
 		spatial_grid(spatial_axes),
@@ -1149,7 +1158,7 @@ public:
 
 		target_timestep_relative_error(target_timestep_relative_error),
 
-		penalty_tolerance(penalty_tolerance),
+		scaling_factor(scaling_factor),
 		iteration_tolerance(iteration_tolerance)
 	{
 		// TODO: Proper exceptions
@@ -1311,9 +1320,9 @@ typename HJBQVI<
 		<< space() << "Stochastic Ctrl Nodes"
 		<< space() << "Impulse Ctrl Nodes"
 		<< space() << "Timesteps"
-		<< space() << "Penalty Tolerance"
-		<< space() << "Iteration Tolerance"
-		<< space() << "Mean Inner Iterations"
+		<< space() << "Scaling Factor"
+		<< space() << "Policy Tolerance"
+		<< space() << "Mean Policy Iterations"
 		<< space() << "Mean Solver Iterations"
 		<< space() << "Value"
 		<< space() << "Change"
@@ -1352,7 +1361,7 @@ typename HJBQVI<
 			<< space() << result.stochastic_control_grid.size()
 			<< space() << result.impulse_control_grid.size()
 			<< space() << result.timesteps
-			<< space() << result.penalty_tolerance
+			<< space() << result.scaling_factor
 			<< space() << result.iteration_tolerance
 			<< space() << result.mean_inner_iterations
 			<< space() << result.mean_solver_iterations

@@ -161,9 +161,7 @@ public:
 	/**
 	 * Constructor.
 	 */
-	BiCGSTABSolver(Real droptol = QuantPDE::droptol) noexcept
-			: LinearSolver() {
-		solver.preconditioner().setDroptol(droptol);
+	BiCGSTABSolver() noexcept : LinearSolver() {
 	}
 
 	virtual Vector solve(const Vector &b, const Vector &guess) {
