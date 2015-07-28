@@ -1380,11 +1380,11 @@ typename HJBQVI<
 			}
 			out << space() << "Value u(t=0, x)";
 			for(int d = 0; d < StochasticControlDimension; ++d) {
-				out << space() << ("Stochastic Control q_"
+				out << space() << ("Stochastic Control w_"
 						+ std::to_string(d+1));
 			}
 			for(int d = 0; d < ImpulseControlDimension; ++d) {
-				out << space() << ("Impulse Control zeta_"
+				out << space() << ("Impulse Control z_"
 						+ std::to_string(d+1));
 			}
 			out << std::endl;

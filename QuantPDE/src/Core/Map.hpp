@@ -322,15 +322,16 @@ class L2ProjectOnLagrangeBases1 final : public Map1 {
 
 	template <typename F1>
 	Vector map(F1 &&f) const {
-		auto M_G = G->builder(IntegerVector::Constant(G->size(), 3));
+		Matrix M(G->size(), G->size());
+		M.reserve( IntegerVector::Constant(G->size(), 3) );
 
 		const Axis &S = (*G)[0];
 		const Index n = S.size();
 
 		Vector F = G->vector();
 
-		M_G(0, 0) = 2. * (S[1] - S[0]) / 6.;
-		M_G(0, 1) =      (S[1] - S[0]) / 6.;
+		M.insert(0, 0) = 2. * (S[1] - S[0]) / 6.;
+		M.insert(0, 1) =      (S[1] - S[0]) / 6.;
 
 		F(0) =
 			(S[1] - S[0]) / 2. * (
@@ -341,9 +342,9 @@ class L2ProjectOnLagrangeBases1 final : public Map1 {
 		;
 
 		for(Index i = 1; i < n - 1; ++i) {
-			M_G(i, i - 1) =      (S[i    ] - S[i - 1]) / 6.;
-			M_G(i, i    ) = 2. * (S[i + 1] - S[i - 1]) / 6.;
-			M_G(i, i + 1) =      (S[i + 1] - S[i    ]) / 6.;
+			M.insert(i, i - 1) =      (S[i    ] - S[i - 1]) / 6.;
+			M.insert(i, i    ) = 2. * (S[i + 1] - S[i - 1]) / 6.;
+			M.insert(i, i + 1) =      (S[i + 1] - S[i    ]) / 6.;
 
 			// TODO: Allow for any form of quadrature
 			//       (Currently just Simpson's rule)
@@ -365,8 +366,8 @@ class L2ProjectOnLagrangeBases1 final : public Map1 {
 			;
 		}
 
-		M_G(n - 1, n - 2) =      (S[n - 1] - S[n - 2]) / 6.;
-		M_G(n - 1, n - 1) = 2. * (S[n - 1] - S[n - 2]) / 6.;
+		M.insert(n - 1, n - 2) =      (S[n - 1] - S[n - 2]) / 6.;
+		M.insert(n - 1, n - 1) = 2. * (S[n - 1] - S[n - 2]) / 6.;
 
 		F(n - 1) =
 			(S[n - 1] - S[n - 2]) / 2. * (
@@ -375,8 +376,6 @@ class L2ProjectOnLagrangeBases1 final : public Map1 {
 				+ 1. / 3. * std::forward<F1>(f)( S[n - 1] )
 			)
 		;
-
-		Matrix M = M_G.matrix();
 
 		// TODO: Use tridiagonal solver instead
 		BiCGSTAB solver;

@@ -48,7 +48,9 @@ int main() {
 	const Real x_max = +6.;
 
 	// Number of points to use in discretizations
-	const int points = 17;
+	const int stochastic_control_points = 32;
+	const int impulse_control_points = 32;
+	const int points = 32;
 
 	// Parameter that controls the clustering of nodes to the optimal parity
 	const Real intensity = 10.;
@@ -58,11 +60,11 @@ int main() {
 
 	// Interest rate differential bounds
 	const Real q_min = 0.;
-	const Real q_max = 0.05;
+	const Real q_max = 0.07;
 
 	// Expiry time (infinity for corresponding elliptic problem)
-	//const Real T = 10.;
-	const Real T = numeric_limits<Real>::infinity();
+	const Real T = 10.;
+	//const Real T = numeric_limits<Real>::infinity();
 
 	// Discount
 	const Real rho = 0.02;
@@ -74,10 +76,10 @@ int main() {
 	const Real a = 0.25;
 	const Real b = 3.;
 	const Real lambda = 1.;
-	const Real c = 0.;
+	const Real c = 0.1;
 
 	// Number of timesteps
-	const int timesteps = 16;
+	const int timesteps = 32;
 
 	// How to handle the control
 	auto method = HJBQVIControlMethod::PENALTY_METHOD;
@@ -98,6 +100,18 @@ int main() {
 		intensity
 	);
 
+	// q axis
+	const Axis w = Axis::uniform( q_min, q_max, stochastic_control_points );
+
+	// Impulse axis
+	const Axis x_impulse = Axis::cluster(
+		x_min,
+		m,
+		x_max,
+		impulse_control_points,
+		intensity
+	);
+
 	// Problem description
 	HJBQVI<
 		Dimension,
@@ -108,10 +122,10 @@ int main() {
 		{ x },
 
 		// Initial stochastic control grid
-		{ Axis::uniform( q_min, q_max, points ) },
+		{ w },
 
 		// Initial impulse control grid
-		{ x },
+		{ x_impulse },
 
 		// Expiry
 		T,
@@ -163,9 +177,10 @@ int main() {
 		// Impulse flow
 		[=] (Real t, Real x, Real x_new) {
 			const Real zeta = x_new - x;
-			//if(zeta >= 0.) {
-			//	return -numeric_limits<Real>::infinity();
-			//}
+			// Prune controls for direct control formulation
+			if(zeta >= 0.) {
+				return -numeric_limits<Real>::infinity();
+			}
 			return - lambda * fabs(zeta) - c;
 		},
 

@@ -695,6 +695,7 @@ public:
 template <Index Dimension>
 class RectilinearGrid : public Domain<Dimension> {
 
+	#if 0
 	template <bool IsConst>
 	class VectorAxesIndexer final {
 
@@ -986,6 +987,7 @@ class RectilinearGrid : public Domain<Dimension> {
 		}
 
 	};
+	#endif
 
 	////////////////////////////////////////////////////////////////////////
 
@@ -1213,6 +1215,8 @@ public:
 
 	////////////////////////////////////////////////////////////////////////
 
+	#if 0
+
 	/**
 	 * An indexer can be used to access the elements of a vector on a
 	 * rectilinear grid. Indices passed to an index are resolved using the
@@ -1362,6 +1366,8 @@ public:
 	FastMatrixBuilder builder(S &&reserveSizes) const {
 		return FastMatrixBuilder(*this, std::forward<S>(reserveSizes));
 	}
+
+	#endif
 
 	////////////////////////////////////////////////////////////////////////
 
