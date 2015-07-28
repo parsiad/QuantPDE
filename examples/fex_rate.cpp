@@ -48,8 +48,8 @@ int main() {
 	const Real x_max = +6.;
 
 	// Number of points to use in discretizations
-	const int stochastic_control_points = 32;
-	const int impulse_control_points = 32;
+	const int stochastic_control_points = 9;
+	const int impulse_control_points = 16;
 	const int points = 32;
 
 	// Parameter that controls the clustering of nodes to the optimal parity
@@ -79,7 +79,7 @@ int main() {
 	const Real c = 0.1;
 
 	// Number of timesteps
-	const int timesteps = 32;
+	const int timesteps = 16;
 
 	// How to handle the control
 	auto method = HJBQVIControlMethod::PENALTY_METHOD;

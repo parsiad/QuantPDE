@@ -609,7 +609,7 @@ Result solve(int refinement = 0) const {
 	}
 
 	const Real dt = this->expiry / timesteps;
-	const Real scaling_factor_dt = scaling_factor * dt;
+	Real scaling_factor_dt = scaling_factor * dt;
 
 	ToleranceIteration tolerance_iteration(iteration_tolerance);
 
@@ -712,7 +712,7 @@ Result solve(int refinement = 0) const {
 		refined_spatial_grid,
 		*penalized,
 		impulse_policy,
-		scaling_factor,
+		scaling_factor_dt,
 		direct ? true : false // Direct
 		#ifdef QUANT_PDE_MODULES_HJBQVI_ITERATED_OPTIMAL_STOPPING
 		, this->iterated_optimal_stopping() ? true : false  // Obstacle
@@ -964,7 +964,7 @@ Result solve(int refinement = 0) const {
 	}
 
 	if(this->explicit_control()) {
-		scaling_factor = std::nan("");
+		scaling_factor_dt = std::nan("");
 		iteration_tolerance = std::nan("");
 	}
 
@@ -979,7 +979,7 @@ Result solve(int refinement = 0) const {
 		impulse_control_vector,
 
 		finite_horizon ? timesteps : 0,
-		scaling_factor,
+		scaling_factor_dt,
 		iteration_tolerance,
 		mean_inner_iterations,
 		mean_solver_iterations,
