@@ -608,6 +608,8 @@ Result solve(int refinement = 0) const {
 		target /= 2;
 	}
 
+	const Real dt = this->expiry / timesteps;
+	const Real scaling_factor_dt = scaling_factor * dt;
 
 	ToleranceIteration tolerance_iteration(iteration_tolerance);
 
@@ -705,10 +707,6 @@ Result solve(int refinement = 0) const {
 	const bool direct = this->iterated_optimal_stopping()
 			|| this->direct_control();
 
-	if(direct) {
-		scaling_factor = 1.; // TODO: Scaling
-	}
-
 	// Penalty method
 	PenaltyMethod penalty(
 		refined_spatial_grid,
@@ -734,7 +732,6 @@ Result solve(int refinement = 0) const {
 
 	// Add events
 	if(!this->fully_implicit()) {
-		const Real dt = this->expiry / timesteps;
 		for(int e = 0; e < timesteps; ++e) {
 			const Real time = e * dt;
 
@@ -1124,7 +1121,7 @@ public:
 
 		Real target_timestep_relative_error = -1.,
 
-		Real scaling_factor = QuantPDE::tolerance,
+		Real scaling_factor = 1e-2, // QuantPDE::tolerance,
 		Real iteration_tolerance = QuantPDE::tolerance
 	) :
 		spatial_grid(spatial_axes),
