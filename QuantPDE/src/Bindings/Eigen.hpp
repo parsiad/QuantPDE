@@ -6,6 +6,7 @@
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 #include <Eigen/SparseCore>
+#include <Eigen/SparseLU>
 #include <Eigen/IterativeLinearSolvers>
 
 #include <unsupported/Eigen/FFT>
@@ -40,6 +41,8 @@ typedef Eigen::VectorXi IntegerVector;
 
 // BiCGSTAB with IncompleteLUT preconditioner
 typedef Eigen::BiCGSTAB<Matrix, Eigen::IncompleteLUT<Real>> BiCGSTAB;
+
+typedef Eigen::SparseLU<Matrix, Eigen::NaturalOrdering<Index>> SparseLU;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -130,7 +133,32 @@ public:
 
 };
 
+/**
+ * Solves \f$Ax=b\f$ with a direct solver.
+ */
+class DirectSolver : public LinearSolver {
 
+	SparseLU solver;
+
+	virtual void initialize() {
+		solver.analyzePattern(A);
+		solver.factorize(A);
+		assert( solver.info() == Eigen::success );
+	}
+
+public:
+
+	/**
+	 * Constructor.
+	 */
+	DirectSolver() noexcept : LinearSolver() {
+	}
+
+	virtual Vector solve(const Vector &b, const Vector &guess) {
+		return solver.solve(b);
+	}
+
+};
 
 /**
  * Solves \f$Ax=b\f$ with BiCGSTAB.
