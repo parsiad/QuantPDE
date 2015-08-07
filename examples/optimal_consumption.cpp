@@ -74,6 +74,7 @@ int main() {
 
 	// How to handle the control
 	auto method = HJBQVIControlMethod::PENALTY_METHOD;
+	//auto method = HJBQVIControlMethod::DIRECT_CONTROL;
 	//auto method = HJBQVIControlMethod::EXPLICIT_CONTROL;
 
 	// Maximum level of refinement

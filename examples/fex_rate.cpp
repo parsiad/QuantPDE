@@ -11,18 +11,11 @@
 // Author: Parsiad Azimzadeh
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef ALLOW_ITERATED_OPTIMAL_STOPPING
-	#define QUANT_PDE_MODULES_HJBQVI_ITERATED_OPTIMAL_STOPPING
-	#define QUANT_PDE_PERMISSIVE
-#endif
+//#define QUANT_PDE_MODULES_HJBQVI_ITERATED_OPTIMAL_STOPPING
+//#define QUANT_PDE_PERMISSIVE
 
 #include <QuantPDE/Core>
 #include <QuantPDE/Modules/HJBQVI>
-
-#ifdef ALLOW_ITERATED_OPTIMAL_STOPPING
-	#undef QUANT_PDE_MODULES_HJBQVI_ITERATED_OPTIMAL_STOPPING
-	#undef QUANT_PDE_PERMISSIVE
-#endif
 
 using namespace QuantPDE;
 using namespace QuantPDE::Modules;
@@ -85,7 +78,6 @@ int main() {
 	auto method = HJBQVIControlMethod::PENALTY_METHOD;
 	//auto method = HJBQVIControlMethod::DIRECT_CONTROL;
 	//auto method = HJBQVIControlMethod::EXPLICIT_CONTROL;
-	//auto method = HJBQVIControlMethod::ITERATED_OPTIMAL_STOPPING;
 
 	// Maximum level of refinement
 	// Solution and control data are printed at this level of refinement
