@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
-// fex_rate.cpp
-// ------------
+// exchange_rate.cpp
+// -----------------
 //
 // Optimal combined control of the exchange rate, as formulated in [1].
 //
