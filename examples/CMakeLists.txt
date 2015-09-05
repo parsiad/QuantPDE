@@ -1,7 +1,7 @@
 ADD_EXECUTABLE(bermudan_put bermudan_put.cpp)
 ADD_EXECUTABLE(black_scholes black_scholes.cpp)
 ADD_EXECUTABLE(convergence_table convergence_table.cpp)
-ADD_EXECUTABLE(fex_rate fex_rate.cpp)
+ADD_EXECUTABLE(exchange_rate exchange_rate.cpp)
 ADD_EXECUTABLE(gmwb gmwb.cpp)
 ADD_EXECUTABLE(jump_diffusion jump_diffusion.cpp)
 ADD_EXECUTABLE(optimal_consumption optimal_consumption.cpp)
