@@ -1,7 +1,7 @@
 #ifndef QUANT_PDE_CORE_POLICY_ITERATION_HPP
 #define QUANT_PDE_CORE_POLICY_ITERATION_HPP
 
-#include <cassert>   // assert
+#include <cassert>    // assert
 #include <functional> // std::greater, std::less
 #include <limits>     // std::numeric_limits
 
@@ -50,8 +50,6 @@ class PolicyIteration : public IterationNode {
 	const Domain<Dimension> *domain;
 	const Domain<ControlDimension> *controlDomain;
 	ControlledLinearSystemBase *system;
-
-
 
 	virtual void onIterationStart() {
 		NaryMethodNonConst<void, ControlledLinearSystemBase,
