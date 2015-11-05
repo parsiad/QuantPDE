@@ -45,8 +45,8 @@ int main() {
 	const Real r = 0.05;
 
 	// Premium
-	//Real eta = 0.;
-	Real eta = 0.01389;
+	Real eta = 0.;
+	//Real eta = 0.01389; // Fair rate for c = 0
 
 	// Volatility
 	const Real sigma = 0.2;
@@ -58,7 +58,8 @@ int main() {
 	const Real k = 0.1;
 
 	// Transaction cost
-	const Real c = 0.;
+	//const Real c = 0;
+	const Real c = 0.01;
 
 	// Initial payment
 	const Real w_0 = 100.;
