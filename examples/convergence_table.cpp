@@ -237,13 +237,13 @@ int main(int argc, char **argv) {
 				? (Iteration *) new ReverseVariableStepper(
 					0.,                       // startTime
 					expiry,                   // endTime
-					expiry / steps / factor,   // dt
-					target / factor            // target
+					expiry / steps / factor,  // dt
+					target / factor           // target
 				)
 				: (Iteration *) new ReverseConstantStepper(
 					0.,                     // startTime
 					expiry,                 // endTime
-					expiry / steps / factor  // dt
+					expiry / steps / factor // dt
 				)
 			);
 
