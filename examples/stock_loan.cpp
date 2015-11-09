@@ -35,11 +35,9 @@ inline Real similarity_value(
 	Real s, Real q,
 	Real q_hat
 ) {
-	if(q > epsilon) {
-		const Real alpha = q_hat / q;
-		return v(alpha * s) / alpha;
-	}
-	return 0;
+	assert(q > 0.);
+	const Real alpha = q_hat / q;
+	return v(alpha * s) / alpha;
 }
 
 int main(int argc, char **argv) {
@@ -48,11 +46,11 @@ int main(int argc, char **argv) {
 	// Constants
 	////////////////////////////////////////////////////////////////////////
 
-	const Real q_hat = 80.;     // Special loan value used in computation
+	const Real q_hat = 80.;      // Special loan value used in computation
 	const Real T = 5.;           // Expiry time
 	const Real r = .02;          // Interest rate
 	const Real v = .3;           // Volatility
-	const Real xi = .0;          // Spread
+	const Real xi = 0.;          // Spread
 	const Real rho = 1.;         // Penalty scaling (>= 0)
 	const Real gamma = r + xi;   // Loan interest rate
 	const Real P = 0.;           // Lockout time
@@ -95,7 +93,7 @@ int main(int argc, char **argv) {
 		} else { return numeric_limits<Real>::infinity(); }
 	};
 
-	// TODO: Split this into transition and flow
+	/*
 	auto margin_call = [=] (const Interpolant1 &v, Real t, Real s, Real z) {
 		const Real grow = exp(gamma * t);
 		if(grow * q_hat >= eta * s) {
@@ -103,6 +101,7 @@ int main(int argc, char **argv) {
 					- (grow * q_hat - z * s);
 		} else { return numeric_limits<Real>::infinity(); }
 	};
+	*/
 
 	////////////////////////////////////////////////////////////////////////
 	// Iteration tree
@@ -121,9 +120,9 @@ int main(int argc, char **argv) {
 			[=] (const Interpolant1 &v, Real s) {
 				const Real v0 = v(s);
 				const Real v1 = liquidation(t, s);
-				const Real v2 = margin_call(v, t, s, theta);
-				//return min(v0, v1);
-				return min(v0, min(v1, v2));
+				//const Real v2 = margin_call(v, t, s, theta);
+				//return min(v0, min(v1, v2));
+				return min(v0, v1);
 			},
 			grid
 		);
