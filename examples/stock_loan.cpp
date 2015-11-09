@@ -39,7 +39,7 @@ inline Real similarity_value(
 		const Real alpha = q_hat / q;
 		return v(alpha * s) / alpha;
 	}
-	return s;
+	return 0;
 }
 
 int main(int argc, char **argv) {
@@ -122,8 +122,8 @@ int main(int argc, char **argv) {
 				const Real v0 = v(s);
 				const Real v1 = liquidation(t, s);
 				const Real v2 = margin_call(v, t, s, theta);
-				return min(v0, v1);
-				//return min(v0, min(v1, v2));
+				//return min(v0, v1);
+				return min(v0, min(v1, v2));
 			},
 			grid
 		);
