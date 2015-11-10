@@ -41,6 +41,8 @@
 #include "src/Core/CrankNicolson.hpp"
 #include "src/Core/Rannacher.hpp"
 
+#include "src/Core/Results.hpp"
+
 #ifdef QUANT_PDE_PERMISSIVE
 #undef private
 #undef protected

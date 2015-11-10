@@ -50,19 +50,19 @@ int main(int argc, char **argv) {
 	const Real T = 5.;           // Expiry time
 	const Real r = .02;          // Interest rate
 	const Real v = .3;           // Volatility
-	const Real xi = 0.;          // Spread
+	const Real xi = 0.01;        // Spread
 	const Real rho = 1.;         // Penalty scaling (>= 0)
 	const Real gamma = r + xi;   // Loan interest rate
-	const Real P = 0.;           // Lockout time
+	const Real P = 1.;           // Lockout time
 	const Real beta = 80. / 89.; // Liquidation trigger
 	const Real eta = 80. / 94.;  // Margin call trigger
-	const Real lambda = .2;      // Jump arrival rate
+	const Real lambda = 1;       // Jump arrival rate
 	const Real mu_xi = -.8;      // Mean jump amplitude
 	const Real sigma_xi = .42;   // Jump amplitude standard deviation
 	const Real theta = .8;       // Post-margin call loan-to-value ratio
 
-	const int N = 1000;          // Timesteps
-	const int R = 2;             // Refinement
+	const int N = 10000;         // Timesteps
+	const int R = 3;             // Refinement
 
 	////////////////////////////////////////////////////////////////////////
 	// Spatial grid

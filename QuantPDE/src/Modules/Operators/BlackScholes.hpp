@@ -300,7 +300,8 @@ class BlackScholesJumpDiffusion final : public IterationNode,
 	void computeDensityFFT(Real t) {
 		// Tested 2014-07-05
 
-		typedef TrapezoidalRule1<> Integral;
+		//typedef TrapezoidalRule1<> Integral;
+		typedef AdaptiveQuadrature1<TrapezoidalRule1<>> Integral;
 
 		// Transformed density
 		auto fbar = [&] (Real x) {

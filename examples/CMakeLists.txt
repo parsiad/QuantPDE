@@ -8,3 +8,5 @@ ADD_EXECUTABLE(optimal_consumption optimal_consumption.cpp)
 ADD_EXECUTABLE(tutorial tutorial.cpp)
 ADD_EXECUTABLE(stock_loan stock_loan.cpp)
 ADD_EXECUTABLE(unequal_borrowing_lending_rates unequal_borrowing_lending_rates.cpp)
+
+TARGET_LINK_LIBRARIES(convergence_table ${JSONCPP_LIBRARY})
