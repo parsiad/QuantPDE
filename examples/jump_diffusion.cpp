@@ -153,13 +153,13 @@ int main(int argc, char **argv) {
 	cerr << configuration << endl << endl;
 
 	// Run and print results
-	ResultsBuffer1(
+	ResultsBuffer1 buffer(
 		run,
 		{ "Nodes", "Steps" },
 		kn, k0
-	).addPrintGrid(RectilinearGrid1(
-		Axis::range(0., 10., 200.)
-	)).stream();
+	);
+	buffer.addPrintGrid( RectilinearGrid1(Axis::range(0., 10., 200.)) );
+	buffer.stream();
 
 	return 0;
 }
