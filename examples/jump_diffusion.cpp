@@ -25,7 +25,6 @@ using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-Configuration configuration;
 Real T, r, vol, divs, S_0, K, arrival, jump_mean, jump_std;
 int N;
 bool call, digital, american, variable;
@@ -129,7 +128,7 @@ ResultsTuple1 run(int k) {
 
 int main(int argc, char **argv) {
 	// Parse configuration file
-	configuration = getConfiguration(argc, argv);
+	Configuration configuration = getConfiguration(argc, argv);
 
 	// Get options
 	int kn, k0;
@@ -143,7 +142,7 @@ int main(int argc, char **argv) {
 	K = getReal(configuration, "strike_price", 100.);
 	arrival = getReal(configuration, "jump_arrival_rate", .05);
 	jump_mean = getReal(configuration, "jump_amplitude_mean", -.8);
-	jump_std = getReal(configuration, "jump_amplitude_deviation", .42);;
+	jump_std = getReal(configuration, "jump_amplitude_deviation", .42);
 	N = getInt(configuration, "initial_number_of_timesteps", 12);
 	RectilinearGrid1 defGrid( (S_0 * Axis::special) + (K * Axis::special) );
 	RectilinearGrid1 tmp = getGrid(configuration, "initial_grid", defGrid);

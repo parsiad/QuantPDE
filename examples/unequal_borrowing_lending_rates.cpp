@@ -37,7 +37,6 @@ using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Configuration configuration;
 Real T, r_l, r_b, vol, divs, S_0, K;
 int N;
 bool long_position;
@@ -174,7 +173,7 @@ ResultsTuple1 run(int k) {
 
 int main(int argc, char **argv) {
 	// Parse configuration file
-	configuration = getConfiguration(argc, argv);
+	Configuration configuration = getConfiguration(argc, argv);
 
 	// Get options
 	int kn, k0;
