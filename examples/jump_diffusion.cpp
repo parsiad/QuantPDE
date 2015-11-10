@@ -133,8 +133,8 @@ int main(int argc, char **argv) {
 
 	// Get options
 	int kn, k0;
-	kn = getInt(configuration, "maximum_refinement", 5);
-	k0 = getInt(configuration, "minimum_refinement", 0);
+	kn = getInt(configuration, "maximum_refinement", 8);
+	k0 = getInt(configuration, "minimum_refinement", 3);
 	T = getReal(configuration, "time_to_expiry", 1.);
 	r = getReal(configuration, "interest_rate", .05);
 	vol = getReal(configuration, "volatility", .3);
@@ -153,11 +153,13 @@ int main(int argc, char **argv) {
 	cerr << configuration << endl << endl;
 
 	// Run and print results
-	streamResults1(
+	ResultsBuffer1(
 		run,
 		{ "Nodes", "Steps" },
 		kn, k0
-	);
+	).addPrintGrid(RectilinearGrid1(
+		Axis::range(0., 10., 200.)
+	)).stream();
 
 	return 0;
 }

@@ -136,7 +136,7 @@ ResultsTuple1 run(int k) {
 	// Discretization method
 	typedef ReverseBDFTwo Discretization;
 	Discretization discretization(refinedGrid, *policy);
-	Discretization.setIteration(stepper); // Associate with n-iteration
+	discretization.setIteration(stepper); // Associate with n-iteration
 
 	////////////////////////////////////////////////////////////////////////
 	// Running
@@ -150,10 +150,10 @@ ResultsTuple1 run(int k) {
 
 	// Calculate the solution at time zero
 	auto solution = stepper.solve(
-		refinedGrid,   // Domain
-		payoff, // Initial condition
-		bdf2,   // Root of linear system tree
-		solver  // Linear system solver
+		refinedGrid,    // Domain
+		payoff,         // Initial condition
+		discretization, // Root of linear system tree
+		solver          // Linear system solver
 	);
 
 	////////////////////////////////////////////////////////////////////////
@@ -197,11 +197,13 @@ int main(int argc, char **argv) {
 	cerr << configuration << endl << endl;
 
 	// Run and print results
-	streamResults1(
+	ResultsBuffer1(
 		run,
 		{ "Nodes", "Steps", "Mean Policy Iterations" },
 		kn, k0
-	);
+	).addPrintGrid(RectilinearGrid1(
+		Axis::range(0., 10., 200.)
+	)).stream();
 
 	return 0;
 }

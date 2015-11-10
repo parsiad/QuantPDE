@@ -5,6 +5,7 @@
 #include <cassert>     // assert
 #include <cstdlib>     // size_t
 #include <iostream>    // std::ostream
+#include <iomanip>     // std::setw
 #include <memory>      // std::shared_ptr, std::unique_ptr
 #include <type_traits> // std::conditional, std::enable_if, std::is_same
 #include <utility>     // std::forward, std::move
@@ -368,27 +369,31 @@ public:
 	class VectorAccessor##OWNERSHIP final { \
 		const Domain *domain; \
 		V0< Ownership::OWNERSHIP > vector; \
+		int spacing; \
 	public: \
 		template <typename D, typename V> \
-		VectorAccessor##OWNERSHIP(D &domain, \
-				V &&vector) noexcept : domain(&domain), \
-				vector( std::forward<V>(vector) ) { \
+		VectorAccessor##OWNERSHIP(D &domain, V &&vector, int spacing) \
+				noexcept : domain(&domain), \
+				vector( std::forward<V>(vector) ), \
+				spacing(spacing) { \
 		} \
 		VectorAccessor##OWNERSHIP( \
 				const VectorAccessor##OWNERSHIP &that) \
 				noexcept : domain(that.domain), \
-				vector(that.vector) { \
+				vector(that.vector), spacing(spacing) { \
 		} \
 		VectorAccessor##OWNERSHIP( \
 				VectorAccessor##OWNERSHIP &&that) \
 				noexcept : domain(that.domain), \
-				vector( std::move(that.vector) ) { \
+				vector( std::move(that.vector) ), \
+				spacing(spacing) { \
 		} \
 		VectorAccessor##OWNERSHIP &operator=( \
 				const VectorAccessor##OWNERSHIP &that) & \
 				noexcept { \
 			domain = that.domain; \
 			vector = that.vector; \
+			spacing = that.spacing; \
 			return *this; \
 		} \
 		VectorAccessor##OWNERSHIP &operator=( \
@@ -396,6 +401,7 @@ public:
 				noexcept { \
 			domain = that.domain; \
 			vector = std::move(that.vector); \
+			spacing = that.spacing; \
 			return *this; \
 		} \
 		VectorIterator<Ownership::OWNERSHIP> begin() const { \
@@ -413,9 +419,11 @@ public:
 			for(auto v_n : accessor) { \
 				coordinates = &v_n; \
 				for(Index i = 0; i < Dimension; ++i) { \
-					os << coordinates[i] << '\t'; \
+					os << std::setw(accessor.spacing) << \
+							coordinates[i]; \
 				} \
-				os << *v_n << std::endl; \
+				os << std::setw(accessor.spacing) << *v_n \
+						<< std::endl; \
 			} \
 			return os; \
 		} \
@@ -613,25 +621,30 @@ typedef Domain<3> Domain3;
  * @return A vector accessor.
  */
 template <typename D>
-typename D::VectorAccessorCONST accessor(D &domain, const Vector &vector) {
-	return typename D::VectorAccessorCONST(domain, &vector);
+typename D::VectorAccessorCONST accessor(D &domain, const Vector &vector,
+		int spacing = 23) {
+	return typename D::VectorAccessorCONST(domain, &vector, spacing);
 }
 
 template <typename D>
-typename D::VectorAccessorSHARED accessor(D &domain, Vector &&vector) {
+typename D::VectorAccessorSHARED accessor(D &domain, Vector &&vector,
+		int spacing = 23) {
 	return typename D::VectorAccessorSHARED(
 		domain,
-		std::shared_ptr<Vector>(new Vector(std::move(vector)))
+		std::shared_ptr<Vector>(new Vector(std::move(vector))),
+		spacing
 	);
 }
 
 template <typename D>
-typename D::VectorAccessorNON_CONST accessor(D &domain, Vector &vector) {
-	return typename D::VectorAccessorNON_CONST(domain, &vector);
+typename D::VectorAccessorNON_CONST accessor(D &domain, Vector &vector,
+		int spacing = 23) {
+	return typename D::VectorAccessorNON_CONST(domain, &vector, spacing);
 }
 
 template <typename D, typename F>
-typename D::VectorAccessorSHARED accessor(D &domain, F &&function) {
+typename D::VectorAccessorSHARED accessor(D &domain, F &&function,
+		int spacing = 23) {
 	return typename D::VectorAccessorSHARED(
 		domain,
 		std::shared_ptr<Vector>(
@@ -640,7 +653,8 @@ typename D::VectorAccessorSHARED accessor(D &domain, F &&function) {
 					std::forward<F>(function)
 				)
 			)
-		)
+		),
+		spacing
 	);
 }
 

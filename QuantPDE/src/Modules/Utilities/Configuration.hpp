@@ -69,6 +69,10 @@ class ConfigurationHelpers final {
 
 public:
 
+	ConfigurationHelpers() = delete;
+	ConfigurationHelpers (const ConfigurationHelpers &) = delete;
+	ConfigurationHelpers &operator=(const ConfigurationHelpers &) = delete;
+
 	template <Index Dimension>
 	static RectilinearGrid<Dimension> getGrid(
 		Configuration &configuration,

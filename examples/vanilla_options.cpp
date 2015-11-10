@@ -156,11 +156,13 @@ int main(int argc, char **argv) {
 	cerr << configuration << endl << endl;
 
 	// Run and print results
-	streamResults1(
+	ResultsBuffer1(
 		run,
 		{ "Nodes", "Steps", "Mean Policy Iterations" },
 		kn, k0
-	);
+	).addPrintGrid(RectilinearGrid1(
+		Axis::range(0., 10., 200.)
+	)).stream();
 
 	return 0;
 }
