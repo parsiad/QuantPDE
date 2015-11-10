@@ -4,6 +4,7 @@
 #include <iomanip>  // std::setw
 #include <iostream> // std::cout, std::endl, std::scientific
 #include <cmath>    // std::abs, std::modf
+#include <chrono>   // std::chrono
 #include <vector>   // std::vector
 
 namespace QuantPDE {
@@ -37,11 +38,13 @@ void results(
 	for(auto it = headers.begin(); it != headers.end(); ++it) {
 		os << std::setw(spacing) << *it;
 	}
-	os
-		<< std::setw(spacing) << "Change"
-		<< std::setw(spacing) << "Ratio"
-		<< std::endl
-	;
+	if(ratio) {
+		os
+			<< std::setw(spacing) << "Change"
+			<< std::setw(spacing) << "Ratio"
+		;
+	}
+	os << std::setw(spacing) << "Timing" << std::endl;
 
 	os.precision(precision);
 
@@ -49,7 +52,15 @@ void results(
 
 	// Results
 	for(int k = k0; k <= kn; ++k) {
+		// Run
+		Real seconds;
+		auto start = std::chrono::steady_clock::now();
 		auto results = run(k);
+		auto end = std::chrono::steady_clock::now();
+		auto diff = end - start;
+		seconds = std::chrono::duration<Real>(diff).count();
+
+		// Display results
 		auto it = results.begin();
 		Real value, fractpart, intpart;
 		for(; it != results.end(); ++it) {
@@ -62,7 +73,6 @@ void results(
 			}
 			os << std::setw(spacing) << *it;
 		}
-
 		if(ratio) {
 			const Real change = value - previousValue;
 			const Real ratio = previousChange / change;
@@ -75,8 +85,7 @@ void results(
 			previousChange = change;
 			previousValue = value;
 		}
-
-		os << std::endl;
+		os << std::setw(spacing) << seconds << std::endl;
 	}
 
 	// Reset format flags
