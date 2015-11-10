@@ -31,10 +31,10 @@ int N;
 bool call, digital, american, variable;
 RectilinearGrid1 *grid;
 
-std::vector<Real> run(int k) {
+ResultsTuple1 run(int k) {
 
 	// 2^k or 2^(2k)
-	Real factor = 1;
+	int factor = 1;
 	for(int i = 0; i < k; ++i) {
 		if(american) { factor *= 4; }
 		else         { factor *= 2; }
@@ -71,9 +71,9 @@ std::vector<Real> run(int k) {
 	////////////////////////////////////////////////////////////////////////
 
 	ReverseConstantStepper stepper(
-		0.,            // Initial time
-		T,             // Expiry time
-		T / N / factor // Timestep size
+		0.,              // Initial time
+		T,               // Expiry time
+		T / (N * factor) // Timestep size
 	);
 
 	////////////////////////////////////////////////////////////////////////
@@ -96,8 +96,9 @@ std::vector<Real> run(int k) {
 
 	bs.setIteration(stepper);
 
-	ReverseBDFTwo bdf2(refinedGrid, bs);
-	bdf2.setIteration(stepper);
+	typedef ReverseBDFTwo Discretization;
+	Discretization discretization(refinedGrid, bs);
+	discretization.setIteration(stepper);
 
 	////////////////////////////////////////////////////////////////////////
 	// Running
@@ -109,31 +110,21 @@ std::vector<Real> run(int k) {
 	BiCGSTABSolver solver;
 
 	auto solution = stepper.solve(
-		refinedGrid,   // Domain
-		payoff, // Initial condition
-		bdf2,   // Root of linear system tree
-		solver  // Linear system solver
+		refinedGrid,    // Domain
+		payoff,         // Initial condition
+		discretization, // Root of linear system tree
+		solver          // Linear system solver
 	);
 
 	////////////////////////////////////////////////////////////////////////
 
-	unsigned outer;
-	Real value;
+	// Timesteps
+	unsigned timesteps = stepper.iterations()[0];
 
-	// Outer iterations
-	outer = stepper.iterations()[0];
-
-	// Solution at S = stock (default is 100.)
-	// Linear interpolation is used to get the value not on the grid
-	value = solution(S_0);
-
-	return
-		{
-			(Real) refinedGrid.size(),
-			(Real) outer,
-			value
-		}
-	;
+	return ResultsTuple1(
+		{ (Real) refinedGrid.size(), (Real) timesteps, },
+		solution, S_0
+	);
 }
 
 int main(int argc, char **argv) {
@@ -162,13 +153,9 @@ int main(int argc, char **argv) {
 	cerr << configuration << endl << endl;
 
 	// Run and print results
-	results(
+	streamResults1(
 		run,
-		{
-			"Nodes",
-			"Steps",
-			"Value"
-		},
+		{ "Nodes", "Steps" },
 		kn, k0
 	);
 

@@ -32,10 +32,10 @@ int N;
 bool call, digital, american, variable;
 RectilinearGrid1 *grid;
 
-std::vector<Real> run(int k) {
+ResultsTuple1 run(int k) {
 
 	// 2^k or 2^(2k)
-	Real factor = 1;
+	int factor = 1;
 	for(int i = 0; i < k; ++i) {
 		if(american) { factor *= 4; }
 		else         { factor *= 2; }
@@ -48,10 +48,6 @@ std::vector<Real> run(int k) {
 
 	auto refinedGrid = grid->refined(k);
 
-	unsigned outer;
-	Real inner = nan("");
-	Real value;
-
 	// Black-Scholes operator (L in V_t = LV)
 	BlackScholes1 bs(
 		refinedGrid,
@@ -61,20 +57,21 @@ std::vector<Real> run(int k) {
 	// Timestepping method
 	unique_ptr<Iteration> stepper(variable
 		? (Iteration *) new ReverseVariableStepper(
-			0.,              // startTime
-			T,               // endTime
-			T / N / factor,  // dt
-			1. / factor      // target
+			0.,               // startTime
+			T,                // endTime
+			T / (N * factor), // dt
+			1. / factor       // target
 		)
 		: (Iteration *) new ReverseConstantStepper(
-			0.,            // startTime
-			T,             // endTime
-			T / N / factor // dt
+			0.,              // startTime
+			T,               // endTime
+			T / (N * factor) // dt
 		)
 	);
 
 	// Time discretization method
-	ReverseRannacher discretization(refinedGrid, bs);
+	typedef ReverseRannacher Discretization;
+	Discretization discretization(refinedGrid, bs);
 	discretization.setIteration(*stepper);
 
 	// American-specific components; penalty method or not?
@@ -115,27 +112,20 @@ std::vector<Real> run(int k) {
 		solver
 	);
 
-	// Outer iterations
-	outer = stepper->iterations()[0];
+	// Timesteps
+	unsigned timesteps = stepper->iterations()[0];
 
-	// Average number of inner iterations
+	// Average number of policy iterations
+	Real policyIts = nan("");
 	if(american) {
 		auto its = tolerance->iterations();
-		inner = accumulate(its.begin(), its.end(), 0.) / its.size();
+		policyIts = accumulate(its.begin(), its.end(), 0.) / its.size();
 	}
 
-	// Solution at S = stock (default is 100.)
-	// Linear interpolation is used to get the value not on the grid
-	value = solution(S_0);
-
-	return
-		{
-			(Real) refinedGrid.size(),
-			(Real) outer,
-			inner,
-			value
-		}
-	;
+	return ResultsTuple1(
+		{(Real) refinedGrid.size(), (Real) timesteps, policyIts },
+		solution, S_0
+	);
 
 }
 
@@ -166,14 +156,9 @@ int main(int argc, char **argv) {
 	cerr << configuration << endl << endl;
 
 	// Run and print results
-	results(
+	streamResults1(
 		run,
-		{
-			"Nodes",
-			"Steps",
-			"Mean Inner Iterations",
-			"Value"
-		},
+		{ "Nodes", "Steps", "Mean Policy Iterations" },
 		kn, k0
 	);
 

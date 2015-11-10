@@ -43,10 +43,10 @@ int N;
 bool long_position;
 RectilinearGrid1 *grid;
 
-std::vector<Real> run(int k) {
+ResultsTuple1 run(int k) {
 
 	// 2^k
-	Real factor = 1;
+	int factor = 1;
 	for(int i = 0; i < k; ++i) { factor *= 2; }
 
 	////////////////////////////////////////////////////////////////////////
@@ -90,9 +90,9 @@ std::vector<Real> run(int k) {
 	////////////////////////////////////////////////////////////////////////
 
 	ReverseConstantStepper stepper(
-		0.,             // Initial time
-		T,              // Expiry time
-		T / N / factor  // Timestep size
+		0.,              // Initial time
+		T,               // Expiry time
+		T / (N * factor) // Timestep size
 	);
 	ToleranceIteration tolerance;
 	stepper.setInnerIteration(tolerance);
@@ -133,9 +133,10 @@ std::vector<Real> run(int k) {
 	);
 	policy->setIteration(tolerance); // Associate with k-iteration
 
-	// BDF2 (timestepping)
-	ReverseBDFTwo bdf2(refinedGrid, *policy);
-	bdf2.setIteration(stepper); // Associate with n-iteration
+	// Discretization method
+	typedef ReverseBDFTwo Discretization;
+	Discretization discretization(refinedGrid, *policy);
+	Discretization.setIteration(stepper); // Associate with n-iteration
 
 	////////////////////////////////////////////////////////////////////////
 	// Running
@@ -157,27 +158,18 @@ std::vector<Real> run(int k) {
 
 	////////////////////////////////////////////////////////////////////////
 
-	unsigned outer;
-	Real inner = nan("");
-	Real value;
+	// Timesteps
+	unsigned timesteps = stepper.iterations()[0];
 
-	// Outer iterations
-	outer = stepper.iterations()[0];
-
-	// Average number of inner iterations
+	// Average number of policy iterations
+	Real policyIts = nan("");
 	auto its = tolerance.iterations();
-	inner = accumulate(its.begin(), its.end(), 0.) / its.size();
+	policyIts = accumulate(its.begin(), its.end(), 0.) / its.size();
 
-	value = solution(S_0);
-
-	return
-		{
-			(Real) refinedGrid.size(),
-			(Real) outer,
-			inner,
-			value
-		}
-	;
+	return ResultsTuple1(
+		{(Real) refinedGrid.size(), (Real) timesteps, policyIts},
+		solution, S_0
+	);
 }
 
 int main(int argc, char **argv) {
@@ -205,14 +197,9 @@ int main(int argc, char **argv) {
 	cerr << configuration << endl << endl;
 
 	// Run and print results
-	results(
+	streamResults1(
 		run,
-		{
-			"Nodes",
-			"Steps",
-			"Mean Inner Iterations",
-			"Value"
-		},
+		{ "Nodes", "Steps", "Mean Policy Iterations" },
 		kn, k0
 	);
 
