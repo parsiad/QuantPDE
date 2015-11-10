@@ -25,9 +25,11 @@ using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+Configuration configuration;
 Real T, r, vol, divs, S_0, K;
-int N;
+int N, M;
 bool call, digital, american, variable;
+RectilinearGrid1 *grid;
 
 std::vector<Real> run(int k) {
 
@@ -38,17 +40,12 @@ std::vector<Real> run(int k) {
 		else         { factor *= 2; }
 	}
 
-	RectilinearGrid1 grid(
-		  (S_0 * Axis::special)
-		+ (K   * Axis::special)
-	);
-
 	Function1 payoff = digital ?
 		  ( call ? digitalCallPayoff(K) : digitalPutPayoff(K) )
 		: (call ? callPayoff(K) : putPayoff(K))
 	;
 
-	auto refined_grid = grid.refined(k);
+	auto refined_grid = grid->refined(k);
 
 	unsigned outer;
 	Real inner = nan("");
@@ -133,9 +130,9 @@ std::vector<Real> run(int k) {
 
 	return
 		{
-			(double) refined_grid.size(),
-			(double) outer,
-			(double) inner,
+			(Real) refined_grid.size(),
+			(Real) outer,
+			(Real) inner,
 			value
 		}
 	;
@@ -143,24 +140,27 @@ std::vector<Real> run(int k) {
 }
 
 int main(int argc, char **argv) {
-	// Parse configuration file (if any)
-	Configuration configuration = getConfiguration(argc, argv);
+	// Parse configuration file
+	configuration = getConfiguration(argc, argv);
 
 	// Get options
 	int kn, k0;
 	kn = getInt(configuration, "maximum_refinement", 5);
 	k0 = getInt(configuration, "minimum_refinement", 0);
-	T = getDouble(configuration, "time_to_expiry", 1.);
-	r = getDouble(configuration, "interest_rate", .04);
-	vol = getDouble(configuration, "volatility", .2);
-	divs = getDouble(configuration, "dividend_rate", 0.);
-	S_0 = getDouble(configuration, "initial_asset_price", 100.);
-	K = getDouble(configuration, "strike_price", 100.);
+	T = getReal(configuration, "time_to_expiry", 1.);
+	r = getReal(configuration, "interest_rate", .04);
+	vol = getReal(configuration, "volatility", .2);
+	divs = getReal(configuration, "dividend_rate", 0.);
+	S_0 = getReal(configuration, "asset_price", 100.);
+	K = getReal(configuration, "strike_price", 100.);
 	N = getInt(configuration, "initial_number_of_timesteps", 12);
 	call = getBool(configuration, "is_call", true);
 	digital = getBool(configuration, "is_digital", false);
 	american = getBool(configuration, "is_american", false);
 	variable = getBool(configuration, "use_variable_timestepping", false);
+	RectilinearGrid1 defGrid( (S_0 * Axis::special) + (K * Axis::special));
+	RectilinearGrid1 tmp = getGrid(configuration, "initial_grid", defGrid);
+	grid = &tmp;
 
 	// Print configuration file
 	cerr << configuration << endl << endl;

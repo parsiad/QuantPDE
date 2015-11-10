@@ -1153,12 +1153,22 @@ public:
 	}
 
 	/**
-	 * Construct from array.
+	 * Construct from std::array.
 	 */
 	RectilinearGrid(const std::array<Axis, Dimension> &axes) {
 		int i = 0;
 		for(auto it = axes.begin(); it != axes.end(); ++it) {
 			this->axes[i++] = *it;
+		}
+		initialize();
+	}
+
+	/**
+	 * Construct from array.
+	 */
+	RectilinearGrid(const Axis axes[Dimension]) {
+		for(int i = 0; i < Dimension; ++i) {
+			this->axes[i] = axes[i];
 		}
 		initialize();
 	}

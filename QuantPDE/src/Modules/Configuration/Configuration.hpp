@@ -3,6 +3,7 @@
 
 #include <json/json.h>
 
+#include <array>    // std::array
 #include <cstdlib>  // std::exit
 #include <fstream>  // std::ifstream
 #include <iostream> // std::cin
@@ -19,13 +20,14 @@ typedef Json::Value Configuration;
 		const std::string &key, \
 		type defaultValue \
 	) { \
-		const auto tmp = configuration.get(key, defaultValue).asType();\
+		const auto tmp = (type) \
+				configuration.get(key, defaultValue).asType();\
 		configuration[key] = tmp; \
 		return tmp; \
 	}
 
 QUANT_PDE_CONFIGURATION_GET(getInt, int, asInt)
-QUANT_PDE_CONFIGURATION_GET(getDouble, double, asDouble)
+QUANT_PDE_CONFIGURATION_GET(getReal, Real, asDouble)
 QUANT_PDE_CONFIGURATION_GET(getBool, bool, asBool)
 
 #undef QUANT_PDE_CONFIGURATION_GET
@@ -61,6 +63,60 @@ Configuration getConfiguration(int argc, char **argv) {
 
 	return configuration;
 
+}
+
+class ConfigurationHelpers final {
+
+public:
+
+	template <Index Dimension>
+	static RectilinearGrid<Dimension> getGrid(
+		Configuration &configuration,
+		const std::string &key,
+		const RectilinearGrid<Dimension> &defaultValue
+	) {
+
+		if(!configuration.isMember(key)) {
+			for(Index i = 0; i < Dimension; ++i) {
+				for(
+					Index j = 0;
+					j < defaultValue[i].size();
+					++j
+				) {
+					configuration[key][i][j]
+							= defaultValue[i][j];
+				}
+			}
+			return defaultValue;
+		}
+
+		Axis axes[Dimension];
+		for(Index i = 0; i < Dimension; ++i) {
+			axes[i].length = configuration[key][i].size();
+			axes[i].n = new Real[axes[i].length];
+			for(Index j = 0; j < axes[i].length; ++j) {
+				axes[i].n[j] = (Real) configuration[key][i][j]
+						.asDouble();
+			}
+		}
+
+		return RectilinearGrid<Dimension>(axes);
+
+	}
+
+};
+
+template <Index Dimension>
+inline RectilinearGrid<Dimension> getGrid(
+	Configuration &configuration,
+	const std::string &key,
+	const RectilinearGrid<Dimension> &defaultValue
+) {
+	return ConfigurationHelpers::getGrid<Dimension>(
+		configuration,
+		key,
+		defaultValue
+	);
 }
 
 }

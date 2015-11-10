@@ -438,6 +438,8 @@ public:
 
 	template <Index> friend class RectilinearGrid;
 
+	friend class ConfigurationHelpers;
+
 };
 
 Axis Axis::special {
