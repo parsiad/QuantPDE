@@ -1,5 +1,5 @@
-#ifndef QUANT_PDE_CORE_RESULTS
-#define QUANT_PDE_CORE_RESULTS
+#ifndef QUANT_PDE_MODULES_RESULTS_HPP
+#define QUANT_PDE_MODULES_RESULTS_HPP
 
 #include <iomanip>  // std::setw
 #include <iostream> // std::cout, std::endl, std::scientific

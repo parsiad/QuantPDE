@@ -1,7 +1,0 @@
-#ifndef QUANT_PDE_MODULES_CONFIGURATION
-#define QUANT_PDE_MODULES_CONFIGURATION
-
-#include "../src/Modules/Configuration/Configuration.hpp"
-
-#endif
-

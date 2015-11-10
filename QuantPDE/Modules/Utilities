@@ -1,0 +1,8 @@
+#ifndef QUANT_PDE_MODULES_UTILITIES
+#define QUANT_PDE_MODULES_UTILITIES
+
+#include "../src/Modules/Utilities/Configuration.hpp"
+#include "../src/Modules/Utilities/Results.hpp"
+
+#endif
+

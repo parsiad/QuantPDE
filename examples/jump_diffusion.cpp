@@ -9,9 +9,9 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <QuantPDE/Core>
-#include <QuantPDE/Modules/Configuration>
 #include <QuantPDE/Modules/Lambdas>
 #include <QuantPDE/Modules/Operators>
+#include <QuantPDE/Modules/Utilities>
 
 using namespace QuantPDE;
 using namespace QuantPDE::Modules;
