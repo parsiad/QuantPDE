@@ -9,6 +9,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <QuantPDE/Core>
+#include <QuantPDE/Modules/Configuration>
 #include <QuantPDE/Modules/Lambdas>
 #include <QuantPDE/Modules/Operators>
 
@@ -17,150 +18,34 @@ using namespace QuantPDE::Modules;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-#include <iostream> // cout, cerr
-#include <unistd.h> // getopt
+#include <iostream> // cerr
+#include <memory>   // unique_ptr
 
 using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-/**
- * Prints help to stderr.
- */
-void help() {
-	cerr <<
-"jump_diffusion [OPTIONS]" << endl << endl <<
-"Computes the price of a European put with jump-diffusion driven by a Poisson " << endl <<
-"process. The jump amplitude is assumed to be lognormally distributed." << endl <<
-endl <<
-"-d REAL" << endl <<
-endl <<
-"    Sets the dividend rate (default is 0.)." << endl <<
-endl <<
-"-g REAL" << endl <<
-endl <<
-"    Sets the jump amplitude standard deviation (default is 0.42)." << endl <<
-endl <<
-"-K REAL" << endl <<
-endl <<
-"    Sets the strike price (default is 100.)." << endl <<
-endl <<
-"-l NONNEGATIVE_REAL" << endl <<
-endl <<
-"    Sets the mean arrival time for the jump process (default is 0.05)." << endl <<
-endl <<
-"-m REAL" << endl <<
-endl <<
-"    Sets the mean jump amplitude (default is -0.8)." << endl <<
-endl <<
-"-N POSITIVE_REAL" << endl <<
-endl <<
-"    Sets the number of timesteps (default is 100)." << endl <<
-endl <<
-"-r REAL" << endl <<
-endl <<
-"    Sets the interest rate (default is 0.05)." << endl <<
-endl <<
-"-R NONNEGATIVE_INTEGER" << endl <<
-endl <<
-"    Controls the coarseness of the grid, with 0 being coarsest (default is 0)." << endl <<
-endl <<
-"-T POSITIVE_REAL" << endl <<
-endl <<
-"    Sets the expiry time (default is 1.)." << endl <<
-endl <<
-"-v REAL" << endl <<
-endl <<
-"    Sets the volatility (default is 0.3)." << endl << endl;
-}
+Configuration configuration;
+Real T, r, vol, divs, S_0, K, arrival, jump_mean, jump_std;
+int N;
+bool call, digital, american, variable;
+RectilinearGrid1 *grid;
 
-int main(int argc, char **argv) {
+std::vector<Real> run(int k) {
 
-	Real K  = 100.; // Strike
-	Real T  = 1.;   // Expiry
-	Real r  = .05;  // Interest
-	Real v  = .3;   // Volatility
-	Real q  = 0.;   // Dividend rate
-
-	Real l = 0.05;  // Jump arrival rate
-	Real m = -.8;   // Mean jump amplitude
-	Real g = .42;   // Jump amplitude standard deviation
-
-	int N = 100;    // Number of timesteps
-	int R = 0;      // Level of refinement
-
-	// Setting options with getopt
-	{ char c;
-	while((c = getopt(argc, argv, "d:g:hK:l:m:N:r:R:T:v:")) != -1) {
-		switch(c) {
-			case 'd':
-				q = atof(optarg);
-				break;
-			case 'g':
-				g = atof(optarg);
-				break;
-			case 'h':
-				help();
-				return 0;
-			case 'K':
-				K = atof(optarg);
-				break;
-			case 'l':
-				l = atof(optarg);
-				if(l < 0) {
-					cerr <<
-"error: the mean arrival time must be nonnegative" << endl;
-					return 1;
-				}
-				break;
-			case 'm':
-				m = atof(optarg);
-				break;
-			case 'N':
-				N = atoi(optarg);
-				if(N <= 0) {
-					cerr <<
-"error: the number of steps must be positive" << endl;
-					return 1;
-				}
-				break;
-			case 'r':
-				r = atof(optarg);
-				break;
-			case 'R':
-				R = atoi(optarg);
-				if(R < 0) {
-					cerr <<
-"error: the maximum level of refinement must be nonnegative" << endl;
-					return 1;
-				}
-				break;
-			case 'T':
-				if((T = atof(optarg)) <= 0.) {
-					cerr <<
-"error: expiry time must be positive" << endl;
-					return 1;
-				}
-				break;
-			case 'v':
-				v = atof(optarg);
-				break;
-			case ':':
-			case '?':
-				cerr << endl;
-				help();
-				return 1;
-		}
-	} }
+	// 2^k or 2^(2k)
+	Real factor = 1;
+	for(int i = 0; i < k; ++i) {
+		if(american) { factor *= 4; }
+		else         { factor *= 2; }
+	}
 
 	////////////////////////////////////////////////////////////////////////
 	// Spatial grid
 	////////////////////////////////////////////////////////////////////////
 
-	RectilinearGrid1 initialGrid( K * Axis::special );
-
 	// Refine grid R times
-	auto grid = initialGrid.refined( R );
+	auto refinedGrid = grid->refined(k);
 
 	////////////////////////////////////////////////////////////////////////
 	// Payoff
@@ -186,9 +71,9 @@ int main(int argc, char **argv) {
 	////////////////////////////////////////////////////////////////////////
 
 	ReverseConstantStepper stepper(
-		0., // Initial time
-		T,  // Expiry time
-		T/N // Timestep size
+		0.,            // Initial time
+		T,             // Expiry time
+		T / N / factor // Timestep size
 	);
 
 	////////////////////////////////////////////////////////////////////////
@@ -199,19 +84,19 @@ int main(int argc, char **argv) {
 	////////////////////////////////////////////////////////////////////////
 
 	BlackScholesJumpDiffusion1 bs(
-		grid,
+		refinedGrid,
 
-		r, // Interest
-		v, // Volatility
-		q, // Dividend rate
+		r,    // Interest
+		vol,  // Volatility
+		divs, // Dividend rate
 
-		l, // Mean arrival time
-		lognormal(m, g) // Log-normal probability density
+		arrival, // Mean arrival time
+		lognormal(jump_mean, jump_std) // Log-normal probability density
 	);
 
 	bs.setIteration(stepper);
 
-	ReverseBDFTwo bdf2(grid, bs);
+	ReverseBDFTwo bdf2(refinedGrid, bs);
 	bdf2.setIteration(stepper);
 
 	////////////////////////////////////////////////////////////////////////
@@ -223,21 +108,69 @@ int main(int argc, char **argv) {
 
 	BiCGSTABSolver solver;
 
-	auto V = stepper.solve(
-		grid,   // Domain
+	auto solution = stepper.solve(
+		refinedGrid,   // Domain
 		payoff, // Initial condition
 		bdf2,   // Root of linear system tree
 		solver  // Linear system solver
 	);
 
 	////////////////////////////////////////////////////////////////////////
-	// Print solution
-	////////////////////////////////////////////////////////////////////////
 
-	// Print on the grid K * (0 : 0.1 : 2.0)
-	RectilinearGrid1 printGrid( K * Axis::range(0., .1, 2.) );
-	cout << accessor( printGrid, V );
+	unsigned outer;
+	Real value;
+
+	// Outer iterations
+	outer = stepper.iterations()[0];
+
+	// Solution at S = stock (default is 100.)
+	// Linear interpolation is used to get the value not on the grid
+	value = solution(S_0);
+
+	return
+		{
+			(Real) refinedGrid.size(),
+			(Real) outer,
+			value
+		}
+	;
+}
+
+int main(int argc, char **argv) {
+	// Parse configuration file
+	configuration = getConfiguration(argc, argv);
+
+	// Get options
+	int kn, k0;
+	kn = getInt(configuration, "maximum_refinement", 5);
+	k0 = getInt(configuration, "minimum_refinement", 0);
+	T = getReal(configuration, "time_to_expiry", 1.);
+	r = getReal(configuration, "interest_rate", .05);
+	vol = getReal(configuration, "volatility", .3);
+	divs = getReal(configuration, "dividend_rate", 0.);
+	S_0 = getReal(configuration, "asset_price", 100.);
+	K = getReal(configuration, "strike_price", 100.);
+	arrival = getReal(configuration, "jump_arrival_rate", .05);
+	jump_mean = getReal(configuration, "jump_amplitude_mean", -.8);
+	jump_std = getReal(configuration, "jump_amplitude_deviation", .42);;
+	N = getInt(configuration, "initial_number_of_timesteps", 12);
+	RectilinearGrid1 defGrid( (S_0 * Axis::special) + (K * Axis::special) );
+	RectilinearGrid1 tmp = getGrid(configuration, "initial_grid", defGrid);
+	grid = &tmp;
+
+	// Print configuration file
+	cerr << configuration << endl << endl;
+
+	// Run and print results
+	results(
+		run,
+		{
+			"Nodes",
+			"Steps",
+			"Value"
+		},
+		kn, k0
+	);
 
 	return 0;
-
 }
