@@ -1,5 +1,4 @@
 ADD_EXECUTABLE(bermudan_put bermudan_put.cpp)
-ADD_EXECUTABLE(black_scholes black_scholes.cpp)
 ADD_EXECUTABLE(convergence_table convergence_table.cpp)
 ADD_EXECUTABLE(exchange_rate exchange_rate.cpp)
 ADD_EXECUTABLE(gmwb gmwb.cpp)
@@ -10,3 +9,4 @@ ADD_EXECUTABLE(stock_loan stock_loan.cpp)
 ADD_EXECUTABLE(unequal_borrowing_lending_rates unequal_borrowing_lending_rates.cpp)
 
 TARGET_LINK_LIBRARIES(convergence_table ${JSONCPP_LIBRARY})
+TARGET_LINK_LIBRARIES(unequal_borrowing_lending_rates ${JSONCPP_LIBRARY})

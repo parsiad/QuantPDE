@@ -18,6 +18,7 @@ using namespace QuantPDE::Modules;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+#include <iostream> // cerr
 #include <memory>   // unique_ptr
 #include <numeric>  // accumulate
 
@@ -27,7 +28,7 @@ using namespace std;
 
 Configuration configuration;
 Real T, r, vol, divs, S_0, K;
-int N, M;
+int N;
 bool call, digital, american, variable;
 RectilinearGrid1 *grid;
 
@@ -45,7 +46,7 @@ std::vector<Real> run(int k) {
 		: (call ? callPayoff(K) : putPayoff(K))
 	;
 
-	auto refined_grid = grid->refined(k);
+	auto refinedGrid = grid->refined(k);
 
 	unsigned outer;
 	Real inner = nan("");
@@ -53,7 +54,7 @@ std::vector<Real> run(int k) {
 
 	// Black-Scholes operator (L in V_t = LV)
 	BlackScholes1 bs(
-		refined_grid,
+		refinedGrid,
 		r, vol, divs
 	);
 
@@ -73,7 +74,7 @@ std::vector<Real> run(int k) {
 	);
 
 	// Time discretization method
-	ReverseRannacher discretization(refined_grid, bs);
+	ReverseRannacher discretization(refinedGrid, bs);
 	discretization.setIteration(*stepper);
 
 	// American-specific components; penalty method or not?
@@ -84,7 +85,7 @@ std::vector<Real> run(int k) {
 		// American case
 		penalty = unique_ptr<PenaltyMethodDifference1>(
 			new PenaltyMethodDifference1(
-				refined_grid,
+				refinedGrid,
 				discretization,
 				payoff
 			)
@@ -108,7 +109,7 @@ std::vector<Real> run(int k) {
 
 	// Compute solution
 	auto solution = stepper->solve(
-		refined_grid,
+		refinedGrid,
 		payoff,
 		*root,
 		solver
@@ -120,8 +121,7 @@ std::vector<Real> run(int k) {
 	// Average number of inner iterations
 	if(american) {
 		auto its = tolerance->iterations();
-		inner = accumulate(its.begin(), its.end(), 0.)
-				/ its.size();
+		inner = accumulate(its.begin(), its.end(), 0.) / its.size();
 	}
 
 	// Solution at S = stock (default is 100.)
@@ -130,9 +130,9 @@ std::vector<Real> run(int k) {
 
 	return
 		{
-			(Real) refined_grid.size(),
+			(Real) refinedGrid.size(),
 			(Real) outer,
-			(Real) inner,
+			inner,
 			value
 		}
 	;
@@ -158,7 +158,7 @@ int main(int argc, char **argv) {
 	digital = getBool(configuration, "is_digital", false);
 	american = getBool(configuration, "is_american", false);
 	variable = getBool(configuration, "use_variable_timestepping", false);
-	RectilinearGrid1 defGrid( (S_0 * Axis::special) + (K * Axis::special));
+	RectilinearGrid1 defGrid( (S_0 * Axis::special) + (K * Axis::special) );
 	RectilinearGrid1 tmp = getGrid(configuration, "initial_grid", defGrid);
 	grid = &tmp;
 

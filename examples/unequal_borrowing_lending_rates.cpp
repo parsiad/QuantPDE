@@ -20,6 +20,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <QuantPDE/Core>
+#include <QuantPDE/Modules/Configuration>
 #include <QuantPDE/Modules/Lambdas>
 #include <QuantPDE/Modules/Operators>
 
@@ -28,138 +29,32 @@ using namespace QuantPDE::Modules;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#include <iostream> // cout, cerr
+#include <iostream> // cerr
 #include <memory>   // unique_ptr
-#include <unistd.h> // getopt
+#include <numeric>  // accumulate
 
 using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/**
- * Prints help to stderr.
- */
-void help() {
-	cerr <<
-"unequal_borrowing_lending_rates [OPTIONS]" << endl << endl <<
-"Prices a long/short position straddle under the Black-Scholes model assuming" << endl <<
-"unequal borrowing/lending rates." << endl <<
-endl <<
-"-b REAL" << endl <<
-endl <<
-"    Sets the borrowing interest rate (default is 0.05)." << endl <<
-endl <<
-"-d REAL" << endl <<
-endl <<
-"    Sets the dividend rate (default is 0.)." << endl <<
-endl <<
-"-K REAL" << endl <<
-endl <<
-"    Sets the strike price (default is 100.)." << endl <<
-endl <<
-"-l REAL" << endl <<
-endl <<
-"    Sets lending interest rate (default is 0.03)." << endl <<
-endl <<
-"-L" << endl <<
-endl <<
-"    Calculates the price for a long position (default is short position)." << endl <<
-endl <<
-"-N POSITIVE_INTEGER" << endl <<
-endl <<
-"    Sets the number of steps to take in time (default is 100)." << endl <<
-endl <<
-"-R NONNEGATIVE_INTEGER" << endl <<
-endl <<
-"    Controls the coarseness of the grid, with 0 being coarsest (default is 0)." << endl <<
-endl <<
-"-T POSITIVE_REAL" << endl <<
-endl <<
-"    Sets the expiry time (default is 1.)." << endl <<
-endl <<
-"-v REAL" << endl <<
-endl <<
-"    Sets the volatility (default is 0.3)." << endl << endl;
-}
+Configuration configuration;
+Real T, r_l, r_b, vol, divs, S_0, K;
+int N;
+bool long_position;
+RectilinearGrid1 *grid;
 
-int main(int argc, char **argv) {
+std::vector<Real> run(int k) {
 
-	Real K     = 100.;
-	Real T     = 1.;
-	Real r_l   = .03;
-	Real r_b   = .05;
-	Real vol   = .3;
-	Real div   = 0.;
-
-	int N      = 100;
-	int R      = 0;
-	bool L     = false;
-
-	// Setting options with getopt
-	{ char c;
-	while((c = getopt(argc, argv, "b:d:hK:l:LN:R:T:v:")) != -1) {
-		switch(c) {
-			case 'b':
-				r_b = atof(optarg);
-				break;
-			case 'd':
-				div = atof(optarg);
-				break;
-			case 'h':
-				help();
-				return 0;
-			case 'K':
-				K = atof(optarg);
-				break;
-			case 'l':
-				r_l = atof(optarg);
-				break;
-			case 'L':
-				L = true;
-				break;
-			case 'N':
-				N = atoi(optarg);
-				if(N <= 0) {
-					cerr <<
-"error: the number of steps must be positive" << endl;
-					return 1;
-				}
-				break;
-			case 'R':
-				R = atoi(optarg);
-				if(R < 0) {
-					cerr <<
-"error: the maximum level of refinement must be nonnegative" << endl;
-					return 1;
-				}
-				break;
-			case 'T':
-				if((T = atof(optarg)) <= 0.) {
-					cerr <<
-"error: expiry time must be positive" << endl;
-					return 1;
-				}
-				break;
-			case 'v':
-				vol = atof(optarg);
-				break;
-			case ':':
-			case '?':
-				cerr << endl;
-				help();
-				return 1;
-		}
-	} }
+	// 2^k
+	Real factor = 1;
+	for(int i = 0; i < k; ++i) { factor *= 2; }
 
 	////////////////////////////////////////////////////////////////////////
 	// Spatial grid
 	////////////////////////////////////////////////////////////////////////
 
-	// Initial discretization
-	RectilinearGrid1 initialGrid( K * Axis::special );
-
 	// Refine grid R times
-	auto grid = initialGrid.refined( R );
+	auto refinedGrid = grid->refined(k);
 
 	////////////////////////////////////////////////////////////////////////
 	// Control grid
@@ -195,9 +90,9 @@ int main(int argc, char **argv) {
 	////////////////////////////////////////////////////////////////////////
 
 	ReverseConstantStepper stepper(
-		0.,  // Initial time
-		T,   // Expiry time
-		T/N  // Timestep size
+		0.,             // Initial time
+		T,              // Expiry time
+		T / N / factor  // Timestep size
 	);
 	ToleranceIteration tolerance;
 	stepper.setInnerIteration(tolerance);
@@ -210,13 +105,13 @@ int main(int argc, char **argv) {
 	////////////////////////////////////////////////////////////////////////
 
 	BlackScholes1 bs(
-		grid,
+		refinedGrid,
 
 		// Interest rate (passed as a control)
-		Control1(grid),
+		Control1(refinedGrid),
 
 		vol, // Volatility
-		div  // Dividend rate
+		divs  // Dividend rate
 	);
 
 	// Policy iteration (a node in the linear system tree)
@@ -228,18 +123,18 @@ int main(int argc, char **argv) {
 	//
 	// Pick min/max policy iteration depending on whether we are considering
 	// the long or short position problem.
-	unique_ptr<IterationNode> policy(L
+	unique_ptr<IterationNode> policy(long_position
 		? (IterationNode*)
-				// sup[ V_tau - LV ]
-				new MaxPolicyIteration1_1(grid, controls, bs)
+			// sup[ V_tau - LV ]
+			new MaxPolicyIteration1_1(refinedGrid, controls, bs)
 		: (IterationNode*)
-				// inf[ V_tau - LV ]
-				new MinPolicyIteration1_1(grid, controls, bs)
+			// inf[ V_tau - LV ]
+			new MinPolicyIteration1_1(refinedGrid, controls, bs)
 	);
 	policy->setIteration(tolerance); // Associate with k-iteration
 
 	// BDF2 (timestepping)
-	ReverseBDFTwo bdf2(grid, *policy);
+	ReverseBDFTwo bdf2(refinedGrid, *policy);
 	bdf2.setIteration(stepper); // Associate with n-iteration
 
 	////////////////////////////////////////////////////////////////////////
@@ -253,21 +148,74 @@ int main(int argc, char **argv) {
 	BiCGSTABSolver solver;
 
 	// Calculate the solution at time zero
-	auto V = stepper.solve(
-		grid,   // Domain
+	auto solution = stepper.solve(
+		refinedGrid,   // Domain
 		payoff, // Initial condition
 		bdf2,   // Root of linear system tree
 		solver  // Linear system solver
 	);
 
 	////////////////////////////////////////////////////////////////////////
-	// Print solution
-	////////////////////////////////////////////////////////////////////////
 
-	// Print on the grid K * (0 : 0.1 : 2.0)
-	RectilinearGrid1 printGrid( K * Axis::range(0., .1, 2.) );
-	cout << accessor( printGrid, V );
+	unsigned outer;
+	Real inner = nan("");
+	Real value;
+
+	// Outer iterations
+	outer = stepper.iterations()[0];
+
+	// Average number of inner iterations
+	auto its = tolerance.iterations();
+	inner = accumulate(its.begin(), its.end(), 0.) / its.size();
+
+	value = solution(S_0);
+
+	return
+		{
+			(Real) refinedGrid.size(),
+			(Real) outer,
+			inner,
+			value
+		}
+	;
+}
+
+int main(int argc, char **argv) {
+	// Parse configuration file
+	configuration = getConfiguration(argc, argv);
+
+	// Get options
+	int kn, k0;
+	kn = getInt(configuration, "maximum_refinement", 5);
+	k0 = getInt(configuration, "minimum_refinement", 0);
+	T = getReal(configuration, "time_to_expiry", 1.);
+	r_b = getReal(configuration, "interest_rate_long", .05);
+	r_l = getReal(configuration, "interest_rate_short", .03);
+	vol = getReal(configuration, "volatility", .3);
+	divs = getReal(configuration, "dividend_rate", 0.);
+	S_0 = getReal(configuration, "asset_price", 100.);
+	K = getReal(configuration, "strike_price", 100.);
+	N = getInt(configuration, "initial_number_of_timesteps", 12);
+	long_position = getBool(configuration, "long_position", false);
+	RectilinearGrid1 defGrid( (S_0 * Axis::special) + (K * Axis::special) );
+	RectilinearGrid1 tmp = getGrid(configuration, "initial_grid", defGrid);
+	grid = &tmp;
+
+	// Print configuration file
+	cerr << configuration << endl << endl;
+
+	// Run and print results
+	results(
+		run,
+		{
+			"Nodes",
+			"Steps",
+			"Mean Inner Iterations",
+			"Value"
+		},
+		kn, k0
+	);
 
 	return 0;
-
 }
+
