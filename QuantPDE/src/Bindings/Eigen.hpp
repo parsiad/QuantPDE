@@ -136,7 +136,7 @@ public:
 /**
  * Solves \f$Ax=b\f$ with a direct solver.
  */
-class DirectSolver : public LinearSolver {
+class SparseLUSolver : public LinearSolver {
 
 	SparseLU solver;
 
@@ -151,7 +151,7 @@ public:
 	/**
 	 * Constructor.
 	 */
-	DirectSolver() noexcept : LinearSolver() {
+	SparseLUSolver() noexcept : LinearSolver() {
 	}
 
 	virtual Vector solve(const Vector &b, const Vector &guess) {

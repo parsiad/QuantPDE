@@ -145,7 +145,7 @@ ResultsTuple1 run(int k) {
 	////////////////////////////////////////////////////////////////////////
 
 	// Linear system solver
-	BiCGSTABSolver solver;
+	SparseLUSolver solver;
 
 	// Calculate the solution at time zero
 	auto solution = stepper.solve(
@@ -177,6 +177,7 @@ int main(int argc, char **argv) {
 
 	// Get options
 	int kn, k0;
+	Real S_max, S_min, dS;
 	kn = getInt(configuration, "maximum_refinement", 5);
 	k0 = getInt(configuration, "minimum_refinement", 0);
 	T = getReal(configuration, "time_to_expiry", 1.);
@@ -186,6 +187,9 @@ int main(int argc, char **argv) {
 	divs = getReal(configuration, "dividend_rate", 0.);
 	S_0 = getReal(configuration, "asset_price", 100.);
 	K = getReal(configuration, "strike_price", 100.);
+	S_min = getReal(configuration, "print_asset_price_minimum", 0.);
+	S_max = getReal(configuration, "print_asset_price_maximum", S_0 * 2.);
+	dS = getReal(configuration, "print_asset_price_step_size", S_0 / 10.);
 	N = getInt(configuration, "initial_number_of_timesteps", 12);
 	long_position = getBool(configuration, "long_position", false);
 	RectilinearGrid1 defGrid( (S_0 * Axis::special) + (K * Axis::special) );
@@ -201,7 +205,7 @@ int main(int argc, char **argv) {
 		{ "Nodes", "Steps", "Mean Policy Iterations" },
 		kn, k0
 	);
-	buffer.addPrintGrid( RectilinearGrid1(Axis::range(0., 10., 200.)) );
+	buffer.addPrintGrid( RectilinearGrid1(Axis::range(S_min, dS, S_max)) );
 	buffer.stream();
 
 	return 0;

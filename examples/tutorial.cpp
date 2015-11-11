@@ -136,7 +136,9 @@ ReverseBDFTwo bdf2(grid, bs);
 bdf2.setIteration(stepper);
 
 // Linear system solver
-BiCGSTABSolver solver;
+// typedef BiCGSTABSolver Solver;
+typedef SparseLUSolver Solver;
+Solver solver;
 
 // Get the solution
 auto V = stepper.solve(

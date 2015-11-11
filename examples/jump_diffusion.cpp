@@ -92,10 +92,9 @@ ResultsTuple1 run(int k) {
 		arrival, // Mean arrival time
 		lognormal(jump_mean, jump_std) // Log-normal probability density
 	);
-
 	bs.setIteration(stepper);
 
-	typedef ReverseBDFTwo Discretization;
+	typedef ReverseBDFOne Discretization;
 	Discretization discretization(refinedGrid, bs);
 	discretization.setIteration(stepper);
 
@@ -106,7 +105,8 @@ ResultsTuple1 run(int k) {
 	// Everything prior to this was setup. Now we run the method.
 	////////////////////////////////////////////////////////////////////////
 
-	BiCGSTABSolver solver;
+	// Linear system solver
+	SparseLUSolver solver;
 
 	auto solution = stepper.solve(
 		refinedGrid,    // Domain
@@ -132,6 +132,7 @@ int main(int argc, char **argv) {
 
 	// Get options
 	int kn, k0;
+	Real S_max, S_min, dS;
 	kn = getInt(configuration, "maximum_refinement", 8);
 	k0 = getInt(configuration, "minimum_refinement", 3);
 	T = getReal(configuration, "time_to_expiry", 1.);
@@ -140,6 +141,9 @@ int main(int argc, char **argv) {
 	divs = getReal(configuration, "dividend_rate", 0.);
 	S_0 = getReal(configuration, "asset_price", 100.);
 	K = getReal(configuration, "strike_price", 100.);
+	S_min = getReal(configuration, "print_asset_price_minimum", 0.);
+	S_max = getReal(configuration, "print_asset_price_maximum", S_0 * 2.);
+	dS = getReal(configuration, "print_asset_price_step_size", S_0 / 10.);
 	arrival = getReal(configuration, "jump_arrival_rate", .05);
 	jump_mean = getReal(configuration, "jump_amplitude_mean", -.8);
 	jump_std = getReal(configuration, "jump_amplitude_deviation", .42);
@@ -157,8 +161,9 @@ int main(int argc, char **argv) {
 		{ "Nodes", "Steps" },
 		kn, k0
 	);
-	buffer.addPrintGrid( RectilinearGrid1(Axis::range(0., 10., 200.)) );
+	buffer.addPrintGrid( RectilinearGrid1(Axis::range(S_min, dS, S_max)) );
 	buffer.stream();
 
 	return 0;
 }
+

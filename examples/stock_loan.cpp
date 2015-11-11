@@ -104,7 +104,7 @@ ResultsTuple1 run(int k) {
 	stepper.setInnerIteration(tolerance);
 
 	// Lender's events (handled explicitly)
-	for(int n = 1; n < N; ++n) {
+	for(int n = 0; n < N; ++n) {
 		const Real t = n * dt;
 		stepper.add(
 			n * dt,
@@ -146,7 +146,7 @@ ResultsTuple1 run(int k) {
 	// Running
 	////////////////////////////////////////////////////////////////////////
 
-	BiCGSTABSolver solver;
+	SparseLUSolver solver;
 
 	auto solution = stepper.solve(
 		refinedGrid, // Domain
@@ -177,14 +177,16 @@ int main(int argc, char **argv) {
 
 	// Get options
 	int kn, k0;
-	kn = getInt(configuration, "maximum_refinement", 5);
+	Real S_max, S_min, dS;
+	kn = getInt(configuration, "maximum_refinement", 7);
 	k0 = getInt(configuration, "minimum_refinement", 0);
-	T = getReal(configuration, "time_to_expiry", 1.);
-	r = getReal(configuration, "interest_rate", .04);
-	vol = getReal(configuration, "volatility", .2);
+	T = getReal(configuration, "time_to_expiry", 10.);
+	r = getReal(configuration, "interest_rate", .02);
+	vol = getReal(configuration, "volatility", .3);
 	S_0 = getReal(configuration, "asset_price", 100.);
 	q_hat = getReal(configuration, "loan_value", 80.);
 	xi = getReal(configuration, "spread", 0.);
+	rho = getReal(configuration, "penalty_scaling", 1.);
 	P = getReal(configuration, "lockout_time", 0.);
 	beta = getReal(configuration, "liquidation_trigger", 80. / 89.);
 	eta = getReal(configuration, "margin_call_trigger", 80. / 94.);
@@ -192,8 +194,11 @@ int main(int argc, char **argv) {
 	jump_mean = getReal(configuration, "jump_amplitude_mean", -.8);
 	jump_std = getReal(configuration, "jump_amplitude_deviation", .42);
 	theta = getReal(configuration, "margin_call_loan_to_value_ratio", .8);
+	S_min = getReal(configuration, "print_asset_price_minimum", 0.);
+	S_max = getReal(configuration, "print_asset_price_maximum", 300.);
+	dS = getReal(configuration, "print_asset_price_step_size", 10.);
 	N = getInt(configuration, "initial_number_of_timesteps", 12);
-	RectilinearGrid1 defGrid( (S_0*Axis::special) + (q_hat*Axis::special) );
+	RectilinearGrid1 defGrid( (S_0*Axis::special) );
 	RectilinearGrid1 tmp = getGrid(configuration, "initial_grid", defGrid);
 	grid = &tmp;
 
@@ -206,7 +211,7 @@ int main(int argc, char **argv) {
 		{ "Nodes", "Steps", "Mean Policy Iterations" },
 		kn, k0
 	);
-	buffer.addPrintGrid( RectilinearGrid1(Axis::range(0., 10., 300.)) );
+	buffer.addPrintGrid( RectilinearGrid1(Axis::range(S_min, dS, S_max)) );
 	buffer.stream();
 
 	return 0;
