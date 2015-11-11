@@ -41,9 +41,9 @@ inline Function1 lognormal(Real mu = 0., Real sigma = 1.) {
  * 	       p  \eta_1 J^{-\eta_1 - 1} 1_{\{ J \geq 1 \} }
  * 	+ (1 - p) \eta_2 J^{ \eta_2 - 1} 1_{\{ J <    1 \} }
  * $\f
- * @param p
- * @param eta_1
- * @param eta_2
+ * @param p Probability of upward jump.
+ * @param eta_1 The upward jump random variable has mean 1/eta_1.
+ * @param eta_2 The downward jump random variable has mean 1/eta_2.
  * @return A lambda function.
  */
 inline Function1 doubleExponential(Real p, Real eta_1, Real eta_2) {

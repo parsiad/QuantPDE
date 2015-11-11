@@ -143,7 +143,7 @@ class SparseLUSolver : public LinearSolver {
 	virtual void initialize() {
 		solver.analyzePattern(A);
 		solver.factorize(A);
-		assert( solver.info() == Eigen::success );
+		assert( solver.info() == Eigen::Success );
 	}
 
 public:

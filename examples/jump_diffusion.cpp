@@ -44,7 +44,7 @@ ResultsTuple1 run(int k) {
 	////////////////////////////////////////////////////////////////////////
 
 	// Refine grid R times
-	auto refinedGrid = grid->refined(k);
+	auto refined_grid = grid->refined(k);
 
 	////////////////////////////////////////////////////////////////////////
 	// Payoff
@@ -83,7 +83,7 @@ ResultsTuple1 run(int k) {
 	////////////////////////////////////////////////////////////////////////
 
 	BlackScholesJumpDiffusion1 bs(
-		refinedGrid,
+		refined_grid,
 
 		r,    // Interest
 		vol,  // Volatility
@@ -95,7 +95,7 @@ ResultsTuple1 run(int k) {
 	bs.setIteration(stepper);
 
 	typedef ReverseBDFOne Discretization;
-	Discretization discretization(refinedGrid, bs);
+	Discretization discretization(refined_grid, bs);
 	discretization.setIteration(stepper);
 
 	////////////////////////////////////////////////////////////////////////
@@ -109,7 +109,7 @@ ResultsTuple1 run(int k) {
 	SparseLUSolver solver;
 
 	auto solution = stepper.solve(
-		refinedGrid,    // Domain
+		refined_grid,    // Domain
 		payoff,         // Initial condition
 		discretization, // Root of linear system tree
 		solver          // Linear system solver
@@ -121,7 +121,7 @@ ResultsTuple1 run(int k) {
 	unsigned timesteps = stepper.iterations()[0];
 
 	return ResultsTuple1(
-		{ (Real) refinedGrid.size(), (Real) timesteps, },
+		{ (Real) refined_grid.size(), (Real) timesteps, },
 		solution, S_0
 	);
 }
@@ -148,8 +148,8 @@ int main(int argc, char **argv) {
 	jump_mean = getReal(configuration, "jump_amplitude_mean", -.8);
 	jump_std = getReal(configuration, "jump_amplitude_deviation", .42);
 	N = getInt(configuration, "initial_number_of_timesteps", 12);
-	RectilinearGrid1 defGrid( (S_0 * Axis::special) + (K * Axis::special) );
-	RectilinearGrid1 tmp = getGrid(configuration, "initial_grid", defGrid);
+	RectilinearGrid1 default_grid( (S_0 * Axis::special) + (K * Axis::special) );
+	RectilinearGrid1 tmp = getGrid(configuration, "initial_grid", default_grid);
 	grid = &tmp;
 
 	// Print configuration file

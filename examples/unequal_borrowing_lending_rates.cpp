@@ -53,7 +53,7 @@ ResultsTuple1 run(int k) {
 	////////////////////////////////////////////////////////////////////////
 
 	// Refine grid R times
-	auto refinedGrid = grid->refined(k);
+	auto refined_grid = grid->refined(k);
 
 	////////////////////////////////////////////////////////////////////////
 	// Control grid
@@ -104,10 +104,10 @@ ResultsTuple1 run(int k) {
 	////////////////////////////////////////////////////////////////////////
 
 	BlackScholes1 bs(
-		refinedGrid,
+		refined_grid,
 
 		// Interest rate (passed as a control)
-		Control1(refinedGrid),
+		Control1(refined_grid),
 
 		vol, // Volatility
 		divs  // Dividend rate
@@ -125,16 +125,16 @@ ResultsTuple1 run(int k) {
 	unique_ptr<IterationNode> policy(long_position
 		? (IterationNode*)
 			// sup[ V_tau - LV ]
-			new MaxPolicyIteration1_1(refinedGrid, controls, bs)
+			new MaxPolicyIteration1_1(refined_grid, controls, bs)
 		: (IterationNode*)
 			// inf[ V_tau - LV ]
-			new MinPolicyIteration1_1(refinedGrid, controls, bs)
+			new MinPolicyIteration1_1(refined_grid, controls, bs)
 	);
 	policy->setIteration(tolerance); // Associate with k-iteration
 
 	// Discretization method
 	typedef ReverseBDFTwo Discretization;
-	Discretization discretization(refinedGrid, *policy);
+	Discretization discretization(refined_grid, *policy);
 	discretization.setIteration(stepper); // Associate with n-iteration
 
 	////////////////////////////////////////////////////////////////////////
@@ -149,7 +149,7 @@ ResultsTuple1 run(int k) {
 
 	// Calculate the solution at time zero
 	auto solution = stepper.solve(
-		refinedGrid,    // Domain
+		refined_grid,    // Domain
 		payoff,         // Initial condition
 		discretization, // Root of linear system tree
 		solver          // Linear system solver
@@ -161,12 +161,12 @@ ResultsTuple1 run(int k) {
 	unsigned timesteps = stepper.iterations()[0];
 
 	// Average number of policy iterations
-	Real policyIts = nan("");
+	Real policy_its = nan("");
 	auto its = tolerance.iterations();
-	policyIts = accumulate(its.begin(), its.end(), 0.) / its.size();
+	policy_its = accumulate(its.begin(), its.end(), 0.) / its.size();
 
 	return ResultsTuple1(
-		{(Real) refinedGrid.size(), (Real) timesteps, policyIts},
+		{(Real) refined_grid.size(), (Real) timesteps, policy_its},
 		solution, S_0
 	);
 }
@@ -192,8 +192,8 @@ int main(int argc, char **argv) {
 	dS = getReal(configuration, "print_asset_price_step_size", S_0 / 10.);
 	N = getInt(configuration, "initial_number_of_timesteps", 12);
 	long_position = getBool(configuration, "long_position", false);
-	RectilinearGrid1 defGrid( (S_0 * Axis::special) + (K * Axis::special) );
-	RectilinearGrid1 tmp = getGrid(configuration, "initial_grid", defGrid);
+	RectilinearGrid1 default_grid( (S_0 * Axis::special) + (K * Axis::special) );
+	RectilinearGrid1 tmp = getGrid(configuration, "initial_grid", default_grid);
 	grid = &tmp;
 
 	// Print configuration file

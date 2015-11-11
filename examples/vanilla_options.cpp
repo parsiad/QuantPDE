@@ -39,38 +39,39 @@ ResultsTuple1 run(int k) {
 		if(american) { factor *= 4; }
 		else         { factor *= 2; }
 	}
+	const int N2k = N * factor;
 
 	Function1 payoff = digital ?
 		  ( call ? digitalCallPayoff(K) : digitalPutPayoff(K) )
 		: (call ? callPayoff(K) : putPayoff(K))
 	;
 
-	auto refinedGrid = grid->refined(k);
+	auto refined_grid = grid->refined(k);
 
 	// Black-Scholes operator (L in V_t = LV)
 	BlackScholes1 bs(
-		refinedGrid,
+		refined_grid,
 		r, vol, divs
 	);
 
 	// Timestepping method
 	unique_ptr<Iteration> stepper(variable
 		? (Iteration *) new ReverseVariableStepper(
-			0.,               // startTime
-			T,                // endTime
-			T / (N * factor), // dt
-			1. / factor       // target
+			0.,         // startTime
+			T,          // endTime
+			T / N2k,    // dt
+			1. / factor // target
 		)
 		: (Iteration *) new ReverseConstantStepper(
-			0.,              // startTime
-			T,               // endTime
-			T / (N * factor) // dt
+			0.,     // startTime
+			T,      // endTime
+			T / N2k // dt
 		)
 	);
 
 	// Time discretization method
 	typedef ReverseRannacher Discretization;
-	Discretization discretization(refinedGrid, bs);
+	Discretization discretization(refined_grid, bs);
 	discretization.setIteration(*stepper);
 
 	// American-specific components; penalty method or not?
@@ -81,7 +82,7 @@ ResultsTuple1 run(int k) {
 		// American case
 		penalty = unique_ptr<PenaltyMethodDifference1>(
 			new PenaltyMethodDifference1(
-				refinedGrid,
+				refined_grid,
 				discretization,
 				payoff
 			)
@@ -105,7 +106,7 @@ ResultsTuple1 run(int k) {
 
 	// Compute solution
 	auto solution = stepper->solve(
-		refinedGrid,
+		refined_grid,
 		payoff,
 		*root,
 		solver
@@ -115,14 +116,14 @@ ResultsTuple1 run(int k) {
 	unsigned timesteps = stepper->iterations()[0];
 
 	// Average number of policy iterations
-	Real policyIts = nan("");
+	Real policy_its = nan("");
 	if(american) {
 		auto its = tolerance->iterations();
-		policyIts = accumulate(its.begin(), its.end(), 0.) / its.size();
+		policy_its = accumulate(its.begin(), its.end(), 0.)/its.size();
 	}
 
 	return ResultsTuple1(
-		{(Real) refinedGrid.size(), (Real) timesteps, policyIts },
+		{(Real) refined_grid.size(), (Real) timesteps, policy_its },
 		solution, S_0
 	);
 
@@ -151,8 +152,8 @@ int main(int argc, char **argv) {
 	digital = getBool(configuration, "is_digital", false);
 	american = getBool(configuration, "is_american", false);
 	variable = getBool(configuration, "use_variable_timestepping", false);
-	RectilinearGrid1 defGrid( (S_0 * Axis::special) + (K * Axis::special) );
-	RectilinearGrid1 tmp = getGrid(configuration, "initial_grid", defGrid);
+	RectilinearGrid1 default_grid( (S_0 * Axis::special) + (K * Axis::special) );
+	RectilinearGrid1 tmp = getGrid(configuration, "initial_grid", default_grid);
 	grid = &tmp;
 
 	// Print configuration file

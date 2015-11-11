@@ -16,14 +16,14 @@ FIND_PACKAGE(Eigen3 REQUIRED)
 INCLUDE_DIRECTORIES(${EIGEN3_INCLUDE_DIR})
 
 # JsonCpp
-FIND_PACKAGE(JsonCpp REQUIRED)
+FIND_PACKAGE(JsonCpp)
 INCLUDE_DIRECTORIES(${JSONCPP_INCLUDE_DIR})
 
 # QuantPDE
 INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR})
 
 # Set appropriate optimization flags
-# Use `cmake -D CMAKE_BUILT_TYPE=DEBUG`
+# For debugging, use `cmake -DCMAKE_BUILD_TYPE=Debug .`
 SET(CMAKE_BUILD_TYPE Release)
 
 # Where to output binaries

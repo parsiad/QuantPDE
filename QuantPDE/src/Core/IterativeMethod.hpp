@@ -1414,7 +1414,7 @@ public:
 	 */
 	void add(Real time, std::unique_ptr<EventBase> event) {
 		assert(time >= startTime);
-		assert(time < endTime - QuantPDE::epsilon);
+		assert(time <= endTime);
 		assert(time != initialTime());
 
 		events.emplace( id++, time, std::move(event) );
@@ -1429,7 +1429,7 @@ public:
 	template <Index Dimension, typename ...Ts>
 	void add(Real time, Ts &&...args) {
 		assert(time >= startTime);
-		assert(time < endTime - QuantPDE::epsilon);
+		assert(time <= endTime);
 		assert(time != initialTime());
 
 		events.emplace(
@@ -1452,7 +1452,7 @@ public:
 	template <typename ...Ts> \
 	void add(Real time, Transform##DIMENSION &&transform, Ts &&...args) { \
 		assert(time >= startTime); \
-		assert(time < endTime - QuantPDE::epsilon); \
+		assert(time <= endTime); \
 		assert(time != initialTime()); \
 		events.emplace( \
 			id++, \
@@ -1469,7 +1469,7 @@ public:
 	void add(Real time, const Transform##DIMENSION &transform, \
 			Ts &&...args) { \
 		assert(time >= startTime); \
-		assert(time < endTime - QuantPDE::epsilon); \
+		assert(time <= endTime); \
 		assert(time != initialTime()); \
 		events.emplace( \
 			id++, \
