@@ -25,7 +25,16 @@ using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-Real T, r, vol, divs, S_0, K, arrival, jump_mean, jump_std;
+enum JumpType { merton, kou };
+
+JumpType jump_type;
+Real
+	T, r, vol, divs, S_0, K,
+	jump_arrival_rate,
+	jump_mean, jump_std,
+	jump_up_probability,
+	jump_up_mean_reciprocal, jump_down_mean_reciprocal
+;
 int N;
 bool call, digital, american, variable;
 RectilinearGrid1 *grid;
@@ -82,15 +91,24 @@ ResultsTuple1 run(int k) {
 	// Makes the linear system to solve at each iteration
 	////////////////////////////////////////////////////////////////////////
 
+	auto jump_density = (jump_type == JumpType::merton) ?
+		lognormal(
+			jump_mean,
+			jump_std
+		) :
+		doubleExponential(
+			jump_up_probability,
+			jump_up_mean_reciprocal,
+			jump_down_mean_reciprocal
+		)
+	;
+
 	BlackScholesJumpDiffusion1 bs(
 		refined_grid,
-
 		r,    // Interest
 		vol,  // Volatility
 		divs, // Dividend rate
-
-		arrival, // Mean arrival time
-		lognormal(jump_mean, jump_std) // Log-normal probability density
+		jump_arrival_rate, jump_density
 	);
 	bs.setIteration(stepper);
 
@@ -135,22 +153,35 @@ int main(int argc, char **argv) {
 	Real S_max, S_min, dS;
 	kn = getInt(configuration, "maximum_refinement", 8);
 	k0 = getInt(configuration, "minimum_refinement", 3);
-	T = getReal(configuration, "time_to_expiry", 1.);
+	T = getReal(configuration, "time_to_expiry", .25);
 	r = getReal(configuration, "interest_rate", .05);
-	vol = getReal(configuration, "volatility", .3);
+	vol = getReal(configuration, "volatility", .15);
 	divs = getReal(configuration, "dividend_rate", 0.);
 	S_0 = getReal(configuration, "asset_price", 100.);
 	K = getReal(configuration, "strike_price", 100.);
 	S_min = getReal(configuration, "print_asset_price_minimum", 0.);
 	S_max = getReal(configuration, "print_asset_price_maximum", S_0 * 2.);
 	dS = getReal(configuration, "print_asset_price_step_size", S_0 / 10.);
-	arrival = getReal(configuration, "jump_arrival_rate", .05);
-	jump_mean = getReal(configuration, "jump_amplitude_mean", -.8);
-	jump_std = getReal(configuration, "jump_amplitude_deviation", .42);
+	jump_arrival_rate = getReal(configuration, "jump_arrival_rate", .1);
 	N = getInt(configuration, "initial_number_of_timesteps", 12);
 	RectilinearGrid1 default_grid( (S_0 * Axis::special) + (K * Axis::special) );
 	RectilinearGrid1 tmp = getGrid(configuration, "initial_grid", default_grid);
 	grid = &tmp;
+	string jump_type_str = getString(configuration, "jump_type", "lognormal");
+	if(jump_type_str == "lognormal") {
+		jump_type = JumpType::merton;
+		jump_mean = getReal(configuration, "jump_amplitude_mean", -.1);
+		jump_std = getReal(configuration, "jump_amplitude_deviation", .45);
+	} else if(jump_type_str == "double_exponential") {
+		jump_type = JumpType::kou;
+		jump_up_probability = getReal(configuration, "jump_up_probability", .3445);
+		jump_up_mean_reciprocal = getReal(configuration, "jump_up_mean_reciprocal", 3.0465);
+		jump_down_mean_reciprocal = getReal(configuration, "jump_down_mean_reciprocal", 3.0775);
+		// Exact solution with default parameters is 3.973479 at S = 100
+	} else {
+		cerr << "error: jump_model can either be \"lognormal\" or \"double_exponential\"" << endl;
+		return 2;
+	}
 
 	// Print configuration file
 	cerr << configuration << endl << endl;

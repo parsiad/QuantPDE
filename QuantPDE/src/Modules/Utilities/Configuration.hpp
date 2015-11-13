@@ -29,6 +29,7 @@ typedef Json::Value Configuration;
 QUANT_PDE_CONFIGURATION_GET(getInt, int, asInt)
 QUANT_PDE_CONFIGURATION_GET(getReal, Real, asDouble)
 QUANT_PDE_CONFIGURATION_GET(getBool, bool, asBool)
+QUANT_PDE_CONFIGURATION_GET(getString, std::string, asString)
 
 #undef QUANT_PDE_CONFIGURATION_GET
 
