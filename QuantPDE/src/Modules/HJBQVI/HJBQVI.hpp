@@ -58,8 +58,8 @@ struct Result {
 			impulse_control_grid;
 
 	const Vector solution_vector;
-	const Vector stochastic_control_vector[StochasticControlDimension];
-	const Vector impulse_control_vector[ImpulseControlDimension];
+	/*const*/ Vector stochastic_control_vector[StochasticControlDimension];
+	/*const*/ Vector impulse_control_vector[ImpulseControlDimension];
 
 	const int timesteps;
 	const Real scaling_factor;
@@ -94,8 +94,8 @@ struct Result {
 		impulse_control_grid(impulse_control_grid),
 
 		solution_vector(solution_vector),
-		stochastic_control_vector(stochastic_control_vector),
-		impulse_control_vector(impulse_control_vector),
+		/*stochastic_control_vector(stochastic_control_vector),
+		impulse_control_vector(impulse_control_vector),*/
 
 		timesteps(timesteps),
 		scaling_factor(scaling_factor),
@@ -104,7 +104,17 @@ struct Result {
 		mean_solver_iterations(mean_solver_iterations),
 
 		execution_time_seconds(execution_time_seconds)
-	{}
+	{
+		for(Index i = 0; i < StochasticControlDimension; ++i) {
+			this->stochastic_control_vector[i] =
+					stochastic_control_vector[i];
+		}
+
+		for(Index i = 0; i < ImpulseControlDimension; ++i) {
+			this->impulse_control_vector[i] =
+					impulse_control_vector[i];
+		}
+	}
 
 };
 

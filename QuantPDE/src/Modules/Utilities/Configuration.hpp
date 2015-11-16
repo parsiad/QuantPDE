@@ -43,7 +43,15 @@ Configuration getConfiguration(int argc, char **argv) {
 			case 'h':
 				std::cerr
 					<< argv[0]
-					<< " [CONFIGURATION_FILE | -i]"
+					<< " [CONF_FILE | -i]"
+					<< std::endl << std::endl
+					<< "CONF_FILE" << std::endl <<
+"    Path to a JSON file used to specify parameters."
+					<< std::endl << std::endl
+					<< "-i" << std::endl <<
+"    Places the binary in interactive mode so that the contents of a "
+					<< std::endl <<
+"    configuration file can be piped in or inputted with a terminating EOF char."
 					<< std::endl
 				;
 				std::exit(2);

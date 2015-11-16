@@ -19,6 +19,7 @@ using namespace QuantPDE::Modules;
 #include <cassert>   // assert
 #include <cmath>     // exp
 #include <limits>    // numeric_limits
+#include <numeric>   // accumulate
 
 using namespace std;
 

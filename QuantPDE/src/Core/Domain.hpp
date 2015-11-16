@@ -380,13 +380,15 @@ public:
 		VectorAccessor##OWNERSHIP( \
 				const VectorAccessor##OWNERSHIP &that) \
 				noexcept : domain(that.domain), \
-				vector(that.vector), spacing(spacing) { \
+				vector(that.vector) { \
+			this->spacing = that.spacing; \
 		} \
 		VectorAccessor##OWNERSHIP( \
 				VectorAccessor##OWNERSHIP &&that) \
 				noexcept : domain(that.domain), \
-				vector( std::move(that.vector) ), \
-				spacing(spacing) { \
+				vector( std::move(that.vector) ) \
+				{ \
+			this->spacing = that.spacing; \
 		} \
 		VectorAccessor##OWNERSHIP &operator=( \
 				const VectorAccessor##OWNERSHIP &that) & \
