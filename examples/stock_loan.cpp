@@ -95,7 +95,7 @@ ResultsTuple1 run(int k) {
 	for(int i = 0; i < k; ++i) {
 		factor *= 4;
 	}
-	const int N2k = N * factor;
+	const int Nck = N * factor;
 
 	////////////////////////////////////////////////////////////////////////
 	// Spatial grid
@@ -107,12 +107,12 @@ ResultsTuple1 run(int k) {
 	// Iteration tree
 	////////////////////////////////////////////////////////////////////////
 
-	const Real dt = T / N2k;
+	const Real dt = T / Nck;
 	ReverseConstantStepper stepper(0., T, dt);
 	ToleranceIteration tolerance;
 
 	// Explicit events
-	for(int n = 1; n < N2k; ++n) { // Skip n = N2k as it has no effect
+	for(int n = 1; n < Nck; ++n) { // Skip n = Nck as it has no effect
 		const Real t = n * dt;
 
 		if(explicit_impulses) {
