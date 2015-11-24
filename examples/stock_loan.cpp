@@ -26,7 +26,7 @@ using namespace std;
 ////////////////////////////////////////////////////////////////////////////////
 
 Real
-	T, r, vol, S_0,
+	T, r, vol, divs, S_0,
 	q_hat, xi, rho, P, beta, eta, arrival, theta,
 	up_probability, up_mean_r, down_mean_r
 ;
@@ -149,21 +149,27 @@ ResultsTuple1 run(int k) {
 	////////////////////////////////////////////////////////////////////////
 
 	IterationNode *root;
+	LinearSystem *bsptr;
 
-	BlackScholesJumpDiffusion1 bs(
-		refined_grid,
-
-		r,   // Interest
-		vol, // Volatility
-		0.,  // Dividend rate
-
-		arrival, // Mean arrival time
-		doubleExponential(up_probability, up_mean_r, down_mean_r)
+	// Jumps
+	BlackScholesJumpDiffusion1 bsj(
+		refined_grid, r, vol, divs,
+		arrival, doubleExponential(up_probability, up_mean_r,
+				down_mean_r)
 	);
-	bs.setIteration(stepper);
+
+	// No jumps
+	BlackScholes1 bs(refined_grid, r, vol, divs);
+
+	if(arrival < epsilon) {
+		bsptr = &bs;
+	} else {
+		bsptr = &bsj;
+		bsj.setIteration(stepper);
+	}
 
 	typedef ReverseBDFOne Discretization;
-	Discretization discretization(refined_grid, bs);
+	Discretization discretization(refined_grid, *bsptr);
 	discretization.setIteration(stepper);
 
 	PenaltyMethodDifference1 penalty(
@@ -221,6 +227,7 @@ int main(int argc, char **argv) {
 	T = getReal(configuration, "time_to_expiry", 10.);
 	r = getReal(configuration, "interest_rate", .02);
 	vol = getReal(configuration, "volatility", .3);
+	divs = getReal(configuration, "dividends", .0);
 	S_0 = getReal(configuration, "asset_price", 100.);
 	q_hat = getReal(configuration, "loan_value", 80.);
 	xi = getReal(configuration, "spread", 0.);
