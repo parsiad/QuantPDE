@@ -36,16 +36,15 @@ Real
 	jump_up_mean_reciprocal, jump_down_mean_reciprocal
 ;
 int N;
-bool call, digital, american, variable;
+bool call, digital, variable;
 RectilinearGrid1 *grid;
 
 ResultsTuple1 run(int k) {
 
-	// 2^k or 2^(2k)
+	// 2^k
 	int factor = 1;
 	for(int i = 0; i < k; ++i) {
-		if(american) { factor *= 4; }
-		else         { factor *= 2; }
+		factor *= 2;
 	}
 
 	////////////////////////////////////////////////////////////////////////
@@ -164,7 +163,7 @@ int main(int argc, char **argv) {
 	dS = getReal(configuration, "print_asset_price_step_size", S_0 / 10.);
 	jump_arrival_rate = getReal(configuration, "jump_arrival_rate", .1);
 	N = getInt(configuration, "initial_number_of_timesteps", 12);
-	RectilinearGrid1 default_grid( (S_0 * Axis::special) + (K * Axis::special) );
+	RectilinearGrid1 default_grid( (S_0 * Axis::special) + (K * Axis::special) + (S_0 * Axis { 1000. }) + (K * Axis { 1000. }) );
 	RectilinearGrid1 tmp = getGrid(configuration, "initial_grid", default_grid);
 	grid = &tmp;
 	string jump_type_str = getString(configuration, "jump_type", "lognormal");
