@@ -26,12 +26,16 @@ using namespace std;
 ////////////////////////////////////////////////////////////////////////////////
 
 Real
-	T, r, vol, divs, S_0,
-	q_hat, xi, rho, P, beta, eta, arrival, theta,
+	T, r, divs, vol, S_0,
+	q_hat, xi, rho, P, beta, eta, jump_arrival, theta,
 	up_probability, up_mean_r, down_mean_r
 ;
+bool
+	explicit_impulses,
+	margin_calls_enabled, liquidation_enabled,
+	event_at_zero
+;
 int N;
-bool explicit_impulses, margin_calls_enabled;
 RectilinearGrid1 *grid;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -112,7 +116,8 @@ ResultsTuple1 run(int k) {
 	ToleranceIteration tolerance;
 
 	// Explicit events
-	for(int n = 1; n < Nck; ++n) { // Skip n = Nck as it has no effect
+	const int n0 = event_at_zero ? 0 : 1;
+	for(int n = n0; n < Nck; ++n) { // Skip n = Nck as it has no effect
 		const Real t = n * dt;
 
 		if(explicit_impulses) {
@@ -129,19 +134,24 @@ ResultsTuple1 run(int k) {
 		}
 
 		// Lender
-		stepper.add(
-			t,
-			[=] (const Interpolant1 &v, Real s) {
-				const Real v0 = v(s);
-				const Real v1 = liquidation(t, s);
-				const Real v2 = margin_calls_enabled ?
-					margin_call(v, t, s, theta) :
-					inf
-				;
-				return min(v0, min(v1, v2));
-			},
-			refined_grid
-		);
+		if(liquidation_enabled || margin_calls_enabled) {
+			stepper.add(
+				t,
+				[=] (const Interpolant1 &v, Real s) {
+					const Real v0 = v(s);
+					const Real v1 = liquidation_enabled ?
+						liquidation(t, s) :
+						inf
+					;
+					const Real v2 = margin_calls_enabled ?
+						margin_call(v, t, s, theta) :
+						inf
+					;
+					return min(v0, min(v1, v2));
+				},
+				refined_grid
+			);
+		}
 	}
 
 	////////////////////////////////////////////////////////////////////////
@@ -154,14 +164,14 @@ ResultsTuple1 run(int k) {
 	// Jumps
 	BlackScholesJumpDiffusion1 bsj(
 		refined_grid, r, vol, divs,
-		arrival, doubleExponential(up_probability, up_mean_r,
+		jump_arrival, doubleExponential(up_probability, up_mean_r,
 				down_mean_r)
 	);
 
 	// No jumps
 	BlackScholes1 bs(refined_grid, r, vol, divs);
 
-	if(arrival < epsilon) {
+	if(jump_arrival < epsilon) {
 		bsptr = &bs;
 	} else {
 		bsptr = &bsj;
@@ -226,8 +236,8 @@ int main(int argc, char **argv) {
 	k0 = getInt(configuration, "minimum_refinement", 0);
 	T = getReal(configuration, "time_to_expiry", 10.);
 	r = getReal(configuration, "interest_rate", .02);
+	divs = getReal(configuration, "dividend_rate", 0.);
 	vol = getReal(configuration, "volatility", .3);
-	divs = getReal(configuration, "dividends", .0);
 	S_0 = getReal(configuration, "asset_price", 100.);
 	q_hat = getReal(configuration, "loan_value", 80.);
 	xi = getReal(configuration, "spread", 0.);
@@ -235,7 +245,7 @@ int main(int argc, char **argv) {
 	P = getReal(configuration, "lockout_time", 0.);
 	beta = getReal(configuration, "liquidation_trigger", 80. / 89.);
 	eta = getReal(configuration, "margin_call_trigger", 80. / 94.);
-	arrival = getReal(configuration, "jump_arrival_rate", 0.2);
+	jump_arrival = getReal(configuration, "jump_arrival_rate", 0.2);
 	up_probability = getReal(configuration, "jump_up_probability", 0.09);
 	up_mean_r = getReal(configuration, "jump_up_mean_reciprocal", 2.3);
 	down_mean_r = getReal(configuration, "jump_down_mean_reciprocal", 1.8);
@@ -245,7 +255,9 @@ int main(int argc, char **argv) {
 	dS = getReal(configuration, "print_asset_price_step_size", 10.);
 	N = getInt(configuration, "initial_number_of_timesteps", 2);
 	explicit_impulses = getInt(configuration, "handle_all_impulses_explicitly", false);
+	event_at_zero = getInt(configuration, "apply_event_at_time_zero", false);
 	margin_calls_enabled = getInt(configuration, "margin_calls_enabled", false);
+	liquidation_enabled = getInt(configuration, "liquidation_enabled", true);
 	RectilinearGrid1 default_grid( S_0 * Axis::special );
 	RectilinearGrid1 tmp = getGrid(configuration, "initial_grid", default_grid);
 	grid = &tmp;
