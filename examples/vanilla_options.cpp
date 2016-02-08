@@ -77,11 +77,11 @@ ResultsTuple1 run(int k) {
 	// American-specific components; penalty method or not?
 	IterationNode *root;
 	unique_ptr<ToleranceIteration> tolerance;
-	unique_ptr<PenaltyMethodDifference1> penalty;
+	unique_ptr<MinPenaltyMethodDifference1> penalty;
 	if(american) {
 		// American case
-		penalty = unique_ptr<PenaltyMethodDifference1>(
-			new PenaltyMethodDifference1(
+		penalty = unique_ptr<MinPenaltyMethodDifference1>(
+			new MinPenaltyMethodDifference1(
 				refined_grid,
 				discretization,
 				payoff

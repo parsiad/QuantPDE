@@ -182,7 +182,7 @@ ResultsTuple1 run(int k) {
 	Discretization discretization(refined_grid, *bsptr);
 	discretization.setIteration(stepper);
 
-	PenaltyMethodDifference1 penalty(
+	MinPenaltyMethodDifference1 penalty(
 		refined_grid,
 		discretization,
 		prepay

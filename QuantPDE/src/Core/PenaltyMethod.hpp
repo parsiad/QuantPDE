@@ -1,6 +1,8 @@
 #ifndef QUANT_PDE_CORE_PENALTY_METHOD_HPP
 #define QUANT_PDE_CORE_PENALTY_METHOD_HPP
 
+#include <functional> // std::greater
+#include <type_traits> // std::conditional
 #include <vector> // std::vector
 
 namespace QuantPDE {
@@ -9,7 +11,14 @@ namespace QuantPDE {
  * Used to solve a problem of the form
  * \f$\min\left( LV, L^\prime V \right)=0\f$.
  */
+template <bool Max>
 class PenaltyMethod : public IterationNode {
+
+	typedef typename std::conditional<
+		Max,
+		std::greater<Real>,
+		std::less<Real>
+	>::type Order;
 
 	const DomainBase *domain;
 	LinearSystem *left, *right;
@@ -50,7 +59,10 @@ class PenaltyMethod : public IterationNode {
 
 		// Build penalty matrix
 		for(Index i = 0; i < domain->size(); ++i) {
-			const bool c = (scale * predicate(i)) < compare(i);
+			const bool c = Order()(
+				(scale * predicate(i)),
+				compare(i)
+			);
 			if(c) { P.insert(i, i) = scale; }
 			if(!direct || !c) { Q.insert(i, i) = 1.; }
 		}
@@ -128,6 +140,9 @@ public:
 
 };
 
+typedef PenaltyMethod<false> MinPenaltyMethod;
+typedef PenaltyMethod<true > MaxPenaltyMethod;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -150,8 +165,8 @@ public:
  * The second form is independent of time.
  * @tparam Dimension The spatial dimension.
  */
-template <Index Dimension>
-class PenaltyMethodDifference : public PenaltyMethod {
+template <bool Max, Index Dimension>
+class PenaltyMethodDifference : public PenaltyMethod<Max> {
 
 	class DifferenceSystem : public LinearSystem {
 
@@ -271,7 +286,7 @@ public:
 		Real tolerance = QuantPDE::tolerance,
 		bool direct = false
 	) noexcept :
-		PenaltyMethod(
+		PenaltyMethod<Max>(
 			domain,
 			constraint,
 			penalty,
@@ -287,9 +302,19 @@ public:
 
 };
 
-typedef PenaltyMethodDifference<1> PenaltyMethodDifference1;
-typedef PenaltyMethodDifference<2> PenaltyMethodDifference2;
-typedef PenaltyMethodDifference<3> PenaltyMethodDifference3;
+template <Index Dimension>
+using MinPenaltyMethodDifference = PenaltyMethodDifference<false, Dimension>;
+
+template <Index Dimension>
+using MaxPenaltyMethodDifference = PenaltyMethodDifference<true , Dimension>;
+
+typedef MinPenaltyMethodDifference<1> MinPenaltyMethodDifference1;
+typedef MinPenaltyMethodDifference<2> MinPenaltyMethodDifference2;
+typedef MinPenaltyMethodDifference<3> MinPenaltyMethodDifference3;
+
+typedef MaxPenaltyMethodDifference<1> MaxPenaltyMethodDifference1;
+typedef MaxPenaltyMethodDifference<2> MaxPenaltyMethodDifference2;
+typedef MaxPenaltyMethodDifference<3> MaxPenaltyMethodDifference3;
 
 } // QuantPDE
 

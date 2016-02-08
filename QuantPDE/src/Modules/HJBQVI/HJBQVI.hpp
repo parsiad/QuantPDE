@@ -718,7 +718,7 @@ Result solve(int refinement = 0) const {
 			|| this->direct_control();
 
 	// Penalty method
-	PenaltyMethod penalty(
+	MinPenaltyMethod penalty(
 		refined_spatial_grid,
 		*penalized,
 		impulse_policy,
