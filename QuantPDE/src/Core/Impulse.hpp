@@ -3,6 +3,7 @@
 
 #include <array>   // std::array
 #include <cstdint> // std::intmax_t
+#include <tuple>   // std::get
 #include <utility> // std::forward
 
 namespace QuantPDE {
