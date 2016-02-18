@@ -177,6 +177,17 @@ int main(int argc, char **argv) {
 		jump_up_mean_reciprocal = getReal(configuration, "jump_up_mean_reciprocal", 3.0465);
 		jump_down_mean_reciprocal = getReal(configuration, "jump_down_mean_reciprocal", 3.0775);
 		// Exact solution with default parameters is 3.973479 at S = 100
+		//
+		// Tested February 18, 2016
+		//
+		//                  Nodes                  Steps                  Value                 Change                  Ratio       Timing (Seconds)
+		//             265.000000              97.000000           3.970527e+00                    nan                    nan           1.013512e-01
+		//             529.000000             192.000000           3.971451e+00           9.242709e-04                    nan           1.151611e-01
+		//            1057.000000             385.000000           3.972397e+00           9.454750e-04           9.775730e-01           2.142142e-01
+		//            2113.000000             768.000000           3.972930e+00           5.331950e-04           1.773226e+00           6.696262e-01
+		//            4225.000000            1537.000000           3.973203e+00           2.734711e-04           1.949731e+00           2.485634e+00
+		//            8449.000000            3072.000000           3.973340e+00           1.371052e-04           1.994607e+00           1.065884e+01
+		//           16897.000000            6145.000000           3.973409e+00           6.846584e-05           2.002534e+00           4.445562e+01
 	} else {
 		cerr << "error: jump_model can either be \"lognormal\" or \"double_exponential\"" << endl;
 		return 2;
