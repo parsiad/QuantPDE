@@ -17,11 +17,12 @@ using namespace QuantPDE::Modules;
 
 #include <algorithm>     // max, min
 #include <cassert>       // assert
-#include <cmath>         // exp
+#include <cmath>         // ceil, exp
 #include <limits>        // numeric_limits
 #include <numeric>       // accumulate
 #include <tuple>         // tie
 #include <unordered_map> // unordered_map
+#include <vector>        // vector
 
 using namespace std;
 
@@ -29,17 +30,20 @@ using namespace std;
 
 Real
 	T, r, divs, vol, S_0,
-	q_hat, xi, rho,
+	q_hat, spread,
+	prepayment_penalty, liquidation_penalty,
 	lockout_time,
 	liquidation_trigger, margin_call_trigger, post_margin_call_ratio,
 	jump_arrival, up_probability, up_mean_r, down_mean_r
 ;
 bool
 	explicit_impulses,
-	margin_call_enabled, liquidation_enabled,
-	event_at_zero
+	margin_call_enabled, liquidation_enabled
 ;
-int N;
+int
+	N,
+	coupon_payments
+;
 RectilinearGrid1 *grid;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,7 +68,14 @@ inline Real v_similarity_reduction(
 	return v(alpha * s) / alpha;
 }
 
-unordered_map<Real, Real> growth_cache;
+/**
+ * Computes the loan growth factor minus unity for some fixed increment in time.
+ * @param delta A time increment.
+ * @return The growth factor.
+ */
+inline Real growth_delta(Real delta) {
+	return (r+spread) * delta;
+}
 
 /**
  * Computes the loan growth factor for some time.
@@ -72,10 +83,12 @@ unordered_map<Real, Real> growth_cache;
  * @return The growth factor.
  */
 inline Real growth(Real t) {
-	if(growth_cache.count(t) > 0) {
-		return growth_cache[t];
-	}
-	growth_cache[t] = exp((r+xi) * t);
+	// Get last coupon payment time (or initial time)
+	const Real d = (t / T) * (coupon_payments + 1);
+	int n = floor(d);
+	if(n > 0 && abs(n - d) < epsilon) { --n; }
+	const Real t_n = n * (T / (coupon_payments + 1));
+	return 1. + growth_delta(t - t_n);
 }
 
 /**
@@ -97,34 +110,35 @@ inline Real loan_to_value_ratio(Real t, Real s) {
  */
 inline Real client_obstacle(Real t, Real s) {
 	if(t < lockout_time) { return -inf; }
-	return max(s - rho * growth(t) * q_hat, 0. );
+	return max(s - prepayment_penalty * growth(t) * q_hat, 0. );
 }
 
 /**
  * Computes cash flow to the client when the lender performs an action.
  * @param t A time.
  * @param s Collateral value.
- * @param z The control. Zero indicates liquidation, positive indicates a margin
- *          call.
+ * @param control The control. Zero indicates liquidation, positive indicates a
+ *                margin call.
  */
-inline Real flow_to_client(Real t, Real s, Real z) {
+inline Real flow_to_client(Real t, Real s, Real control) {
+
 	const Real g = growth(t);
 
 	// Loan-to-value ratio
-	const Real ratio = g * q_hat / s;
+	const Real ratio = loan_to_value_ratio(t, s);
 
 	if(
 		liquidation_enabled
-		&& z <= epsilon && ratio >= liquidation_trigger
+		&& control <= epsilon && ratio >= liquidation_trigger
 	) {
 		// Liquidate
-		return max(s - g * q_hat, 0.);
+		return max(s - liquidation_penalty * g * q_hat, 0.);
 	} else if(
 		margin_call_enabled
-		&& z > epsilon && ratio >= margin_call_trigger && s > 0.
+		&& control > epsilon && ratio >= margin_call_trigger
 	) {
 		// Margin call
-		return -(g * q_hat - z * s);
+		return -(g * q_hat - control * s);
 	}
 
 	// Cannot issue a margin call or liquidate
@@ -135,11 +149,11 @@ inline Real flow_to_client(Real t, Real s, Real z) {
  * Computes the post margin call loan value.
  * @param t A time.
  * @param s Collateral value.
- * @param z The control.
+ * @param control The control.
  */
-inline Real post_margin_call_loan(Real t, Real s, Real z) {
+inline Real post_margin_call_loan(Real t, Real s, Real control) {
 	const Real g = growth(t);
-	return z * s / g;
+	return control * s / g;
 }
 
 /**
@@ -148,7 +162,8 @@ inline Real post_margin_call_loan(Real t, Real s, Real z) {
  * @return Payoff.
  */
 Real payoff(Real s) {
-	return max(s - growth(T) * q_hat, 0.);
+	const Real coupon_dt = T / (coupon_payments + 1);
+	return max(s - (1. + growth_delta(coupon_dt)) * q_hat, 0.);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -173,7 +188,7 @@ class LenderIntervention final : public RawControlledLinearSystem<1, 1> {
 			const Real s = node[0];
 
 			// Get control
-			const Real z = (this->control(0))(k);
+			const Real control = (this->control(0))(k);
 
 			// Loan-to-value ratio
 			const Real ratio = loan_to_value_ratio(t, s);
@@ -182,7 +197,7 @@ class LenderIntervention final : public RawControlledLinearSystem<1, 1> {
 			if(
 				!(
 					margin_call_enabled
-					&& z > epsilon
+					&& control > epsilon
 					&& ratio >= margin_call_trigger
 				)
 			) {
@@ -191,7 +206,11 @@ class LenderIntervention final : public RawControlledLinearSystem<1, 1> {
 			}
 
 			// Loan value after margin call
-			const Real q_plus = post_margin_call_loan(t, s, z);
+			const Real q_plus = post_margin_call_loan(
+				t,
+				s,
+				control
+			);
 
 			// Similarity reduction factor
 			const Real alpha = q_hat / q_plus;
@@ -224,10 +243,10 @@ class LenderIntervention final : public RawControlledLinearSystem<1, 1> {
 			const Real s = node[0];
 
 			// Get control
-			const Real z = (this->control(0))(k);
+			const Real control = (this->control(0))(k);
 
 			// Flow to client due to lender action
-			b(k) = flow_to_client(t, s, z);
+			b(k) = flow_to_client(t, s, control);
 
 			++k;
 		}
@@ -268,8 +287,7 @@ ResultsTuple1 run(int k) {
 	ToleranceIteration tolerance;
 
 	// Explicit events
-	const int n0 = event_at_zero ? 0 : 1;
-	for(int n = n0; n < Nck; ++n) { // Skip n = Nck as it has no effect
+	for(int n = 0; n < Nck; ++n) { // Skip n = Nck as it has no effect
 		const Real t = n * dt;
 
 		// Client
@@ -327,6 +345,20 @@ ResultsTuple1 run(int k) {
 		}
 	}
 
+	// Coupon payments
+	const Real coupon_dt = T / (coupon_payments + 1);
+	for(int n = 1; n <= coupon_payments; ++n) {
+		const Real t = n * coupon_dt;
+
+		stepper.add(
+			t,
+			[=] (const Interpolant1 &v, Real s) {
+				return v(s) - q_hat * growth_delta(coupon_dt);
+			},
+			refined_grid
+		);
+	}
+
 	////////////////////////////////////////////////////////////////////////
 	// Linear system tree
 	////////////////////////////////////////////////////////////////////////
@@ -371,7 +403,8 @@ ResultsTuple1 run(int k) {
 	MaxPenaltyMethod penalty(
 		refined_grid,
 		discretization,
-		policy
+		policy,
+		1e-2 * dt
 	);
 	penalty.setIteration(tolerance);
 
@@ -427,8 +460,9 @@ int main(int argc, char **argv) {
 	vol = getReal(configuration, "volatility", .15);
 	S_0 = getReal(configuration, "asset_price", 100.);
 	q_hat = getReal(configuration, "loan_value", 80.);
-	xi = getReal(configuration, "spread", 0.02);
-	rho = getReal(configuration, "penalty_scaling", 1.);
+	spread = getReal(configuration, "spread", 0.02);
+	prepayment_penalty = getReal(configuration, "prepayment_penalty", 1.);
+	liquidation_penalty = getReal(configuration, "liquidation_penalty", 1.);
 	lockout_time = getReal(configuration, "lockout_time", 0.);
 	liquidation_trigger = getReal(configuration, "liquidation_trigger", 80. / 90.);
 	margin_call_trigger = getReal(configuration, "margin_call_trigger", 80. / 95.);
@@ -441,13 +475,16 @@ int main(int argc, char **argv) {
 	S_max = getReal(configuration, "print_asset_price_maximum", 300.);
 	dS = getReal(configuration, "print_asset_price_step_size", 10.);
 	N = getInt(configuration, "initial_number_of_timesteps", 2);
+	coupon_payments = getInt(configuration, "coupon_payments", 0);
 	explicit_impulses = getInt(configuration, "fully_explicit", false);
-	event_at_zero = getInt(configuration, "apply_event_at_time_zero", true);
 	margin_call_enabled = getInt(configuration, "margin_call_enabled", false);
 	liquidation_enabled = getInt(configuration, "liquidation_enabled", true);
 	RectilinearGrid1 default_grid( S_0 * Axis::special );
 	RectilinearGrid1 tmp = getGrid(configuration, "initial_grid", default_grid);
 	grid = &tmp;
+
+	// Ensure that N is picked appropriately
+	N = max(N, coupon_payments + 1);
 
 	// Print configuration file
 	cerr << configuration << endl << endl;
