@@ -18,13 +18,20 @@ using namespace QuantPDE::Modules;
 #include <algorithm>     // max, min
 #include <cassert>       // assert
 #include <cmath>         // ceil, exp
+#include <fstream>       // ofstream
 #include <limits>        // numeric_limits
+#include <memory>        // unique_ptr
 #include <numeric>       // accumulate
+#include <sstream>       // stringstream
 #include <tuple>         // tie
 #include <unordered_map> // unordered_map
 #include <vector>        // vector
 
 using namespace std;
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define QUANT_PDE_STOCK_LOAN_EXPLICIT_ONLY
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,9 +45,11 @@ Real
 ;
 bool
 	explicit_impulses,
-	margin_call_enabled, liquidation_enabled
+	margin_call_enabled, liquidation_enabled,
+	use_dirty_loan_to_value_ratio
 ;
 int
+	kn, k0,
 	N,
 	coupon_payments
 ;
@@ -98,8 +107,10 @@ inline Real growth(Real t) {
  * @return The ratio.
  */
 inline Real loan_to_value_ratio(Real t, Real s) {
-	const Real g = growth(t);
-	return g * q_hat / s;
+	if(use_dirty_loan_to_value_ratio) {
+		return growth(t) * q_hat / s;
+	}
+	return q_hat / s;
 }
 
 /**
@@ -138,7 +149,10 @@ inline Real flow_to_client(Real t, Real s, Real control) {
 		&& control > epsilon && ratio >= margin_call_trigger
 	) {
 		// Margin call
-		return -(g * q_hat - control * s);
+		if(use_dirty_loan_to_value_ratio) {
+			return -(g * q_hat - control * s);
+		}
+		return -g * (q_hat - control * s);
 	}
 
 	// Cannot issue a margin call or liquidate
@@ -152,8 +166,10 @@ inline Real flow_to_client(Real t, Real s, Real control) {
  * @param control The control.
  */
 inline Real post_margin_call_loan(Real t, Real s, Real control) {
-	const Real g = growth(t);
-	return control * s / g;
+	if(use_dirty_loan_to_value_ratio) {
+		return control * s / growth(t);
+	}
+	return control * s;
 }
 
 /**
@@ -257,7 +273,82 @@ class LenderIntervention final : public RawControlledLinearSystem<1, 1> {
 public:
 
 	template <typename G>
-	LenderIntervention(G &grid) : grid(grid) {}
+	LenderIntervention(G &grid) noexcept : grid(grid) {}
+
+};
+
+class ExplicitEvent : public EventBase {
+
+	const Real t;
+	const RectilinearGrid1 &grid;
+	Vector &control;
+
+	template <typename V>
+	Vector _doEvent(V &&vector) const {
+		const Axis &S = grid[0];
+
+		Vector best = grid.vector();
+
+		for(int i = 0; i < S.size(); ++i) {
+			const Real S_i = S[i];
+
+			// Interpolant
+			PiecewiseLinear1 interpolant(grid, vector);
+
+			// Do nothing
+			const Real continue_i = vector(i);
+
+			// Prepay
+			const Real prepay_i = client_obstacle(t, S_i);
+
+			// Liquidate
+			const Real liquidate_i = flow_to_client(t, S_i, 0.);
+
+			// Margin call
+			const Real margin_call_i = v_similarity_reduction(
+				interpolant, S_i,
+				post_margin_call_loan(
+					t, S_i,
+					post_margin_call_ratio
+				),
+				q_hat
+			) + flow_to_client(t, S_i, post_margin_call_ratio);
+
+			// Saddle point
+			best(i)  = continue_i;
+			control(i) = 0;
+			if(margin_call_i < best(i)) {
+				best(i) = margin_call_i;
+				control(i) = 1;
+			}
+			if(liquidate_i < best(i)) {
+				best(i) = liquidate_i;
+				control(i) = 2;
+			}
+			if(prepay_i > best(i)) {
+				best(i) = prepay_i;
+				control(i) = 3;
+			}
+		}
+
+		return best;
+	}
+
+	virtual Vector doEvent(const Vector &vector) const {
+		return _doEvent(vector);
+	}
+
+	virtual Vector doEvent(Vector &&vector) const {
+		return _doEvent(std::move(vector));
+	}
+
+public:
+
+	template <typename G>
+	ExplicitEvent(Real t, G &grid, Vector &control) noexcept :
+			t(t), grid(grid), control(control) {
+		control.resize(grid.size()); // Size vector
+	}
 
 };
 
@@ -286,10 +377,24 @@ ResultsTuple1 run(int k) {
 	ReverseConstantStepper stepper(0., T, dt);
 	ToleranceIteration tolerance;
 
+	Vector controls[Nck];
+
 	// Explicit events
 	for(int n = 0; n < Nck; ++n) { // Skip n = Nck as it has no effect
 		const Real t = n * dt;
 
+		#ifdef QUANT_PDE_STOCK_LOAN_EXPLICIT_ONLY
+		stepper.add(
+			t,
+			unique_ptr<EventBase>(
+				new ExplicitEvent(
+					t,
+					refined_grid,
+					controls[n]
+				)
+			)
+		);
+		#else
 		// Client
 		stepper.add(
 			t,
@@ -343,6 +448,7 @@ ResultsTuple1 run(int k) {
 				refined_grid
 			);
 		}
+		#endif
 	}
 
 	// Coupon payments
@@ -381,7 +487,12 @@ ResultsTuple1 run(int k) {
 		bsptr = &bs;
 	} else {
 		bsptr = &bsj;
-		bsj.setIteration(stepper);
+		if(explicit_impulses) {
+			bsj.setIteration(tolerance);
+		} else {
+			// Not sure why this works...
+			bsj.setIteration(stepper);
+		}
 	}
 
 	// Discretization
@@ -408,11 +519,22 @@ ResultsTuple1 run(int k) {
 	);
 	penalty.setIteration(tolerance);
 
+	// Penalty on client control
+	/*
+	MinPenaltyMethodDifference1 penalty(
+		refined_grid,
+		discretization,
+		client_obstacle,
+		1e-2 * dt
+	);
+	penalty.setIteration(tolerance);
+	*/
+
 	// Pick root element
+	stepper.setInnerIteration(tolerance);
 	if(explicit_impulses) {
 		root = &discretization;
 	} else {
-		stepper.setInnerIteration(tolerance);
 		root = &penalty;
 	}
 
@@ -428,6 +550,26 @@ ResultsTuple1 run(int k) {
 		*root,        // Root of linear system tree
 		solver        // Linear system solver
 	);
+
+	////////////////////////////////////////////////////////////////////////
+
+	/*
+	// TODO: Incorporate printing controls into ResultsTuple
+	#ifdef QUANT_PDE_STOCK_LOAN_EXPLICIT_ONLY
+	if(k == kn) {
+		ofstream fout("control.txt");
+		for(int n = 0; n < Nck; ++n) {
+			const Real t = n * dt;
+			const Axis &S = refined_grid[0];
+			for(int i = 0; i < S.size(); ++i) {
+				const Real S_i = S[i];
+				Real ctrl = controls[n](i) == 3;
+				fout << t << "\t" << S_i << "\t" << ctrl << endl;
+			}
+		}
+	}
+	#endif
+	*/
 
 	////////////////////////////////////////////////////////////////////////
 
@@ -450,38 +592,43 @@ int main(int argc, char **argv) {
 	Configuration configuration = getConfiguration(argc, argv);
 
 	// Get options
-	int kn, k0;
 	Real S_max, S_min, dS;
-	kn = getInt(configuration, "maximum_refinement", 7);
+	kn = getInt(configuration, "maximum_refinement", 6);
 	k0 = getInt(configuration, "minimum_refinement", 0);
-	T = getReal(configuration, "time_to_expiry", 10.);
+	T = getReal(configuration, "time_to_expiry", 3.);
 	r = getReal(configuration, "interest_rate", .05);
-	divs = getReal(configuration, "dividend_rate", 0.02);
+	divs = getReal(configuration, "dividend_rate", 0);
 	vol = getReal(configuration, "volatility", .15);
 	S_0 = getReal(configuration, "asset_price", 100.);
-	q_hat = getReal(configuration, "loan_value", 80.);
+	q_hat = getReal(configuration, "loan_value", 70.);
 	spread = getReal(configuration, "spread", 0.02);
 	prepayment_penalty = getReal(configuration, "prepayment_penalty", 1.);
 	liquidation_penalty = getReal(configuration, "liquidation_penalty", 1.);
 	lockout_time = getReal(configuration, "lockout_time", 0.);
-	liquidation_trigger = getReal(configuration, "liquidation_trigger", 80. / 90.);
-	margin_call_trigger = getReal(configuration, "margin_call_trigger", 80. / 95.);
+	liquidation_trigger = getReal(configuration, "liquidation_trigger", 70. / 75.);
+	margin_call_trigger = getReal(configuration, "margin_call_trigger", 70. / 90.);
 	jump_arrival = getReal(configuration, "jump_arrival_rate", 0.5);
 	up_probability = getReal(configuration, "jump_up_probability", 0.09);
 	up_mean_r = getReal(configuration, "jump_up_mean_reciprocal", 2.3);
 	down_mean_r = getReal(configuration, "jump_down_mean_reciprocal", 1.8);
-	post_margin_call_ratio = getReal(configuration, "post_margin_call_ratio", 80. / 100.);
+	post_margin_call_ratio = getReal(configuration, "post_margin_call_ratio", 70. / 100.);
 	S_min = getReal(configuration, "print_asset_price_minimum", 0.);
 	S_max = getReal(configuration, "print_asset_price_maximum", 300.);
 	dS = getReal(configuration, "print_asset_price_step_size", 10.);
 	N = getInt(configuration, "initial_number_of_timesteps", 2);
-	coupon_payments = getInt(configuration, "coupon_payments", 0);
-	explicit_impulses = getInt(configuration, "fully_explicit", false);
-	margin_call_enabled = getInt(configuration, "margin_call_enabled", false);
-	liquidation_enabled = getInt(configuration, "liquidation_enabled", true);
-	RectilinearGrid1 default_grid( S_0 * Axis::special );
+	coupon_payments = getInt(configuration, "coupon_payments", 4*T);
+	margin_call_enabled = getBool(configuration, "margin_call_enabled", true);
+	liquidation_enabled = getBool(configuration, "liquidation_enabled", true);
+	use_dirty_loan_to_value_ratio = getBool(configuration, "use_dirty_loan_to_value_ratio", true);
+	RectilinearGrid1 default_grid( S_0 * (Axis { 1e-4 } + Axis::special +  Axis { 1e4 }) );
 	RectilinearGrid1 tmp = getGrid(configuration, "initial_grid", default_grid);
 	grid = &tmp;
+
+	#ifdef QUANT_PDE_STOCK_LOAN_EXPLICIT_ONLY
+	explicit_impulses = true;
+	#else
+	explicit_impulses = getBool(configuration, "explicit_impulses", true);
+	#endif
 
 	// Ensure that N is picked appropriately
 	N = max(N, coupon_payments + 1);
@@ -492,10 +639,10 @@ int main(int argc, char **argv) {
 	// Run and print results
 	ResultsBuffer1 buffer(
 		run,
-		{ "Nodes", "Steps", "Mean Policy Iterations" },
+		{ "Nodes", "Steps", "Mean Fixpt. Iterations" },
 		kn, k0
 	);
-	buffer.addPrintGrid( RectilinearGrid1(Axis::range(S_min, dS, S_max)) );
+	buffer.setPrintGrid( RectilinearGrid1(Axis::range(S_min, dS, S_max)) );
 	buffer.stream();
 
 	return 0;

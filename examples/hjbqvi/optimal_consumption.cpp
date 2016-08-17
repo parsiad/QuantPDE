@@ -73,9 +73,9 @@ int main() {
 	const int control_points = 16;
 
 	// How to handle the control
-	auto method = HJBQVIControlMethod::PENALTY_METHOD;
+	//auto method = HJBQVIControlMethod::PENALTY_METHOD;
 	//auto method = HJBQVIControlMethod::DIRECT_CONTROL;
-	//auto method = HJBQVIControlMethod::EXPLICIT_CONTROL;
+	auto method = HJBQVIControlMethod::EXPLICIT_CONTROL;
 
 	// Maximum level of refinement
 	// Solution and control data are printed at this level of refinement
@@ -126,17 +126,20 @@ int main() {
 
 		// Controlled drift
 		{
-			[=] (Real t, Real w, Real b, Real q) { return 0.; },
+			[=] (Real t, Real w, Real b, Real q) { return mu*w; /* 0. */ },
 			[=] (Real t, Real w, Real b, Real q) {
 				// No consumption at boundaries
-				return (0 < b && b < boundary) ? -q : 0.;
+				return
+					r*b /* 0. */
+					+ ((0 < b && b < boundary) ? -q : 0.)
+				;
 			}
 		},
 
 		// Uncontrolled drift
 		{
-			[=] (Real t, Real w, Real b) { return mu*w; },
-			[=] (Real t, Real w, Real b) { return r*b; }
+			[=] (Real t, Real w, Real b) { return 0. /*mu*w*/; },
+			[=] (Real t, Real w, Real b) { return 0. /*r*b*/; }
 		},
 
 		// Controlled continuous flow

@@ -126,7 +126,7 @@ ResultsTuple1 run(int k) {
 	SparseLUSolver solver;
 
 	auto solution = stepper.solve(
-		refined_grid,    // Domain
+		refined_grid,   // Domain
 		payoff,         // Initial condition
 		discretization, // Root of linear system tree
 		solver          // Linear system solver
@@ -202,7 +202,7 @@ int main(int argc, char **argv) {
 		{ "Nodes", "Steps" },
 		kn, k0
 	);
-	buffer.addPrintGrid( RectilinearGrid1(Axis::range(S_min, dS, S_max)) );
+	buffer.setPrintGrid( RectilinearGrid1(Axis::range(S_min, dS, S_max)) );
 	buffer.stream();
 
 	return 0;

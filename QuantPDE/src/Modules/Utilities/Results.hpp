@@ -67,7 +67,7 @@ public:
 	ResultsBuffer(const ResultsBuffer &that) = delete;
 	ResultsBuffer &operator=(const ResultsBuffer &) = delete;
 
-	void addPrintGrid(const RectilinearGrid<Dimension> &grid) {
+	void setPrintGrid(const RectilinearGrid<Dimension> &grid) {
 		this->grid = std::unique_ptr<RectilinearGrid<Dimension>>(
 				new RectilinearGrid<Dimension>(grid));
 	}

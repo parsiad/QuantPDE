@@ -165,7 +165,7 @@ int main(int argc, char **argv) {
 		{ "Nodes", "Steps", "Mean Policy Iterations" },
 		kn, k0
 	);
-	buffer.addPrintGrid( RectilinearGrid1(Axis::range(S_min, dS, S_max)) );
+	buffer.setPrintGrid( RectilinearGrid1(Axis::range(S_min, dS, S_max)) );
 	buffer.stream();
 
 	return 0;
