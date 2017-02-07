@@ -11,9 +11,6 @@
 // Author: Parsiad Azimzadeh
 ////////////////////////////////////////////////////////////////////////////////
 
-//#define QUANT_PDE_MODULES_HJBQVI_ITERATED_OPTIMAL_STOPPING
-//#define QUANT_PDE_PERMISSIVE
-
 #include <QuantPDE/Core>
 #include <QuantPDE/Modules/HJBQVI>
 
@@ -55,7 +52,7 @@ int main() {
 	const Real q_min = 0.;
 	const Real q_max = 0.07;
 
-	// Expiry time (infinity for corresponding elliptic problem)
+	// Expiry time
 	const Real T = 10.;
 	//const Real T = numeric_limits<Real>::infinity();
 
@@ -73,11 +70,6 @@ int main() {
 
 	// Number of timesteps
 	const int timesteps = 16;
-
-	// How to handle the control
-	auto method = HJBQVIControlMethod::PENALTY_METHOD;
-	//auto method = HJBQVIControlMethod::DIRECT_CONTROL;
-	//auto method = HJBQVIControlMethod::EXPLICIT_CONTROL;
 
 	// Maximum level of refinement
 	// Solution and control data are printed at this level of refinement
@@ -110,6 +102,9 @@ int main() {
 		StochasticControlDimension,
 		ImpulseControlDimension
 	> hjbqvi(
+		// Initial number of timesteps
+		timesteps,
+
 		// Initial spatial grid
 		{ x },
 
@@ -119,86 +114,51 @@ int main() {
 		// Initial impulse control grid
 		{ x_impulse },
 
-		// Expiry
+		// Expiry time
 		T,
 
-		// Discount
-		[=] (Real t, Real x) {
-			return rho;
-		},
+		// Discount factor
+		[=] (Real t, Real x) { return rho; },
 
 		// Volatility
-		{
-			[=] (Real t, Real x) {
-				return sigma;
-			}
-		},
+		{ [=] (Real t, Real x) { return sigma; } },
 
-		// Controlled drift
-		{
-			[=] (Real t, Real x, Real q) {
-				return -a * q;
-			}
-		},
+		// Drift
+		{ [=] (Real t, Real x, Real q) { return -a * q; } },
 
-		// Uncontrolled drift
-		{
-			[=] (Real t, Real x) {
-				return 0.;
-			}
-		},
-
-		// Controlled continuous flow
+		// Continuous cash/utility/etc. flow
 		[=] (Real t, Real x, Real q) {
-			return -q * q * b;
-		},
-
-		// Uncontrolled continuous flow
-		[=] (Real t, Real x) {
 			const Real tmp = max(x - m, 0.);
-			return -tmp * tmp;
+			return - tmp * tmp - q * q * b;
 		},
 
-		// Transition
-		{
-			[=] (Real t, Real x, Real x_new) {
-				return x_new;
-			}
-		},
+		// Impulse transition
+		{ [=] (Real t, Real x, Real x_new) { return x_new; } },
 
-		// Impulse flow
+		// Impulse cash/utility/etc. reward
 		[=] (Real t, Real x, Real x_new) {
 			const Real zeta = x_new - x;
-			// Prune controls for direct control formulation
+
+			// Prune bad controls for direct control scheme
 			if(zeta >= 0.) {
 				return -numeric_limits<Real>::infinity();
 			}
+			// End Prune
+
 			return - lambda * fabs(zeta) - c;
 		},
 
-		// Exit function
-		[=] (Real t, Real x) {
-			return 0.;
-		},
-
-		// Initial number of timesteps
-		timesteps,
-
-		// How to handle the control
-		method,
-
-		// Bounded domain?
-		false,
-
-		// Refine stochastic control?
-		true,
-
-		// Refine impulse control?
-		true,
-
-		// Are the coefficients time independent?
-		true
+		// Cash/utility/etc. reward at expiry
+		[=] (Real t, Real x) { return 0.; }
 	);
+
+	// Scheme to use
+	hjbqvi.usePenalizedScheme();
+	//hjbqvi.useDirectControlScheme();
+	//hjbqvi.useSemiLagrangianScheme();
+
+	// Tell module that coefficients are time independent for optimization
+	hjbqvi.coefficientsAreTimeIndependent();
 
 	// Run
 	HJBQVI_main(

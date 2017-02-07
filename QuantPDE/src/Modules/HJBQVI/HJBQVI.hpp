@@ -18,6 +18,10 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NOTE: Uncomment the lines below to enable iterated optimal stopping
+//#define QUANT_PDE_MODULES_HJBQVI_ITERATED_OPTIMAL_STOPPING
+//#define QUANT_PDE_PERMISSIVE
+
 // TODO: Change names to camelCase to match the rest of the Core code
 // TODO: Delete assignment operator
 
@@ -227,10 +231,11 @@ struct ControlledOperator final : public RawControlledLinearSystem<
 				);
 
 				// Get drifts
-				Real mu = packAndCall<1+Dimension>(
+				/*Real mu = packAndCall<1+Dimension>(
 					hjbqvi.uncontrolled_drift[d],
 					args
-				);
+				);*/
+				Real mu = 0.;
 				if(!hjbqvi.semi_lagrangian()) {
 					mu += packAndCall<
 						1
@@ -312,13 +317,13 @@ struct ControlledOperator final : public RawControlledLinearSystem<
 				hjbqvi.controlled_continuous_flow,
 				args
 			);
-			Real uncontrolled = packAndCall<1+Dimension>(
+			/*Real uncontrolled = packAndCall<1+Dimension>(
 				hjbqvi.uncontrolled_continuous_flow,
 				args
-			);
+			);*/
 
-			b(row) = (hjbqvi.semi_lagrangian() ? 0 : controlled)
-					+ uncontrolled;
+			b(row) = (hjbqvi.semi_lagrangian() ? 0 : controlled);
+					/*+ uncontrolled;*/
 		}
 
 		return b;
@@ -1006,6 +1011,7 @@ Result solve(int refinement = 0) const {
 	template <unsigned N, unsigned M>
 	using ArrayFunction = std::array< Function<N>, M >;
 
+	const int timesteps;
 	const RectilinearGrid<Dimension> spatial_grid;
 
 	const RectilinearGrid<StochasticControlDimension>
@@ -1018,26 +1024,25 @@ Result solve(int refinement = 0) const {
 	const ArrayFunction<1+Dimension, Dimension> volatility;
 	const ArrayFunction<1+Dimension+StochasticControlDimension, Dimension>
 			controlled_drift;
-	const ArrayFunction<1+Dimension, Dimension> uncontrolled_drift;
+	/*const ArrayFunction<1+Dimension, Dimension> uncontrolled_drift;*/
 	const Function<1+Dimension+StochasticControlDimension>
 			controlled_continuous_flow;
-	const Function<1+Dimension> uncontrolled_continuous_flow;
+	/*const Function<1+Dimension> uncontrolled_continuous_flow;*/
 	const ArrayFunction<1+Dimension+ImpulseControlDimension, Dimension>
 			transition;
 	const Function<1+Dimension+ImpulseControlDimension> impulse_flow;
 	const Function<1+Dimension> exit_function;
 
-	const int timesteps;
-	const char handling;
+	/*const*/ char handling;
 
-	const bool bounded_domain;
+	/*const bool bounded_domain;*/
 
-	const bool refine_stochastic_control_grid;
-	const bool refine_impulse_control_grid;
+	/*const*/ bool refine_stochastic_control_grid;
+	/*const*/ bool refine_impulse_control_grid;
 
-	const bool time_independent_coefficients;
+	/*const*/ bool time_independent_coefficients;
 
-	const bool drop_semi_lagrangian_off_grid;
+	/*const*/ bool drop_semi_lagrangian_off_grid;
 
 	const Real target_timestep_relative_error;
 
@@ -1094,6 +1099,7 @@ public:
 	{ return handling & HJBQVIControlMethod::EXPLICIT_CONTROL; }
 
 	HJBQVI(
+		int timesteps,
 		const std::array<Axis, Dimension> &spatial_axes,
 
 		const std::array<Axis, StochasticControlDimension>
@@ -1107,17 +1113,17 @@ public:
 		const ArrayFunction<1+Dimension, Dimension> &volatility,
 		const ArrayFunction<1+Dimension+StochasticControlDimension,
 				Dimension> &controlled_drift,
-		const ArrayFunction<1+Dimension, Dimension> &uncontrolled_drift,
+		/*const ArrayFunction<1+Dimension, Dimension> &uncontrolled_drift,*/
 		const Function<1+Dimension+StochasticControlDimension>
 				&controlled_continuous_flow,
-		const Function<1+Dimension> &uncontrolled_continuous_flow,
+		/*const Function<1+Dimension> &uncontrolled_continuous_flow,*/
 		const std::array<Function<1+Dimension+ImpulseControlDimension>,
 				Dimension> &transition,
 		const Function<1+Dimension+ImpulseControlDimension>
 				&impulse_flow,
-		const Function<1+Dimension> &exit_function,
+		const Function<1+Dimension> &exit_function
 
-		int timesteps,
+		/*
 		int handling = HJBQVIControlMethod::PENALTY_METHOD,
 
 		bool bounded_domain = false,
@@ -1133,7 +1139,9 @@ public:
 
 		Real scaling_factor = 1e-2, // QuantPDE::tolerance,
 		Real iteration_tolerance = QuantPDE::tolerance
+		*/
 	) :
+		timesteps(timesteps),
 		spatial_grid(spatial_axes),
 
 		stochastic_control_grid(stochastic_control_axes),
@@ -1144,29 +1152,28 @@ public:
 		discount(discount),
 		volatility(volatility),
 		controlled_drift(controlled_drift),
-		uncontrolled_drift(uncontrolled_drift),
+		/*uncontrolled_drift(uncontrolled_drift),*/
 		controlled_continuous_flow(controlled_continuous_flow),
-		uncontrolled_continuous_flow(uncontrolled_continuous_flow),
+		/*uncontrolled_continuous_flow(uncontrolled_continuous_flow),*/
 		transition(transition),
 		impulse_flow(impulse_flow),
 		exit_function(exit_function),
 
-		timesteps(timesteps),
-		handling(handling),
+		handling(HJBQVIControlMethod::PENALTY_METHOD),
 
-		bounded_domain(bounded_domain),
+		/*bounded_domain(false),*/
 
-		refine_stochastic_control_grid(refine_stochastic_control_grid),
-		refine_impulse_control_grid(refine_impulse_control_grid),
+		refine_stochastic_control_grid(true),
+		refine_impulse_control_grid(true),
 
-		time_independent_coefficients(time_independent_coefficients),
+		time_independent_coefficients(false),
 
-		drop_semi_lagrangian_off_grid(drop_semi_lagrangian_off_grid),
+		drop_semi_lagrangian_off_grid(false),
 
-		target_timestep_relative_error(target_timestep_relative_error),
+		target_timestep_relative_error(-1.),
 
-		scaling_factor(scaling_factor),
-		iteration_tolerance(iteration_tolerance)
+		scaling_factor(1e-2),
+		iteration_tolerance(QuantPDE::tolerance)
 	{
 		// TODO: Proper exceptions
 
@@ -1176,10 +1183,12 @@ public:
 		const bool variable_timesteps =
 				target_timestep_relative_error > 0.;
 
+		/*
 		if(bounded_domain) {
 			// TODO: Implement
 			throw "error: bounded domain not yet implemented";
 		}
+		*/
 
 		if(expiry <= 0.) {
 			throw "error: expiry must be positive";
@@ -1220,6 +1229,14 @@ public:
 		#endif
 	}
 
+	void usePenalizedScheme()      { handling = HJBQVIControlMethod::PENALTY_METHOD;   }
+	void useDirectControlScheme()  { handling = HJBQVIControlMethod::DIRECT_CONTROL;   }
+	void useSemiLagrangianScheme() { handling = HJBQVIControlMethod::EXPLICIT_CONTROL; }
+	void disableStochasticControlRefinement() { refine_stochastic_control_grid = false; }
+	void disableImpulseControlRefinement() { refine_impulse_control_grid = false; }
+	void coefficientsAreTimeIndependent() { time_independent_coefficients = true; }
+	void ignoreExtrapolatoryControls() { drop_semi_lagrangian_off_grid = true; }
+
 };
 
 #define QUANT_PDE_MODULES_HJBQVI_BOUNDARY_SIGNATURE \
@@ -1240,10 +1257,11 @@ template <
 Real HJBQVILinearBoundary(QUANT_PDE_MODULES_HJBQVI_BOUNDARY_SIGNATURE) {
 
 	// Get drifts
-	Real mu = packAndCall<1+Dimension>(
+	/*Real mu = packAndCall<1+Dimension>(
 		hjbqvi.uncontrolled_drift[d],
 		args
-	);
+	);*/
+	Real mu = 0.;
 	if(!hjbqvi.semi_lagrangian()) {
 		mu += packAndCall<
 			1
@@ -1271,10 +1289,11 @@ Real HJBQVIZeroDiffusionRightBoundary(
 	const Real dxb = x[ i[d] ] - x[ i[d] - 1 ];
 
 	// Get drifts
-	Real mu = packAndCall<1+Dimension>(
+	/*Real mu = packAndCall<1+Dimension>(
 		hjbqvi.uncontrolled_drift[d],
 		args
-	);
+	);*/
+	Real mu = 0.;
 	if(!hjbqvi.semi_lagrangian()) {
 		mu += packAndCall<
 			1

@@ -58,8 +58,8 @@ int main() {
 	const Real k = 0.1;
 
 	// Transaction cost
-	//const Real c = 0;
-	const Real c = 0.01;
+	const Real c = 0;
+	//const Real c = 0.01;
 
 	// Initial payment
 	const Real w_0 = 100.;
@@ -70,17 +70,11 @@ int main() {
 	// Initial number of impulse control points
 	const int control_points = 3;
 
-	// How to handle the control
-	auto method = HJBQVIControlMethod::PENALTY_METHOD;
-	//auto method = HJBQVIControlMethod::DIRECT_CONTROL;
-	//auto method = HJBQVIControlMethod::EXPLICIT_CONTROL;
-
 	// Maximum level of refinement
 	// Solution and control data are printed at this level of refinement
 	const int max_refinement = 6;
 
 	// Use Newton's method to determine fair fee
-	//const bool newton = true;
 	const bool newton = false;
 
 	// Problem description
@@ -89,6 +83,9 @@ int main() {
 		StochasticControlDimension,
 		ImpulseControlDimension
 	> hjbqvi(
+		// Initial number of timesteps
+		timesteps,
+
 		// Initial spatial grid
 		{
 			// Hand-picked axis, 65 points used in [2]
@@ -117,10 +114,10 @@ int main() {
 		// Initial impulse control grid
 		{ Axis::uniform(0., 1., control_points) }, // DOES get refined
 
-		// Expiry
+		// Expiry time
 		T,
 
-		// Discount
+		// Discount factor
 		[=] (Real t, Real w, Real a) { return r; },
 
 		// Volatility
@@ -129,11 +126,11 @@ int main() {
 			[=] (Real t, Real w, Real a) { return 0.; }
 		},
 
-		// Controlled drift
+		// Drift
 		{
 			[=] (Real t, Real w, Real a, Real q) {
 				// No continuous withdrawal at boundaries
-				return (0. < a) ? -q : 0.;
+				return (r - eta) * w + ((0. < a) ? -q : 0.);
 			},
 			[=] (Real t, Real w, Real a, Real q) {
 				// No continuous withdrawal at boundaries
@@ -141,22 +138,13 @@ int main() {
 			}
 		},
 
-		// Uncontrolled drift
-		{
-			[=,&eta] (Real t, Real w, Real a) { return (r-eta)*w; },
-			[=] (Real t, Real w, Real a) { return 0.; }
-		},
-
-		// Controlled continuous flow
+		// Continuous cash/utility/etc. flow
 		[=] (Real t, Real w, Real a, Real q) {
 			// No continuous withdrawal at boundaries
 			return (0. < a) ? q : 0.;
 		},
 
-		// Uncontrolled continuous flow
-		[=] (Real t, Real w, Real a) { return 0.; },
-
-		// Transition
+		// Impulse transition
 		{
 			[=] (Real t, Real w, Real a, Real zeta_frac) {
 				const Real zeta = zeta_frac * a;
@@ -168,42 +156,35 @@ int main() {
 			}
 		},
 
-		// Impulse flow
+		// Impulse cash/utility/etc. reward
 		[=] (Real t, Real w, Real a, Real zeta_frac) {
 			const Real zeta = zeta_frac * a;
 
-			// Precludes jumps to same node (otherwise direct
-			// control will not work)
+			// Prune bad controls for direct control scheme
 			const Real w_plus = max(w - zeta, 0.);
 			const Real a_plus = a - zeta;
 			if( (w - w_plus) + (a - a_plus) < QuantPDE::epsilon ) {
 				return -numeric_limits<Real>::infinity();
 			}
+			// End prune
 
 			return (1-k) * zeta - c;
 		},
 
-		// Exit function
-		[=] (Real t, Real w, Real a) { return max(w, (1-k) * a - c); },
-
-		// Initial number of timesteps
-		timesteps,
-
-		// How to handle the control
-		method,
-
-		// Bounded domain?
-		false,
-
-		// Refine stochastic control?
-		false,
-
-		// Refine impulse control?
-		true,
-
-		// Are the coefficients time independent?
-		true
+		// Cash/utility/etc. reward at expiry
+		[=] (Real t, Real w, Real a) { return max(w, (1-k) * a - c); }
 	);
+
+	// Scheme to use
+	hjbqvi.usePenalizedScheme();
+	//hjbqvi.useDirectControlScheme();
+	//hjbqvi.useSemiLagrangianScheme();
+
+	// Tell module not to refine the stochastic control grid
+	hjbqvi.disableStochasticControlRefinement();
+
+	// Tell module that coefficients are time independent for optimization
+	hjbqvi.coefficientsAreTimeIndependent();
 
 	// Linear boundary condition as w -> infinity
 	hjbqvi.right_boundary(
@@ -228,8 +209,6 @@ int main() {
 
 	if(newton) { goto newton; }
 
-	////////////////////////////////////////////////////////////////////////
-
 	// Run
 	HJBQVI_main(
 		hjbqvi,
@@ -239,7 +218,9 @@ int main() {
 
 	return 0;
 
-	////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+// NEWTON'S METHOD TO COMPUTE FAIR FEE /////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 newton:
 

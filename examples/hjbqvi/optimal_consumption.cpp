@@ -103,6 +103,9 @@ int main() {
 		StochasticControlDimension,
 		ImpulseControlDimension
 	> hjbqvi(
+		// Initial number of timesteps
+		timesteps,
+
 		// Initial spatial grid
 		{ axis, axis },
 
@@ -112,10 +115,10 @@ int main() {
 		// Initial impulse control grid
 		{ Axis::uniform(0., 1., control_points) },
 
-		// Expiry
+		// Expiry time
 		T,
 
-		// Discount
+		// Discount factor
 		[=] (Real t, Real w, Real b) { return rho; },
 
 		// Volatility
@@ -124,34 +127,25 @@ int main() {
 			[=] (Real t, Real w, Real b) { return 0.; }
 		},
 
-		// Controlled drift
+		// Drift
 		{
-			[=] (Real t, Real w, Real b, Real q) { return mu*w; /* 0. */ },
+			[=] (Real t, Real w, Real b, Real q) { return mu * w; },
 			[=] (Real t, Real w, Real b, Real q) {
 				// No consumption at boundaries
 				return
-					r*b /* 0. */
+					r * b
 					+ ((0 < b && b < boundary) ? -q : 0.)
 				;
 			}
 		},
 
-		// Uncontrolled drift
-		{
-			[=] (Real t, Real w, Real b) { return 0. /*mu*w*/; },
-			[=] (Real t, Real w, Real b) { return 0. /*r*b*/; }
-		},
-
-		// Controlled continuous flow
+		// Continuous cash/utility/etc. flow
 		[=] (Real t, Real w, Real b, Real q) {
 			// No consumption at boundaries
 			return (0 < b && b < boundary) ? pow(q, gamma)/gamma:0.;
 		},
 
-		// Uncontrolled continuous flow
-		[=] (Real t, Real w, Real b) { return 0.; },
-
-		// Transition
+		// Impulse transition
 		{
 			[=] (Real t, Real w, Real b, Real zeta_frac) {
 				const Real zeta = zeta_bounded(t,w,b,zeta_frac);
@@ -163,11 +157,10 @@ int main() {
 			}
 		},
 
-		// Impulse flow
+		// Impulse cash/utility/etc. reward
 		[=] (Real t, Real w, Real b, Real zeta_frac) {
 
-			// Precludes jumps to same node (otherwise direct
-			// control will not work)
+			// Prune bad controls for direct control scheme
 			const Real zeta = zeta_bounded(t,w,b,zeta_frac);
 			const Real w_plus = w + zeta;
 			const Real b_plus = b - zeta - lambda * fabs(zeta) - c;
@@ -178,38 +171,28 @@ int main() {
 			) {
 				return -numeric_limits<Real>::infinity();
 			}
+			// End prune
 
 			return 0.;
 		},
 
-		// Exit function
+		// Cash/utility/etc. reward at expiry
 		[=] (Real t, Real w, Real b) {
 			const Real liquidate = max(b + (1-lambda) * w - c, 0.);
 			return pow(liquidate, gamma) / gamma;
-		},
-
-		// Initial number of timesteps
-		timesteps,
-
-		// How to handle the control
-		method,
-
-		// Bounded domain?
-		false,
-
-		// Refine stochastic control?
-		true,
-
-		// Refine impulse control?
-		true,
-
-		// Are the coefficients time independent?
-		true,
-
-		// If consuming q takes x_k off the grid, do not assume that x_k
-		// is capped at the nearest grid node. Instead, disregard q.
-		true
+		}
 	);
+
+	// Scheme to use
+	hjbqvi.usePenalizedScheme();
+	//hjbqvi.useDirectControlScheme();
+	//hjbqvi.useSemiLagrangianScheme();
+
+	// Tell module that coefficients are time independent for optimization
+	hjbqvi.coefficientsAreTimeIndependent();
+
+	// Tell module to ignore controls that move the state off the grid
+	hjbqvi.ignoreExtrapolatoryControls();
 
 	// Run
 	HJBQVI_main(
@@ -217,17 +200,6 @@ int main() {
 		{ w_0, b_0 }, // Convergence test at (w=w_0, b=b_0)
 		max_refinement
 	);
-
-	// Plots
-	/*
-	const int plot_refinement = 2;
-	hjbqvi.solve(plot_refinement);
-	RectilinearGrid2 printGrid(
-		Axis::uniform( 0., 45.2, 200 ),
-		Axis::uniform( 0., 45.2, 200 )
-	);
-	cout << accessor(printGrid, V);
-	*/
 
 	return 0;
 
