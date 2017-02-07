@@ -30,7 +30,7 @@
 
 namespace QuantPDE {
 
-typedef Eigen::SparseMatrix<Real>::Index Index;
+typedef Eigen::SparseMatrix<Real>::StorageIndex Index;
 
 typedef Eigen::Matrix<Real, Eigen::Dynamic, 1> Vector;
 typedef Eigen::SparseMatrix<Real, Eigen::RowMajor> Matrix;
