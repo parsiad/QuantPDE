@@ -53,7 +53,7 @@ int main() {
 	// 1 - relative risk aversion
 	const Real gamma = 0.3;
 
-	// Scaled transaction cost
+	// Scaled transaction cost (0 <= lambda < 1)
 	const Real lambda = 0.1;
 
 	// Fixed transaction cost
@@ -82,14 +82,20 @@ int main() {
 	const Axis axis = Axis::uniform(0., boundary, spatial_points);
 
 	// Gets the value of an impulse control
-	auto zeta_bounded = [=] (Real t, Real w, Real b, Real zeta_frac) {
-		const Real lo = max( -w, -(boundary-b+c)/(1-lambda) );
-		const Real hi = min( (b-c)/(1+lambda), boundary-w );
-		if(lo > hi) {
-			// No impulse
-			return 0.;
-		}
-		return zeta_frac * (hi - lo) + lo;
+	auto z_bounded = [=] (Real t, Real w, Real b, Real z_frac) {
+		const Real tmp1 = b-c;
+		const Real tmp2 = tmp1-boundary;
+		const Real lo = max(
+			-w,
+			(tmp2 > 0) ? (tmp2/(1 - lambda)) : (tmp2/(1 + lambda))
+		);
+		const Real hi = min(
+			boundary-w,
+			(tmp1 > 0) ? (tmp1/(1 + lambda)) : (tmp1/(1 - lambda))
+		);
+		const Real z = z_frac * (hi - lo) + lo;
+		if(fabs(z) < QuantPDE::epsilon) { return 0.; }
+		return z;
 	};
 
 	// Problem description
@@ -142,32 +148,21 @@ int main() {
 
 		// Impulse transition
 		{
-			[=] (Real t, Real w, Real b, Real zeta_frac) {
-				const Real zeta = zeta_bounded(t,w,b,zeta_frac);
-				return w + zeta;
+			[=] (Real t, Real w, Real b, Real z_frac) {
+				const Real z = z_bounded(t,w,b,z_frac);
+				return w + z;
 			},
-			[=] (Real t, Real w, Real b, Real zeta_frac) {
-				const Real zeta = zeta_bounded(t,w,b,zeta_frac);
-				return b - zeta - lambda * fabs(zeta) - c;
+			[=] (Real t, Real w, Real b, Real z_frac) {
+				const Real z = z_bounded(t,w,b,z_frac);
+				return b - z - lambda * fabs(z) - c;
 			}
 		},
 
 		// Impulse cash/utility/etc. reward
-		[=] (Real t, Real w, Real b, Real zeta_frac) {
-
-			// Prune bad controls for direct control scheme
-			const Real zeta = zeta_bounded(t,w,b,zeta_frac);
-			const Real w_plus = w + zeta;
-			const Real b_plus = b - zeta - lambda * fabs(zeta) - c;
-			if(
-				fabs(w - w_plus) + fabs(b - b_plus)
-						< QuantPDE::epsilon
-				|| zeta == 0.
-			) {
-				return -numeric_limits<Real>::infinity();
-			}
-			// End prune
-
+		[=] (Real t, Real w, Real b, Real z_frac) {
+			// Impulse
+			const Real z = z_bounded(t,w,b,z_frac);
+			if(z==0.) { return -numeric_limits<Real>::infinity(); }
 			return 0.;
 		},
 

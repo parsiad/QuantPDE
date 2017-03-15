@@ -34,8 +34,8 @@ int main() {
 	constexpr int ImpulseControlDimension = 1;
 
 	// Boundaries
-	const Real x_min = -6.;
-	const Real x_max = +6.;
+	const Real x_min = -2.;
+	const Real x_max = +2.;
 
 	// Number of points to use in discretizations
 	const int stochastic_control_points = 9;
@@ -49,8 +49,8 @@ int main() {
 	const Real m = 0.;
 
 	// Interest rate differential bounds
-	const Real q_min = 0.;
-	const Real q_max = 0.07;
+	const Real q_min = -0.07; // 0
+	const Real q_max = +0.07;
 
 	// Expiry time
 	const Real T = 10.;
@@ -128,7 +128,7 @@ int main() {
 
 		// Continuous cash/utility/etc. flow
 		[=] (Real t, Real x, Real q) {
-			const Real tmp = max(x - m, 0.);
+			const Real tmp = x - m; //max(x - m, 0.);
 			return - tmp * tmp - q * q * b;
 		},
 
@@ -137,15 +137,13 @@ int main() {
 
 		// Impulse cash/utility/etc. reward
 		[=] (Real t, Real x, Real x_new) {
-			const Real zeta = x_new - x;
-
 			// Prune bad controls for direct control scheme
-			if(zeta >= 0.) {
+			if(abs(x_new - m) >= abs(x - m)) {
 				return -numeric_limits<Real>::infinity();
 			}
 			// End Prune
 
-			return - lambda * fabs(zeta) - c;
+			return - lambda * fabs(x_new - x) - c;
 		},
 
 		// Cash/utility/etc. reward at expiry

@@ -146,29 +146,29 @@ int main() {
 
 		// Impulse transition
 		{
-			[=] (Real t, Real w, Real a, Real zeta_frac) {
-				const Real zeta = zeta_frac * a;
-				return max(w - zeta, 0.);
+			[=] (Real t, Real w, Real a, Real z_frac) {
+				const Real z = z_frac * a;
+				return max(w - z, 0.);
 			},
-			[=] (Real t, Real w, Real a, Real zeta_frac) {
-				const Real zeta = zeta_frac * a;
-				return a - zeta;
+			[=] (Real t, Real w, Real a, Real z_frac) {
+				const Real z = z_frac * a;
+				return a - z;
 			}
 		},
 
 		// Impulse cash/utility/etc. reward
-		[=] (Real t, Real w, Real a, Real zeta_frac) {
-			const Real zeta = zeta_frac * a;
+		[=] (Real t, Real w, Real a, Real z_frac) {
+			const Real z = z_frac * a;
 
 			// Prune bad controls for direct control scheme
-			const Real w_plus = max(w - zeta, 0.);
-			const Real a_plus = a - zeta;
+			const Real w_plus = max(w - z, 0.);
+			const Real a_plus = a - z;
 			if( (w - w_plus) + (a - a_plus) < QuantPDE::epsilon ) {
 				return -numeric_limits<Real>::infinity();
 			}
 			// End prune
 
-			return (1-k) * zeta - c;
+			return (1-k) * z - c;
 		},
 
 		// Cash/utility/etc. reward at expiry
