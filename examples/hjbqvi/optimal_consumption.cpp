@@ -13,6 +13,11 @@
 // Author: Parsiad Azimzadeh
 ////////////////////////////////////////////////////////////////////////////////
 
+// Uncomment for stochastic volatility
+//#define SV 1
+
+////////////////////////////////////////////////////////////////////////////////
+
 #include <QuantPDE/Core>
 #include <QuantPDE/Modules/HJBQVI>
 
@@ -29,8 +34,13 @@ using namespace std;
 
 int main() {
 
-	// Dimensions
+	#ifdef SV
+	constexpr int Dimension = 3;
+	#else
 	constexpr int Dimension = 2;
+	#endif
+
+	// Dimensions
 	constexpr int StochasticControlDimension = 1;
 	constexpr int ImpulseControlDimension = 1;
 
@@ -76,10 +86,17 @@ int main() {
 	// Solution and control data are printed at this level of refinement
 	const int max_refinement = 6;
 
-	// Used for both dimensions
+	// Used for both account dimensions
 	const Real boundary = 200.;
 	const int spatial_points = 20;
 	const Axis axis = Axis::uniform(0., boundary, spatial_points);
+	const Axis volatility_axis = Axis::uniform(0., 1., spatial_points);
+
+	// Volatility parameters
+	const Real volvol = 0.4;   // Volatility of volatility
+	const Real kappa  = 5.;    // Mean reversion speed
+	const Real theta  = sigma; // Mean
+	const Real v_0    = theta;
 
 	// Gets the value of an impulse control
 	auto z_bounded = [=] (Real t, Real w, Real b, Real z_frac) {
@@ -98,6 +115,12 @@ int main() {
 		return z;
 	};
 
+	#ifdef SV
+	#define ARGS Real w, Real b, Real v
+	#else
+	#define ARGS Real w, Real b
+	#endif
+
 	// Problem description
 	HJBQVI<
 		Dimension,
@@ -108,7 +131,11 @@ int main() {
 		timesteps,
 
 		// Initial spatial grid
+		#ifdef SV
+		{ axis, axis, volatility_axis },
+		#else
 		{ axis, axis },
+		#endif
 
 		// Initial stochastic control grid
 		{ Axis::uniform(0., q_max, control_points) },
@@ -120,54 +147,67 @@ int main() {
 		T,
 
 		// Discount factor
-		[=] (Real t, Real w, Real b) { return rho; },
+		[=] (Real t, ARGS) { return rho; },
 
 		// Volatility
 		{
-			[=] (Real t, Real w, Real b) { return sigma * w; },
-			[=] (Real t, Real w, Real b) { return 0.; }
+			#ifdef SV
+			[=] (Real t, ARGS) { return sqrt(v) * w; },
+			[=] (Real t, ARGS) { return 0.; },
+			[=] (Real t, ARGS) { return volvol * sqrt(v); }
+			#else
+			[=] (Real t, ARGS) { return sigma * w; },
+			[=] (Real t, ARGS) { return 0.; }
+			#endif
 		},
 
 		// Drift
 		{
-			[=] (Real t, Real w, Real b, Real q) { return mu * w; },
-			[=] (Real t, Real w, Real b, Real q) {
+			[=] (Real t, ARGS, Real q) { return mu * w; },
+			[=] (Real t, ARGS, Real q) {
 				// No consumption at boundaries
 				return
 					r * b
 					+ ((0 < b && b < boundary) ? -q : 0.)
 				;
 			}
+			#ifdef SV
+			, [=] (Real t, ARGS, Real q) {
+				return kappa * (theta - v);
+			}
+			#endif
 		},
 
 		// Continuous cash/utility/etc. flow
-		[=] (Real t, Real w, Real b, Real q) {
+		[=] (Real t, ARGS, Real q) {
 			// No consumption at boundaries
 			return (0 < b && b < boundary) ? pow(q, gamma)/gamma:0.;
 		},
 
 		// Impulse transition
 		{
-			[=] (Real t, Real w, Real b, Real z_frac) {
+			[=] (Real t, ARGS, Real z_frac) {
 				const Real z = z_bounded(t,w,b,z_frac);
 				return w + z;
 			},
-			[=] (Real t, Real w, Real b, Real z_frac) {
+			[=] (Real t, ARGS, Real z_frac) {
 				const Real z = z_bounded(t,w,b,z_frac);
 				return b - z - lambda * fabs(z) - c;
 			}
+			#ifdef SV
+			, [=] (Real t, ARGS, Real z_frac) { return v; }
+			#endif
 		},
 
 		// Impulse cash/utility/etc. reward
-		[=] (Real t, Real w, Real b, Real z_frac) {
+		[=] (Real t, ARGS, Real z_frac) {
 			// Impulse
 			const Real z = z_bounded(t,w,b,z_frac);
-			if(z==0.) { return -numeric_limits<Real>::infinity(); }
-			return 0.;
+			return z == 0. ? -numeric_limits<Real>::infinity() : 0.;
 		},
 
 		// Cash/utility/etc. reward at expiry
-		[=] (Real t, Real w, Real b) {
+		[=] (Real t, ARGS) {
 			const Real liquidate = max(b + (1-lambda) * w - c, 0.);
 			return pow(liquidate, gamma) / gamma;
 		}
@@ -187,7 +227,14 @@ int main() {
 	// Run
 	HJBQVI_main(
 		hjbqvi,
-		{ w_0, b_0 }, // Convergence test at (w=w_0, b=b_0)
+
+		// Convergence test at (w=w_0, b=b_0, v=v_0)
+		#ifdef SV
+		{ w_0, b_0, v_0 },
+		#else
+		{ w_0, b_0 },
+		#endif
+
 		max_refinement
 	);
 
