@@ -30,7 +30,7 @@
 
 namespace QuantPDE {
 
-#if EIGEN_VERSION_AT_LEAST(3,3,2)
+#if EIGEN_VERSION_AT_LEAST(3,2,90)
 typedef Eigen::SparseMatrix<Real>::StorageIndex Index;
 #else
 typedef Eigen::SparseMatrix<Real>::Index Index;
