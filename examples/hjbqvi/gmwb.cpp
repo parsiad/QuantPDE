@@ -180,6 +180,10 @@ int main() {
 	//hjbqvi.useDirectControlScheme();
 	//hjbqvi.useSemiLagrangianScheme();
 
+	// Linear solver to use
+	hjbqvi.useBiCGSTABSolver();
+	//hjbqvi.useSparseLUSolver();
+
 	// Tell module not to refine the stochastic control grid
 	hjbqvi.disableStochasticControlRefinement();
 

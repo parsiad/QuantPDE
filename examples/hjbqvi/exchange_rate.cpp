@@ -155,6 +155,10 @@ int main() {
 	//hjbqvi.useDirectControlScheme();
 	//hjbqvi.useSemiLagrangianScheme();
 
+	// Linear solver to use
+	hjbqvi.useBiCGSTABSolver();
+	//hjbqvi.useSparseLUSolver();
+
 	// Tell module that coefficients are time independent for optimization
 	hjbqvi.coefficientsAreTimeIndependent();
 

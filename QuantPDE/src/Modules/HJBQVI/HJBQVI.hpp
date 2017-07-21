@@ -40,6 +40,11 @@ struct HJBQVIControlMethod {
 			| (1 << 4);
 };
 
+struct HJBQVISolver {
+	static constexpr char BICGSTAB = 1;
+	static constexpr char SPARSE_LU = 1 << 1;
+};
+
 template <
 	Index Dimension = 1,
 	Index StochasticControlDimension = 1,
@@ -770,7 +775,12 @@ Result solve(int refinement = 0) const {
 	}
 
 	// Linear system solver
-	BiCGSTABSolver solver;
+	LinearSolver *solver;
+	if(this->bicgstab()) {
+		solver = new BiCGSTABSolver;
+	} else if(this->sparse_lu()) {
+		solver = new SparseLUSolver;
+	}
 
 	// Bind exit function to expiry time to get payoff
 	auto cauchy_data = curry<Dimension+1>(
@@ -794,7 +804,7 @@ Result solve(int refinement = 0) const {
 			refined_spatial_grid,
 			cauchy_data,
 			*root,
-			solver
+			*solver
 		);
 		solution_vector = refined_spatial_grid.image(u);
 
@@ -864,10 +874,8 @@ Result solve(int refinement = 0) const {
 				;
 
 				// Solve Ax=b
-				((LinearSolver *) &solver)->initialize(
-					tmp->A(t_implicit)
-				);
-				u_this[n] = solver.solve(
+				solver->initialize(tmp->A(t_implicit));
+				u_this[n] = solver->solve(
 					tmp->b(t_implicit),
 					*previous
 				);
@@ -959,7 +967,7 @@ Result solve(int refinement = 0) const {
 				0.) / its.size();
 	}
 
-	auto its = solver.iterations();
+	auto its = solver->iterations();
 	Real mean_solver_iterations = std::accumulate(its.begin(), its.end(),
 			0.) / its.size();
 
@@ -982,6 +990,8 @@ Result solve(int refinement = 0) const {
 		scaling_factor_dt = std::nan("");
 		iteration_tolerance = std::nan("");
 	}
+
+	delete solver;
 
 	// Return
 	return Result(
@@ -1034,6 +1044,7 @@ Result solve(int refinement = 0) const {
 	const Function<1+Dimension> exit_function;
 
 	/*const*/ char handling;
+	char solver;
 
 	/*const bool bounded_domain;*/
 
@@ -1098,6 +1109,12 @@ public:
 	bool explicit_control() const
 	{ return handling & HJBQVIControlMethod::EXPLICIT_CONTROL; }
 
+	bool bicgstab() const
+	{ return solver & HJBQVISolver::BICGSTAB; }
+
+	bool sparse_lu () const
+	{ return solver & HJBQVISolver::SPARSE_LU; }
+
 	HJBQVI(
 		int timesteps,
 		const std::array<Axis, Dimension> &spatial_axes,
@@ -1160,6 +1177,7 @@ public:
 		exit_function(exit_function),
 
 		handling(HJBQVIControlMethod::PENALTY_METHOD),
+		solver(HJBQVISolver::BICGSTAB),
 
 		/*bounded_domain(false),*/
 
@@ -1229,13 +1247,15 @@ public:
 		#endif
 	}
 
-	void usePenalizedScheme()      { handling = HJBQVIControlMethod::PENALTY_METHOD;   }
-	void useDirectControlScheme()  { handling = HJBQVIControlMethod::DIRECT_CONTROL;   }
+	void usePenalizedScheme() { handling = HJBQVIControlMethod::PENALTY_METHOD;   }
+	void useDirectControlScheme() { handling = HJBQVIControlMethod::DIRECT_CONTROL;   }
 	void useSemiLagrangianScheme() { handling = HJBQVIControlMethod::EXPLICIT_CONTROL; }
 	void disableStochasticControlRefinement() { refine_stochastic_control_grid = false; }
 	void disableImpulseControlRefinement() { refine_impulse_control_grid = false; }
 	void coefficientsAreTimeIndependent() { time_independent_coefficients = true; }
 	void ignoreExtrapolatoryControls() { drop_semi_lagrangian_off_grid = true; }
+	void useBiCGSTABSolver() { solver = HJBQVISolver::BICGSTAB; }
+	void useSparseLUSolver() { solver = HJBQVISolver::SPARSE_LU; }
 
 };
 
