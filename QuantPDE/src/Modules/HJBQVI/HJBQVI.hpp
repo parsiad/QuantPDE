@@ -629,7 +629,7 @@ Result solve(int refinement = 0) const {
 	}
 
 	const Real dt = this->expiry / timesteps;
-	Real scaling_factor_dt = scaling_factor * dt;
+	Real scaling_factor_dt = finite_horizon ? scaling_factor * dt : 1.;
 
 	ToleranceIteration tolerance_iteration(iteration_tolerance);
 

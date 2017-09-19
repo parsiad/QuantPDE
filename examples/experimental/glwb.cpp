@@ -28,7 +28,7 @@ using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-Real *R;
+Real *R, *P;
 
 class GLWBOperator : public BlackScholes1 {
 
@@ -48,9 +48,9 @@ public:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-Real r, vol, S_0, management_rate, withdrawal_rate, penalty_rate;
+Real r, vol, S_0, management_rate, withdrawal_rate, bonus_rate;
 int N, T, kn, k0;
-RectilinearGrid1 *grid, *mortality;
+RectilinearGrid1 *grid, *mortality, *penalty_rates;
 
 // Used to store the optimal control
 Vector optimal_control;
@@ -67,6 +67,7 @@ ResultsTuple1 run(int k) {
 
 	SparseLUSolver solver;
 	typedef ReverseBDFTwo Discretization;
+    //typedef ReverseBDFOne Discretization;
 
 	////////////////////////////////////////////////////////////////////////
 
@@ -85,7 +86,7 @@ ResultsTuple1 run(int k) {
 			const Real GQ = withdrawal_rate * Q;
 
 			// Nonwithdrawal
-			Real best = V(S);
+			Real best = (1. + bonus_rate) * V(S / (1. + bonus_rate));
 			int optimal_control = 0;
 
 			// Withdraw
@@ -100,7 +101,10 @@ ResultsTuple1 run(int k) {
 
 			// Surrender
 			if(S > GQ) {
-				const Real tmp = R[n] * (GQ + (1. - penalty_rate) * (S - GQ));
+				const Real tmp = R[n] * (
+					GQ
+					+ ( 1. - (*penalty_rates)[0][n-1] ) * (S - GQ)
+				);
 				if(tmp > best) {
 					best = tmp;
 					optimal_control = 2;
@@ -108,9 +112,9 @@ ResultsTuple1 run(int k) {
 			}
 
 			// Print optimal control
-			if(k == kn && n == 4) {
+			/*if(k == kn && n == 1) {
 				cerr << S << "\t" << optimal_control << endl;
-			}
+			}*/
 
 			return best;
 		};
@@ -146,7 +150,7 @@ int main(int argc, char **argv) {
 	S_0 = getReal(configuration, "asset_price", 100.);
 	management_rate = getReal(configuration, "management_rate", .015);
 	withdrawal_rate = getReal(configuration, "withdrawal_rate", .05);
-	penalty_rate = getReal(configuration, "penalty_rate", .01);
+	bonus_rate = getReal(configuration, "bonus_rate", .06);
 	S_min = getReal(configuration, "print_asset_price_minimum", 0.);
 	S_max = getReal(configuration, "print_asset_price_maximum", S_0 * 2.);
 	dS = getReal(configuration, "print_asset_price_step_size", S_0 / 10.);
@@ -180,8 +184,26 @@ int main(int argc, char **argv) {
 	R = new Real[T+1]; // R[0], ..., R[T]
 	R[0] = 1.;
 	for(int n = 1; n <= T; ++n) {
-		R[n] = R[n-1] * (1. - (*mortality)[0][n]);
+		R[n] = R[n-1] * (1. - (*mortality)[0][n-1]);
 	}
+
+	// Default penalty rates
+	RectilinearGrid1 default_penalty( Axis {
+		0.03, 0.02, 0.01, 0., 0.,
+		0., 0., 0., 0., 0.,
+		0., 0., 0., 0., 0.,
+		0., 0., 0., 0., 0.,
+		0., 0., 0., 0., 0.,
+		0., 0., 0., 0., 0.,
+		0., 0., 0., 0., 0.,
+		0., 0., 0., 0., 0.,
+		0., 0., 0., 0., 0.,
+		0., 0., 0., 0., 0.,
+		0., 0., 0., 0., 0.,
+		0., 0.
+	} );
+	RectilinearGrid1 tmp3 = getGrid(configuration, "penalty_data", default_penalty);
+	penalty_rates = &tmp3;
 
 	// Print configuration file
 	cerr << configuration << endl << endl;
