@@ -13,11 +13,6 @@
 // Author: Parsiad Azimzadeh
 ////////////////////////////////////////////////////////////////////////////////
 
-// Uncomment for stochastic volatility
-//#define SV 1
-
-////////////////////////////////////////////////////////////////////////////////
-
 #include <QuantPDE/Core>
 #include <QuantPDE/Modules/HJBQVI>
 
@@ -34,11 +29,7 @@ using namespace std;
 
 int main() {
 
-	#ifdef SV
-	constexpr int Dimension = 3;
-	#else
 	constexpr int Dimension = 2;
-	#endif
 
 	// Dimensions
 	constexpr int StochasticControlDimension = 1;
@@ -92,12 +83,6 @@ int main() {
 	const Axis axis = Axis::uniform(0., boundary, spatial_points);
 	const Axis volatility_axis = Axis::uniform(0., 1., spatial_points);
 
-	// Volatility parameters
-	const Real volvol = 0.4;   // Volatility of volatility
-	const Real kappa  = 5.;    // Mean reversion speed
-	const Real theta  = sigma; // Mean
-	const Real v_0    = theta;
-
 	// Gets the value of an impulse control
 	auto z_bounded = [=] (Real t, Real w, Real b, Real z_frac) {
 		const Real tmp1 = b-c;
@@ -115,12 +100,6 @@ int main() {
 		return z;
 	};
 
-	#ifdef SV
-	#define ARGS Real w, Real b, Real v
-	#else
-	#define ARGS Real w, Real b
-	#endif
-
 	// Problem description
 	HJBQVI<
 		Dimension,
@@ -131,11 +110,7 @@ int main() {
 		timesteps,
 
 		// Initial spatial grid
-		#ifdef SV
-		{ axis, axis, volatility_axis },
-		#else
 		{ axis, axis },
-		#endif
 
 		// Initial stochastic control grid
 		{ Axis::uniform(0., q_max, control_points) },
@@ -147,67 +122,53 @@ int main() {
 		T,
 
 		// Discount factor
-		[=] (Real t, ARGS) { return rho; },
+		[=] (Real t, Real w, Real b) { return rho; },
 
 		// Volatility
 		{
-			#ifdef SV
-			[=] (Real t, ARGS) { return sqrt(v) * w; },
-			[=] (Real t, ARGS) { return 0.; },
-			[=] (Real t, ARGS) { return volvol * sqrt(v); }
-			#else
-			[=] (Real t, ARGS) { return sigma * w; },
-			[=] (Real t, ARGS) { return 0.; }
-			#endif
+			[=] (Real t, Real w, Real b) { return sigma * w; },
+			[=] (Real t, Real w, Real b) { return 0.; }
 		},
 
 		// Drift
 		{
-			[=] (Real t, ARGS, Real q) { return mu * w; },
-			[=] (Real t, ARGS, Real q) {
+			[=] (Real t, Real w, Real b, Real q) { return mu * w; },
+			[=] (Real t, Real w, Real b, Real q) {
 				// No consumption at boundaries
 				return
 					r * b
 					+ ((0 < b && b < boundary) ? -q : 0.)
 				;
 			}
-			#ifdef SV
-			, [=] (Real t, ARGS, Real q) {
-				return kappa * (theta - v);
-			}
-			#endif
 		},
 
 		// Continuous cash/utility/etc. flow
-		[=] (Real t, ARGS, Real q) {
+		[=] (Real t, Real w, Real b, Real q) {
 			// No consumption at boundaries
 			return (0 < b && b < boundary) ? pow(q, gamma)/gamma:0.;
 		},
 
 		// Impulse transition
 		{
-			[=] (Real t, ARGS, Real z_frac) {
+			[=] (Real t, Real w, Real b, Real z_frac) {
 				const Real z = z_bounded(t,w,b,z_frac);
 				return w + z;
 			},
-			[=] (Real t, ARGS, Real z_frac) {
+			[=] (Real t, Real w, Real b, Real z_frac) {
 				const Real z = z_bounded(t,w,b,z_frac);
 				return b - z - lambda * fabs(z) - c;
 			}
-			#ifdef SV
-			, [=] (Real t, ARGS, Real z_frac) { return v; }
-			#endif
 		},
 
 		// Impulse cash/utility/etc. reward
-		[=] (Real t, ARGS, Real z_frac) {
+		[=] (Real t, Real w, Real b, Real z_frac) {
 			// Impulse
 			const Real z = z_bounded(t,w,b,z_frac);
 			return z == 0. ? -numeric_limits<Real>::infinity() : 0.;
 		},
 
 		// Cash/utility/etc. reward at expiry
-		[=] (Real t, ARGS) {
+		[=] (Real t, Real w, Real b) {
 			const Real liquidate = max(b + (1-lambda) * w - c, 0.);
 			return pow(liquidate, gamma) / gamma;
 		}
@@ -232,12 +193,8 @@ int main() {
 	HJBQVI_main(
 		hjbqvi,
 
-		// Convergence test at (w=w_0, b=b_0, v=v_0)
-		#ifdef SV
-		{ w_0, b_0, v_0 },
-		#else
+		// Convergence test at (w=w_0, b=b_0)
 		{ w_0, b_0 },
-		#endif
 
 		max_refinement
 	);
