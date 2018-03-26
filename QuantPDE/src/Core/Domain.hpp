@@ -1084,10 +1084,12 @@ public:
 	/**
 	 * A refined grid constructed as follows: for each pair of adjacent tick
 	 * on each axis, a new tick is placed in between them.
-	 * @param times Number of times to refine (default is 0).
+	 * @param times Number of times to refine (default is 1).
+	 * @param mask An unsigned integer whose k-th bit is 1 if and only if
+	               the k-th axis should be ignored in the refinement.
 	 * @return A refined grid.
 	 */
-	RectilinearGrid refined(int times = 1) const {
+	RectilinearGrid refined(int times = 1, unsigned int mask = 0) const {
 		// If no refinemenent is requested, return the original grid
 		assert(times >= 0);
 		if(times <= 0) {
@@ -1114,16 +1116,17 @@ public:
 			}
 			*/
 
+			// If the k-th axis is too small to be refined or if the
+			// user has specified that it should be ignored, skip it
+			if(n.size() < 2 || (mask & (1 << k))) {
+				m = n;
+				continue;
+			}
+
 			// 2^(t - 1)
 			int tmp = 2;
 			for(int i = 1; i < times; ++i) {
 				tmp *= 2;
-			}
-
-			// If the axis is too small to be refined, copy it
-			if(n.size() < 2) {
-				m = n;
-				continue;
 			}
 
 			// Create axis; size 2^t * |n| - 2^(t-1)

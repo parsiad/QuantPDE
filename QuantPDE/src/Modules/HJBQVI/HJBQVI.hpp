@@ -595,7 +595,10 @@ Result solve(int refinement = 0) const {
 	const bool variable_timesteps = target_timestep_relative_error > 0.;
 
 	// Refine grids
-	auto refined_spatial_grid = this->spatial_grid.refined(refinement);
+	auto refined_spatial_grid = this->spatial_grid.refined(
+		refinement,
+		refinement_mask
+	);
 
 	auto refined_stochastic_control_grid =
 			this->stochastic_control_grid.refined(
@@ -1043,17 +1046,7 @@ Result solve(int refinement = 0) const {
 	const Function<1+Dimension+ImpulseControlDimension> impulse_flow;
 	const Function<1+Dimension> exit_function;
 
-	/*const*/ char handling;
-	char solver;
-
 	/*const bool bounded_domain;*/
-
-	/*const*/ bool refine_stochastic_control_grid;
-	/*const*/ bool refine_impulse_control_grid;
-
-	/*const*/ bool time_independent_coefficients;
-
-	/*const*/ bool drop_semi_lagrangian_off_grid;
 
 	const Real target_timestep_relative_error;
 
@@ -1074,6 +1067,18 @@ private:
 
 	boundary_routine lboundary[Dimension];
 	boundary_routine rboundary[Dimension];
+
+	/*const*/ char handling;
+	char solver;
+
+	/*const*/ bool refine_stochastic_control_grid;
+	/*const*/ bool refine_impulse_control_grid;
+
+	/*const*/ bool time_independent_coefficients;
+
+	/*const*/ bool drop_semi_lagrangian_off_grid;
+
+	int refinement_mask;
 
 public:
 
@@ -1176,10 +1181,15 @@ public:
 		impulse_flow(impulse_flow),
 		exit_function(exit_function),
 
+		/*bounded_domain(false),*/
+
+		target_timestep_relative_error(-1.),
+
+		scaling_factor(1e-2),
+		iteration_tolerance(QuantPDE::tolerance),
+
 		handling(HJBQVIControlMethod::PENALTY_METHOD),
 		solver(HJBQVISolver::BICGSTAB),
-
-		/*bounded_domain(false),*/
 
 		refine_stochastic_control_grid(true),
 		refine_impulse_control_grid(true),
@@ -1188,10 +1198,7 @@ public:
 
 		drop_semi_lagrangian_off_grid(false),
 
-		target_timestep_relative_error(-1.),
-
-		scaling_factor(1e-2),
-		iteration_tolerance(QuantPDE::tolerance)
+		refinement_mask(0)
 	{
 		// TODO: Proper exceptions
 
@@ -1256,6 +1263,7 @@ public:
 	void ignoreExtrapolatoryControls() { drop_semi_lagrangian_off_grid = true; }
 	void useBiCGSTABSolver() { solver = HJBQVISolver::BICGSTAB; }
 	void useSparseLUSolver() { solver = HJBQVISolver::SPARSE_LU; }
+	void doNotRefineAxis(int k) { refinement_mask |= (1 << k); }
 
 };
 
@@ -1473,4 +1481,3 @@ typename HJBQVI<
 } // namespace QuantPDE
 
 #endif
-
