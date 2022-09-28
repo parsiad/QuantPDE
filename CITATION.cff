@@ -1,0 +1,7 @@
+cff-version: 1.2.0
+authors:
+  - family-names: Azimzadeh
+    given-names: Parsiad
+date-released: 2014-04-30
+title: "QuantPDE"
+url: https://github.com/parsiad/QuantPDE
