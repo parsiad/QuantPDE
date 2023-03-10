@@ -2,6 +2,8 @@
   <img alt="QuantPDE" src="https://github.com/parsiad/QuantPDE/blob/master/logo.png?raw=true">
 </p>
 
+<a href="https://github.com/parsiad/QuantPDE"><img alt="GitHub" src="https://img.shields.io/badge/github-%23121011.svg?logo=github"></a>
+
 A high-performance, open-source, header-only C++(>=11) library for pricing derivatives.
 
 More generally, QuantPDE can also be used to solve [Hamilton-Jacobi-Bellman](https://en.wikipedia.org/wiki/Hamilton%E2%80%93Jacobi%E2%80%93Bellman_equation) (HJB) equations and quasi-variational inequalities (HJBQVI).
